@@ -14,6 +14,9 @@ safelife-pro/
 **/dist/
 **/build/
 **/.expo/
+**/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Env files
 **/.env

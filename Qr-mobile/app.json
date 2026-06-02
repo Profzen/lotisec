@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "SafeLife",
+    "slug": "safelife",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/Safe_icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/SafeLife.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#006a4e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.safelife.togo",
+      "splash": {
+        "image": "./assets/SafeLife.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#006a4e"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/SafeLife.png",
+        "backgroundColor": "#006a4e"
+      },
+      "package": "com.safelife.togo",
+      "splash": {
+        "image": "./assets/SafeLife.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#006a4e"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#006a4e",
+          "image": "./assets/SafeLife.png",
+          "imageWidth": 200
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "16ee73cc-4920-413b-8d7b-95f0b73e1efc"
+      }
+    },
+    "owner": "remakdev"
+  }
+}
