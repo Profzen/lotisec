@@ -144,6 +144,9 @@ Notes: si le backend distant `https://safelife.up.railway.app` est accessible, l
 - 2026-06-02 — Mobile: profils EAS `development/preview/production` enrichis avec `EXPO_PUBLIC_API_URL` et ajout de `Qr-mobile/.env.example`.
 - 2026-06-02 — Déploiement Vercel multi-services préparé via `vercel.json` racine: `frontend` sur `/` et `backend` sur `/api`.
 - 2026-06-02 — Frontend web aligné pour appeler `/api` par défaut (`frontend/src/api/client.ts`).
+- 2026-06-02 — Ajustement pour déploiement Vercel en 2 projets séparés: frontend pointe désormais par défaut vers `https://lotisec-backend.vercel.app`.
+- 2026-06-02 — Backend rendu compatible Vercel Serverless via `backend/api/index.ts` + `backend/vercel.json` + factorisation `backend/src/app.ts`.
+- 2026-06-02 — Gestion tolérante de l'absence `DATABASE_URL` pour éviter crash immédiat de la fonction; diagnostic visible sur `/health`.
 
 ## 12. Prochaines actions recommandées
 - Initialiser la nouvelle structure repo unifiée orientée cible (`backend/`, app web, mobile Expo).

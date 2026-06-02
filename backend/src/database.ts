@@ -5,18 +5,21 @@ dotenv.config();
 
 const databaseUrl = process.env.DATABASE_URL;
 
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is missing. Create a .env based on .env.example');
-}
+const pool = databaseUrl
+  ? new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    })
+  : null;
 
-export const pool = new Pool({
-  connectionString: databaseUrl,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
+export { pool };
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params: any[] = []
 ): Promise<QueryResult<T>> {
+  if (!pool) {
+    throw new Error('DATABASE_URL is missing. Set it in Vercel Project Settings > Environment Variables.');
+  }
   return pool.query<T>(text, params);
 }
