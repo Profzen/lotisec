@@ -1,3 +1,4 @@
+import 'express-async-errors';
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
@@ -49,5 +50,13 @@ app.use('/alertes', alertesRouter);
 app.use('/geo', geodecisionRouter);
 app.use('/road-reports', roadReportsRouter);
 app.use('/responders', respondersRouter);
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Keep backend errors explicit in JSON to simplify frontend diagnosis.
+  const detail = err?.message || 'Internal server error';
+  // eslint-disable-next-line no-console
+  console.error('Unhandled API error:', err);
+  res.status(500).json({ detail });
+});
 
 export default app;

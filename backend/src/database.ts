@@ -9,6 +9,8 @@ const pool = databaseUrl
   ? new Pool({
       connectionString: databaseUrl,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 10000,
     })
   : null;
 

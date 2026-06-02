@@ -147,6 +147,7 @@ Notes: si le backend distant `https://safelife.up.railway.app` est accessible, l
 - 2026-06-02 — Ajustement pour déploiement Vercel en 2 projets séparés: frontend pointe désormais par défaut vers `https://lotisec-backend.vercel.app`.
 - 2026-06-02 — Backend rendu compatible Vercel Serverless via `backend/api/index.ts` + `backend/vercel.json` + factorisation `backend/src/app.ts`.
 - 2026-06-02 — Gestion tolérante de l'absence `DATABASE_URL` pour éviter crash immédiat de la fonction; diagnostic visible sur `/health`.
+- 2026-06-02 — Correctif anti-504 backend: ajout de `express-async-errors`, middleware d'erreur JSON global, et timeout de connexion PostgreSQL (5s).
 
 ## 12. Prochaines actions recommandées
 - Initialiser la nouvelle structure repo unifiée orientée cible (`backend/`, app web, mobile Expo).
