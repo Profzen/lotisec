@@ -1,0 +1,30 @@
+# Root ignores for the new unified repository
+
+# Keep old Python backend locally but never push it
+QR-PYTHON/
+
+# Colleague-owned dashboard repo (do not touch/push in new repo)
+safelife-pro/
+
+# Node
+**/node_modules/
+**/npm-debug.log*
+
+# Builds
+**/dist/
+**/build/
+**/.expo/
+
+# Env files
+**/.env
+**/.env.local
+**/.env.production.local
+**/.env.development.local
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Nested git metadata from old cloned repos
+**/.git/

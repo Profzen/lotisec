@@ -1,0 +1,479 @@
+ 
+
+LOTISEC 
+Localisation · Transmission · Identification · Sécurité · Cartographie 
+───────────────────────────── 
+BRIEFING TECHNIQUE COMPLET 
+Équipe de Développement — Document de Référence 
+Version 1.0  ·  Togo  ·  2025 
+
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+ 
+Périmètre 	Toutes composantes : Mobile Android, Backend Node.js, Web (Scan QR + Dashboards), USSD, Guidage éwé 
+Territoire 	République Togolaise — Lomé et corridors routiers nationaux 
+Stack principale 	React Native · Node.js/TypeScript · PostgreSQL/PostGIS · React · Leaflet · WebSocket 
+Production 	backend: safelife.up.railway.app  |  dashboard: safelife-pro.vercel.app 
+Classification 	Document Confidentiel — Usage Interne Équipe Technique & Décideurs 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+1. CONTEXTE ET VISION DU PROJET 
+Problématique, chiffres clés, périmètre de la solution 	
+ 
+LOTISEC est une plateforme d'urgence routière développée au Togo qui couvre toute la chaîne de secours : du moment de l'accident jusqu'à la prise en charge hospitalière. Elle fonctionne sur smartphone, sur feature phone sans data via USSD, et s'appuie sur un réseau communautaire de conducteurs de zémidjan pour cartographier les zones dangereuses en temps réel. 
+ 
+1.1  Chiffres Clés — Contexte Togolais 
+ 
+Indicateur 	Valeur 	Impact 
+Décès routiers annuels au Togo 	Plus de 1 500 	Urgence 	de 	santé 	publique majeure 
+Décès 	liés 	à 	l'absence 
+d'identification 	60 % des cas 	Délai de prise en charge critique 
+Part des accidents impliquant un zémidjan 	70 % à Lomé 	Cible 	prioritaire 	du 	réseau sentinelle 
+Témoins sans smartphone en zone péri-urbaine 	70 % 	Justifie le canal USSD *123# 
+ 
+1.2  Problèmes Résolus 
+•	Victime inconsciente : aucun secouriste ne connaît son groupe sanguin, ses allergies ni ses contacts d'urgence. 
+•	Alerte tardive : les proches ne sont prévenus que si un témoin pense à appeler — délai moyen de 30 minutes. 
+•	Absence de cartographie : aucune donnée géographique sur les zones à risque pour guider les décideurs publics. 
+•	Mobilité zémidjan non sécurisée : pas de traçabilité ni de couverture d'urgence pour les conducteurs de moto-taxi. 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+2. STACK TECHNIQUE RETENUE 
+Technologies, déploiement et statut par composante 	
+ 
+Couche 	Technologie 		Déploiement 	Statut 
+Mobile Android 	React Native + Expo 54 		APK via EAS Build 	En cours 
+Backend API 	Node.js 	+ 	Express 
+TypeScript 	+ 	Railway.com 	Migration 	en cours 
+Base de données 	PostgreSQL + PostGIS 		Railway.com 	Opérationnel 
+Dashboard Pro 	React 	+ 	TypeScript 
+Tailwind CSS v3 	+ 	Vercel 	Déployé 
+Page scan QR 	React + TypeScript 		Vercel 	(qr-web-
+dbap.vercel.app) 	Déployé 
+WebSocket 	temps 
+réel 	ws (Node.js) 	Railway 	(même 
+serveur) 	En cours 
+Cartographie 	Leaflet + leaflet.heat + PostGIS 	Intégré au dashboard 	À développer 
+USSD 	Africa's Talking API (*123#) 	API externe 	Phase 2 
+Mobile Money 	T-Money / Flooz API 	API externe 	Phase 2 
+Guidage vocal offline 	OSRM + Mapbox SDK + phrases éwé/kabyè 	Bundle mobile 	Phase 3 
+ 
+2.1  URLs de Production 
+•	Backend Railway : https://safelife.up.railway.app (Python, en migration Node.js) 
+•	Dashboard Pro : https://safelife-pro.vercel.app 
+•	Page scan QR : https://qr-web-dbap.vercel.app/scan/:token 
+ 
+2.2  Dépôts GitHub 
+•	QR-mobile/ — Application React Native + Expo (Android prioritaire, iOS Phase 2) 
+•	safelife-pro/ — Dashboard professionnel React + Tailwind 
+•	safelife-backend-node/ — Backend Node.js (en cours de création) 
+•	qr-web/ — Page publique de scan QR 
+ 
+ 
+
+LOTISEC  |  Briefing Technique Complet 		Version 1.0 · Togo · 2025 
+ 	 		
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 		Page 4 
+ 
+Toutes les tables sont hébergées sur Railway PostgreSQL. L'extension PostGIS doit être activée avant tout déploiement : 
+ 
+CREATE EXTENSION IF NOT EXISTS postgis; 
+ 
+CREATE TABLE IF NOT EXISTS medical_facilities (   id        SERIAL PRIMARY KEY,   nom   
+VARCHAR(255) NOT NULL,   latitude  FLOAT NOT NULL,   longitude FLOAT NOT NULL,   adresse   VARCHAR(500),   telephone VARCHAR(50),   type      VARCHAR(50) DEFAULT 
+'public',   geom      geometry(Point, 4326) );  CREATE TABLE IF NOT EXISTS 
+road_reports (   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),   user_id     
+UUID,   latitude    FLOAT NOT NULL,   longitude   FLOAT NOT NULL,   type_danger 
+VARCHAR(100) DEFAULT 'route_degradee',   description VARCHAR(500),   statut      VARCHAR(50) DEFAULT 'en_attente',   recompense  INTEGER DEFAULT 150,   
+recompense_versee BOOLEAN DEFAULT FALSE,   timestamp   TIMESTAMPTZ DEFAULT NOW() );  CREATE TABLE IF NOT EXISTS responders (   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),   nom        VARCHAR(255) NOT NULL,   type       VARCHAR(50) 
+DEFAULT 'ambulance',   telephone  VARCHAR(50),   latitude   FLOAT,   longitude  FLOAT,  disponible BOOLEAN DEFAULT TRUE,   score      FLOAT DEFAULT 5.0,   updated_at TIMESTAMPTZ DEFAULT NOW() ); 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+
+BASE DE DONNÉES POSTGRESQL + POSTGIS 
+Schéma des tables, extensions spatiales, SQL de création 
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 	Page 5 
+3.1  Tables Existantes 
+Table 	Contenu 	Statut 
+users 	Téléphone/email, mot de passe hashé (bcrypt), 
+JWT 	Créée 
+profiles 	Identité, médical (groupe sanguin, électrophorèse, allergies), véhicule, école, is_insured 	Créée 
+emergency_contacts 	Nom, téléphone, relation — lié à profiles via user_id 	Créée 
+scans 	GPS, IP, horodatage, niveau accès (public/pro), lié au profil 	Créée 
+accident_events 	GPS, heure, véhicule, gravité, qr_token, geom (PostGIS) 	Créée 
+alerte_events 	SOS temps réel — GPS, prenom, groupe sanguin, statut, geom 	Créée 
+ 
+3.2  Tables à Créer (SQL Railway Query) 
+
+LOTISEC  |  Briefing Technique Complet 		Version 1.0 · Togo · 2025 
+ 
+ 	 		
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 		Page 6 
+ 
+Fichier 	Contenu 	Statut 
+src/screens/SplashScreen.tsx 	Logo animé + drapeau togolais (vert/jaune/rouge) 	Terminé
+src/screens/LandingScreen.tsx 	Fond 	vert, 	Safe+Life 	en 	jaune, 	boutons connexion/inscription 	Terminé
+src/screens/LoginScreen.tsx 	Formulaire email + mot de passe + JWT 	Terminé
+src/screens/RegisterScreen.tsx 	Entrée dans le tunnel d'inscription 5 étapes 	Terminé
+src/screens/register/Step1Identity.tsx 	Prénom, nom, date naissance, nationalité 	Terminé
+src/screens/register/Step2Contacts.tsx 	Contacts d'urgence (nom, téléphone, relation) 	Terminé
+src/screens/register/Step3Medical.tsx 	Groupe sanguin 	Terminé
+src/screens/register/Step4Vehicle.tsx 	Type véhicule, immatriculation, permis 	Terminé
+src/screens/register/Step5Review.tsx 	Récapitulatif + confirmation + génération QR token 	Terminé
+src/screens/HomeScreen.tsx 	SOS animé, QR code, contacts urgence, historique scans 	Terminé
+src/screens/HospitauxScreen.tsx 	Hôpitaux GPS, filtres, carte Maps, Haversine 	Terminé
+src/screens/ConseilsScreen.tsx 	Conseils sécurité routière, FlatList, images Unsplash 	Terminé
+src/screens/ProfilePanel.tsx 	Panneau profil, thème sombre/clair, déconnexion 	Terminé
+src/navigation/AppNavigator.tsx 	Stack 	: 
+Splash→Landing→Login→Register→Steps→MainTabs 	Terminé
+src/theme/colors.ts 	Palette couleurs (vert togolais #007A3D, danger #D21034...) 	Terminé
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+4. APPLICATION MOBILE — QR-mobile/ 
+React Native + Expo 54 · Android prioritaire · iOS Phase 2 	
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 	Page 7 
+Stack : React Native + Expo 54.0.34, TypeScript strict, React Navigation (Stack + Bottom Tabs), expo-location, async-storage, react-native-qrcode-svg, expo-print, expo-sharing, @expo-googlefonts/montserrat. 
+ 
+4.1  Structure des Fichiers 
+ 
+ 
+4.2  Fonctionnement du Bouton SOS (HomeScreen.tsx) 
+Appui long 800 ms → vibration → GPS haute précision (expo-location) → Promise.allSettled vers : 
+ 
+•	POST /accidents — enregistre l'accident pour la cartographie géodécisionnelle. 
+•	POST /alertes — déclenche le broadcast WebSocket vers tous les dashboards connectés. 
+ 
+Puis envoi WhatsApp automatique à tous les contacts d'urgence avec lien Google Maps + groupe sanguin, suivi d'une proposition d'appel au 118. 
+ 
+4.3  Fonctionnalités à Développer — Phase 2 & 3 
+•	Pilier 4 — Hôpital recommandé : après SOS, afficher bandeau « Hôpital recommandé : CHU — 8 min » via GET /geo/hopital-proche. 
+•	Signalement danger (zémidjan) : formulaire de signalement danger routier via POST /road-reports. 
+•	Micro-assurance : bouton souscrire via T-Money/Flooz + champ is_insured dans le profil. 
+•	Navigation offline éwé : OSRM local + phrases vocales pré-enregistrées (Phase 3 — voir Section 11). 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 	
+src/theme/typography.ts 	Montserrat (Regular/Medium/SemiBold/Bold) 		Terminé
+src/api/profil.ts 	Appels API profil (GET/POST/PUT) 		Terminé
+ 	 
+Page 
+ 
+URL de production : https://qr-web-dbap.vercel.app/scan/:token — accessible sans application, depuis n'importe quel smartphone qui scanne le QR code de la victime. 
+ 
+5.1  Niveaux d'Accès 
+Niveau 	Qui y accède 	Données affichées 
+Public 	(sans 
+code) 	Tout citoyen / témoin d'accident 	Prénom, nom, photo, contacts d'urgence, bouton appel direct, lien 
+Google Maps position GPS 
+Professionnel 	Code institutionnel requis (SAMU-CHU-0812, POMPIERSLME-118, POLICE-LME-4471, 
+AMBU-BE-0021) 	Profil médical complet : groupe sanguin, électrophorèse, allergies, médicaments, maladies chroniques, handicap 
+ 
+5.2  Exigences Techniques 
+•	Responsive mobile-first : 90 % des accès se font depuis un smartphone en situation d'urgence. 
+LOTISEC  |  Briefing Technique Complet 		Version 1.0 · Togo · 2025 
+	
+5. PAGE PUBLIQUE DE SCAN QR — qr-web/ 
+Interface citizen-first | /scan/:token | Sans application ni inscription 	
+•	Chargement rapide : temps de chargement inférieur à 2 secondes même sur connexion 3G. 
+•	Actions directes : bouton « Appeler ce contact » ouvrant le téléphone, bouton « Position GPS » ouvrant Google Maps. 
+•	Capture GPS silencieuse : récupération automatique des coordonnées du témoin dès ouverture de la page, transmises au backend. 
+•	Design LOTISEC : couleurs officielles (vert #007A3D, rouge #D21034, fond blanc). 
+ 
+ 	 
+Page 
+ 
+Migration depuis FastAPI Python. Même base PostgreSQL Railway, mêmes URLs de production, mêmes formats JSON. Le mobile et le dashboard ne voient aucune différence lors du basculement. 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+
+BACKEND NODE.JS — safelife-backend-node/ 
+Migration depuis FastAPI Python · Express + TypeScript · Railway 
+6.1  Structure des Fichiers à Créer 
+Fichier 	Contenu 
+src/index.ts 	Serveur Express + WebSocket server sur /ws/alertes + montage de tous les routers 
+src/database.ts 	Pool PostgreSQL (pg) avec SSL en production + helper query() 
+src/middleware/auth.ts 	Vérification JWT (jsonwebtoken) + middleware optionnel 
+src/routers/auth.ts 	POST /auth/register, POST /auth/login (bcryptjs + JWT) 
+src/routers/profil.ts 	GET/POST/PUT /profil + GET /profil/scan/:token (fiche QR) 
+src/routers/scan.ts 	POST /scan — enregistrer un scan avec GPS + niveau accès 
+src/routers/accidents.ts 	POST /accidents, GET /accidents/geojson, /stats 
+src/routers/proAuth.ts 	POST /pro/login — authentification dashboard professionnel 
+src/routers/alertes.ts 	POST/GET /alertes + WebSocket ConnectionManager + broadcast 
+src/routers/geodecision.ts 	GET 	/geo/heatmap, 	/hotspots, 	/hopital-proche, 	/stats, /accidents-zone, /rapport 
+src/routers/roadReports.ts 	POST/GET /road-reports — signalements sentinelles zémidjan 
+src/routers/responders.ts 	GET/PUT /responders — ambulances partenaires + position temps réel 
+ 
+6.2  Dépendances npm à Installer 
+# Dépendances production npm install express pg jsonwebtoken bcryptjs zod ws cors dotenv uuid  # Dépendances développement npm install --save-dev typescript ts-node nodemon \   @types/express @types/pg @types/jsonwebtoken \   @types/bcryptjs @types/ws @types/cors @types/uuid @types/node 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+ 
+6.3  Variables d'Environnement (.env) 	
+DATABASE_URL=postgresql://postgres:XXXX@railway.internal:5432/railway JWT_SECRET=lotisec_secret_2025 PORT=8000 NODE_ENV=production 
+ 
+6.4  Endpoints Géodécisionnels Prioritaires 
+Endpoint 	Méthode 	Description 
+/geo/heatmap?days=90 	GET 	Points GPS pour heatmap Leaflet — 
+[[lat,lng,intensite],...] 
+/geo/hotspots?days=90&seuil=2 	GET 	Zones à risque détectées avec niveau CRITIQUE/ELEVE/MODERE et rayon en mètres 
+/geo/hopitalproche?lat=X&lng=Y 	GET 	Les 3 hôpitaux les plus proches avec distance_km et temps de trajet estimé 
+/geo/stats?days=30 	GET 	Total accidents, zones touchées, véhicule dominant, zone la plus dangereuse 
+/geo/accidents-
+zone?lat=X&lng=Y&rayon_km=1 	GET 	Requête spatiale ST_DWithin PostGIS — accidents dans un rayon donné 
+/geo/rapport?days=30 	GET 	Export JSON/CSV anonymisé pour Ministère Transports / INSEED 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+
+7. DASHBOARD PROFESSIONNEL — safelife-pro/ 
+React + TypeScript + Tailwind CSS v3 · Vercel · Codes institutionnels 
+ 
+Interface d'administration et de supervision en temps réel dédiée aux secouristes et régulateurs. 
+Déployé 	sur 	Vercel. 	Variable 	d'environnement 	: 	REACT_APP_API_URL 	= https://safelife.up.railway.app 
+ 
+7.1  Pages Existantes 
+Page 	Fichier 	Statut 
+Dashboard 	src/pages/Dashboard.tsx 	Fonctionnel — stats dynamiques + alertes temps réel 
+Alertes SOS 	src/pages/AlertesSOS.tsx 	Fonctionnel 	— 	reçoit 
+WebSocket + filtres statut 
+Cartographie accidents 	src/pages/CartographieAccidents.tsx 	À 	compléter 	— 	Leaflet 	+ 
+heatmap + cercles rouges 
+Fiches victimes 	src/pages/FichesVictimes.tsx 	Basique — à enrichir 
+Interventions 	src/pages/Interventions.tsx 	Basique — à enrichir 
+Historique scans 	src/pages/HistoriqueScans.tsx 	Basique — à enrichir 
+ 
+7.2  Composants Existants 
+•	LoginPro.tsx — formulaire code institutionnel + mot de passe (safelife2024). 
+•	Sidebar.tsx — navigation 9 pages + badges compteurs alertes. 
+•	Topbar.tsx — statut connexion WebSocket + bouton déconnexion. 
+•	StatCard.tsx — carte statistique avec delta et couleur. 
+•	AlerteItem.tsx — item alerte avec actions (prendre en charge, voir fiche, itinéraire). 
+•	FicheVictime.tsx — modal fiche complète groupe sanguin + contacts d'urgence. 
+•	AccidentMap.tsx — carte Leaflet de base (à enrichir avec les 4 couches SIG). 
+ 
+7.3  Services Existants 
+•	src/services/api.ts — getAlertes(), prendreEnCharge(), getAccidentsStats(). 
+•	src/services/websocket.ts — singleton SafeLifeWebSocket + reconnexion automatique + ping/pong. 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+
+8. CARTE GÉODÉCISIONNELLE — Exigences Complètes 
+SIG temps réel · 6 couches · Leaflet + PostGIS · Pièce centrale du mémoire 
+ 
+La carte géodécisionnelle est la pièce centrale du sujet de master « outil géodécisionnel en temps réel ». Elle superpose 6 couches d'information hétérogènes et fonctionne en temps réel via WebSocket. 
+ 
+8.1  Installation des Bibliothèques 
+npm install leaflet leaflet.heat npm install --save-dev @types/leaflet 
+ 
+8.2  Les 6 Couches Cartographiques 
+Couche 	Source de données 	Rendu visuel 	Phase 
+1 — Points accidents 	GET 
+/accidents/geojson 	Points colorés : rouge=SOS, orange=scan pro, gris=public 	MVP 
+2 	— 	Heatmap 
+densité 	GET 
+/geo/heatmap?days=90 	Dégradé vert→jaune→rouge 
+selon densité (leaflet.heat) 	MVP 
+3 — Zones à risque 	GET 
+/geo/hotspots?seuil=2 	Cercles rouges pulsants : 
+CRITIQUE=500m, 
+ELEVE=300m, 
+MODERE=150m 	MVP 
+4 — Hôpitaux 	Table medical_facilities 	Icônes croix verte + popup nom + téléphone + distance 	MVP 
+5 — Signalements 
+sentinelles 	GET /road-reports 	Icônes triangle orange = danger, bleu = inondation 	Phase 2 
+6 	— 	Ambulances 
+disponibles 	GET /responders 	Points verts animés avec position temps réel 	Phase 2 
+ 
+8.3  Contrôles de la Carte 
+•	Sélecteur de période : 30j / 60j / 90j — recharge toutes les couches de données dynamiquement. 
+•	Sélecteur de vue : Heatmap / Zones / Mixte — active/désactive les couches indépendamment. 
+•	Clic sur cercle rouge : popup avec nombre d'accidents, niveau de risque et date du dernier incident. 
+•	Clic liste hotspots : flyTo() sur la carte avec zoom 15 vers la zone sélectionnée. 
+•	Liste des hotspots : affichée à droite de la carte, triée par nb_accidents décroissant. 
+•	Compteurs statistiques : total accidents, zones touchées, hotspots critiques, véhicule dominant. 
+ 
+8.4  Gradient de Couleur Heatmap 
+gradient: {   0.0: '#00FF00',  // vert   — faible densité   0.4: '#FFFF00',  // jaune  — densité moyenne   0.7: '#FF8800',  // orange — densité élevée   1.0: '#FF0000'   // rouge  — zone critique } 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+8.5  Requêtes PostGIS — SQL Clés Backend 
+-- Hotspots avec clustering spatial (endpoint /geo/hotspots) SELECT 
+ROUND(latitude::numeric,2) AS lat,        ROUND(longitude::numeric,2) AS lng,        
+COUNT(*) AS nb_accidents,        CASE WHEN COUNT(*)>=10 THEN 'CRITIQUE'             WHEN COUNT(*)>=5  THEN 'ELEVE'             ELSE 'MODERE' END AS niveau FROM accident_events WHERE timestamp > NOW() - INTERVAL '90 days' GROUP BY 
+ROUND(latitude::numeric,2), ROUND(longitude::numeric,2) HAVING COUNT(*) >= 2 ORDER BY nb_accidents DESC LIMIT 50;  -- Hôpital le plus proche (endpoint /geo/hopital-proche) SELECT nom, latitude, longitude, telephone,   ROUND(ST_Distance(     geom::geography,   
+ST_SetSRID(ST_MakePoint(:lng,:lat),4326)::geography   )::numeric/1000, 2) AS distance_km FROM medical_facilities ORDER BY distance_km LIMIT 3; 
+ 
+ 	  
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+9. WEBSOCKET TEMPS RÉEL — Archit
+Canal de crise < 2 secondes · SOS mobile → Dashboard → Car	ecture 
+te 
+ 
+Le WebSocket est la brique centrale du temps réel LOTISEC. Dès qu'un SOS est déclenché sur le mobile, le dashboard reçoit l'alerte en moins de 2 secondes via ce canal persistant. 
+ 
+9.1  Flux Complet de Crise 
+1.	1. App mobile : SOS déclenché → POST /alertes → backend Node.js 
+2.	2. Backend : sauvegarde en base de données → manager.broadcast({ type: "NOUVELLE_ALERTE", ...data }) 
+3.	3. Dashboard : wsClient.onMessage() → jouerSonAlerte() + notification navigateur + pin rouge sur carte 
+ 
+9.2  Types de Messages WebSocket 
+Type 	Déclenché par 	Action sur le dashboard 
+NOUVELLE_ALERTE 	POST /alertes depuis l'app mobile 	Son d'alerte + notification navigateur + ajout dans la liste + pin rouge sur la carte 
+ALERTE_MISE_A_JOUR 	PUT 	/alertes/:id/prendreen-charge 	Mise à jour du statut de l'alerte dans la liste en temps réel 
+ALERTE_RESOLUE 	PUT /alertes/:id/resoudre 	Suppression de l'alerte de la liste active et archive 
+ 
+9.3  Endpoint WebSocket 
+•	URL : wss://safelife.up.railway.app/ws/alertes 
+•	Keep-alive : ping client toutes les 25 secondes pour maintenir la connexion. 
+•	Reconnexion : automatique en cas de déconnexion avec délai exponentiel (1s, 2s, 4s, 
+8s...). 
+ 
+ 	 
+ 
+ 
+Le canal USSD permet aux témoins sans smartphone de signaler un accident depuis n'importe quel téléphone basique, même avec un réseau 2G uniquement — couvrant ainsi les 70 % de témoins péri-urbains non connectés à Internet. 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+CANAL USSD *123# — Africa's Talki
+Signalement sans smartphone · Réseau 2G · Feature phone 	ng 
+POST /ussd Body   : { sessionId, serviceCode, phoneNumber, text } Réponse: CON menu_text   (continue — affiche la suite)        | END message_final (fin de session 
+USSD) 
+ 
+ 	 	
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 	Page 16 
+10.1  Menu USSD Complet 
+Étape 	Affichage sur téléphone 	Action backend 
+*123# 	LOTISEC - Urgences Togo 1. 
+Signaler un accident 2. Signaler un danger routier 3. Numéros 
+d'urgence 	Affichage menu principal 
+Option 1 	1. Moto  2. Voiture  3. Camion  4. 
+Piéton 	Sélection type de véhicule impliqué 
+Nb blessés 	Combien de blessés ? (saisir un chiffre) 	Saisie nombre de blessés 
+Confirmation 	Signalement envoyé. Code suivi : LOTISEC-XXXX Secours alertés. 	POST /accidents via USSD + SMS de confirmation 
+Option 2 	Danger routier : 1. Route dégradée  
+2. 	Carrefour 	dangereux 	3. 
+Inondation  4. Obstacle 	POST /road-reports 
+Option 3 	Urgences Togo : Pompiers: 118  SAMU: 15  Police: 117 	Affichage numéros d'urgence 
+ 
+10.2  Géolocalisation USSD 
+Sans GPS, la position est estimée par triangulation cellulaire fournie par Africa's Talking dans les paramètres de la requête USSD (networkCode, sessionId, phoneNumber). La position approximative est calculée depuis l'antenne relais la plus proche. 
+ 
+10.3  Endpoint Backend USSD 
+ 
+Fonctionnalité différenciatrice majeure : guider les secouristes et victimes dans leur langue maternelle. L'éwé est la langue la plus répandue à Lomé et au sud du Togo. Ce module positionne 
+LOTISEC comme une solution réellement ancrée dans les réalités linguistiques et culturelles locales. 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+
+CENTRE D'APPEL AUDIO — Guidage en Langue Éwé 
+Fonctionnalité différenciatrice · OSRM offline · 50 phrases MP3 natives 
+11.1  Architecture Technique 
+Composant 	Technologie 	Description 
+Routage offline 	OSRM (Open Source Routing Machine) 	Calcul d'itinéraire sans internet à partir de cartes OpenStreetMap pré-téléchargées 
+Cartes offline 	OpenStreetMap 
+Togo (.pbf) 	Téléchargées et stockées localement dans l'app au premier lancement 
+Voix éwé 	Fichiers MP3 pré-
+enregistrés 	~50 phrases enregistrées par des locuteurs natifs couvrant 95 % des 
+situations de navigation 
+Moteur vocal 	expo-av 	(React 
+Native) 	Lecture des fichiers audio MP3 déclenchée au moment des manœuvres calculées 
+Détection langue 	Paramètre dans le 
+profil utilisateur 	Sélection : Français / Éwé / Kabyè 
+ 
+11.2  Phrases à Enregistrer en Éwé — Prioritaires 
+Phrase éwé 	Traduction française 		Contexte d'usage 
+Zo ŋkekeme 	Tournez à gauche 		Manœuvre fréquente 
+Zo ŋkeketi 	Tournez à droite 		Manœuvre fréquente 
+Yi ŋutɔ 	Continuez tout droit 		Instruction de progression principale 
+Vu edzi va ɖo 	Faites demi-tour 		Recalcul d'itinéraire 
+Wòdze ɖe ƒe 	Vous êtes arrivé 		Destination atteinte 
+Didi si gbɔ na ŋu 	Ralentissez, danger devant 		Sécurité — zone à risque 
+Plateforme LOTISEC – Urgences Routières Togo | Document Confidentiel 	Page 17 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+Didi 200 mɛtaa si ŋkekeme 	Dans 200 mètres, tou gauche 	rnez à 	Instruction 	avec 
+anticipation 
+Didi 200 mɛtaa si ŋkeketi 	Dans 200 mètres, tou
+droite 	rnez à 	Instruction 	avec 
+anticipation 
+Kɔsi ƒe kpɔɖeŋu aɖe ɖo xɔ 	L'hôpital le plus proche km 	est à X 	Urgence médicale 
+Didi mɛ tɔ ɖe ta ɖo 	Dans 500 mètres, à droit	e 	Navigation avancée 
+ 
+11.3  Intégration Mobile React Native 
+// Installation expo install expo-av expo-file-system  // Lecture audio import { Audio 
+} from 'expo-av';  const son = new Audio.Sound(); await 
+son.loadAsync(require('../assets/audio/ewe/tournez_gauche.mp3')); await son.playAsync();  // Structure des fichiers audio assets/audio/   ewe/    → tournez_gauche.mp3, tournez_droite.mp3, continuez.mp3, arrivee.mp3...   kabiye/ → (Phase 4 — Nord du Togo)   fr/     → version française de référence 
+ 
+11.4  Roadmap Guidage Vocal 
+Phase 	Livrable 	Technologie 
+Phase 1 (MVP) 	Boutons « Appeler le 118 » + « 
+Itinéraire Google Maps » dans l'app 	Google Maps Intent 
+Phase 2 	Guidage vocal en français avec expoav + OSRM online 	expo-av + OSRM API 
+Phase 3 	Guidage vocal offline éwé — cartes OSM téléchargées + phrases MP3 locales 	OSRM local + expo-av 
+Phase 4 	Ajout kabyè pour le nord du Togo 	Même stack + enregistrements kabyè 
+ 
+ 	 
+ 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+12. MODÈLE ÉCONOMIQUE 
+Sources de revenus · Cibles · Stratégie de monétisation 	
+ 
+Source de revenus 	Prix 	Cible 
+Profil de base + QR code 	Gratuit 	Grand 	public 	— 	acquisition 
+utilisateurs 
+Abonnement Premium 	500 FCFA/mois 	Utilisateurs 	actifs 	— 
+fonctionnalités avancées 
+Licence Pro institutionnelle 	50 000 FCFA/an 	Hôpitaux, police, gendarmerie, pompiers 
+Micro-assurance routière 	1 000–2 000 FCFA/an 
+(T-Money/Flooz) 	Conducteurs, élèves, piétons 
+Macarons QR physiques 	500–1 	000 
+FCFA/unité 	Écoles, entreprises, associations 
+Carte des risques dynamique 	Abonnement mensuel 	Compagnies d'assurance 
+Données anonymisées 	Contrat annuel 	Ministère 	Transports, 	OMS, INSEED 
+Partenariats assurances 	Sur mesure 	Compagnies 	d'assurance 	— 
+intégration QR 
+Subventions ONG/gouvernement 	Variable 	ONG sécurité routière, projets UE/UA 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+13. ROADMAP DE DÉVELOPPEMENT 
+Phases · Périodes · Livrables par étape 	
+ 
+Phase 		Période 	Livrables 
+Phase 1 — MVP 		En cours 	App mobile + backend Node.js + dashboard alertes + CartographieAccidents + 50 beta testeurs Lomé 
+	Phase 	2 
+Lancement 	— 	Mois 4–6 	Google Play Store + CHU Sylvanus Olympio + Pompiers Togo + USSD *123# + sentinelles zémidjan + micro-assurance Flooz + dispatch 5-10 ambulances + trafic Google Maps API 
+	Phase 	3 
+Croissance 	— 	Mois 7–12 	Bénin, Ghana, Côte d'Ivoire + iOS + flottes entreprises + guidage vocal offline éwé/kabyè + IA prédiction zones risque + objectif 50 000 utilisateurs 
+Phase 4 — Scale 		Année 2–3 	10 pays Afrique de l'Ouest + API publique hôpitaux 
++ 500 000 utilisateurs + Série A 
+ 
+ 	 
+LOTISEC  |  Briefing Technique Complet 	Version 1.0 · Togo · 2025 
+	
+14. CODES ET ACCÈS DE TEST 
+Identifiants de test par service — Usage Équipe Développement 	
+ 
+Service 	Code / Identifiant 	Mot de passe 
+Dashboard — SAMU CHU 	SAMU-CHU-0812 	safelife2024 
+Dashboard — Pompiers 	POMPIERS-LME-118 	safelife2024 
+Dashboard — Police 	POLICE-LME-4471 	safelife2024 
+Dashboard — Ambulance 	AMBU-BE-0021 	safelife2024 
+Page scan — Médecin 	MEDC3737 	— 
+Page scan — Police 	POL1717 	— 
+Page scan — SAMU 	AMBU1818 	— 
+Page scan — Pompiers 	POMP2626 	— 
+Backend Railway 	https://safelife.up.railway.app 	— 
+Dashboard Vercel 	https://safelife-pro.vercel.app 	— 
+ 
+
+LOTISEC — En Résumé 
+LOTISEC est une infrastructure géodécisionnelle complète qui transforme chaque smartphone de témoin en capteur de localisation, chaque secouriste en opérateur informé, et chaque donnée d'accident en levier de politique publique. En combinant le QR code citoyen, le SIG temps réel, le routage intelligent, le canal USSD pour les témoins non connectés, et le guidage vocal en langue éwé, LOTISEC répond aux réalités concrètes du territoire togolais. 
+Ce document constitue la référence technique complète de toutes les composantes de la plateforme — de l'application mobile jusqu'au dashboard gouvernemental, en passant par le backend Node.js, la base PostGIS, le WebSocket de crise et le guidage vocal offline. 
+
+ 

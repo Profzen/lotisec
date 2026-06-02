@@ -1,0 +1,129 @@
+LOTISEC — Description complète du projet
+Vision
+LOTISEC — Localisation, Transmission, Identification, Sécurité, Cartographie) est une plateforme d'urgence routière développée au Togo qui couvre toute la chaîne de secours : du moment de l'accident jusqu'à la prise en charge hospitalière. Elle fonctionne sur smartphone, sur feature phone sans data via USSD, et s'appuie sur un réseau communautaire de conducteurs de zémidjan pour cartographier les zones dangereuses en temps réel.
+
+Problème résolu
+Au Togo, plus de 1 500 personnes meurent chaque année dans des accidents de la route. 60% de ces décès surviennent faute d'identification rapide de la victime. Les secouristes arrivent sans connaître le groupe sanguin, les allergies ni les contacts d'urgence de la victime. Les moto-taxis (zémidjan) représentent 70% des accidents à Lomé. 70% des témoins d'accidents en zone périurbaine n'ont qu'un feature phone sans connexion data. Les ambulances se dirigent vers l'hôpital le plus proche géographiquement, pas le plus rapide à atteindre selon le trafic réel. Les autorités n'ont aucune donnée fiable et en temps réel sur la localisation des accidents pour prendre des décisions d'infrastructure routière.
+
+Stack technique
+•	Mobile — React Native + Expo (Android prioritaire, iOS Phase 2)
+•	Backend — FastAPI Python déployé sur Railway
+•	Base de données — PostgreSQL via Supabase
+•	Web — React TypeScript (page publique de scan + dashboard pro LOTISEC)
+•	Temps réel — WebSocket pour alertes instantanées
+•	USSD — Africa's Talking API (menu *123#)
+•	Cartographie — Google Maps Directions API avec trafic temps réel + OpenStreetMap pour offline
+•	Paiement mobile — T-Money / Flooz API
+•	URL backend — https://safelife.up.railway.app
+
+
+
+Les 4 piliers fonctionnels
+
+Pilier 1 — Identification et alerte via QR code (smartphone)
+C'est le cœur du système. Chaque utilisateur crée son profil médical d'urgence en 5 étapes depuis l'application mobile et reçoit un QR code unique. Ce QR code peut être imprimé sur un macaron collé sur son casque, son véhicule ou son cartable.
+Flux complet : Accident → témoin scanne le QR code avec n'importe quel smartphone → page web s'ouvre immédiatement sans application → fiche d'urgence affichée (identité, groupe sanguin, contacts) → le témoin peut appeler directement les contacts ou leur envoyer la position GPS par WhatsApp → si secouriste professionnel : saisie du code institutionnel (POL1717, AMBU1818, POMP2626, MEDC3737) → accès aux données médicales complètes (allergies, maladies, médicaments, handicap).
+Bouton SOS depuis l'app : L'utilisateur appuie longuement 800ms sur le bouton SOS → vibration du téléphone → GPS capturé → message WhatsApp envoyé automatiquement à tous ses contacts d'urgence avec lien Google Maps vers sa position exacte, son nom, et l'heure de l'accident → les pompiers (118) sont notifiés → le dashboard pro LOTISEC reçoit l'alerte en temps réel via WebSocket avec son d'alarme et notification navigateur.
+
+Pilier 2 — Canal USSD *123# pour les témoins sans smartphone
+La majorité des témoins d'accidents sur les routes secondaires du Togo n'ont pas de smartphone ni de connexion data. SafeLife résout ce problème avec un canal USSD accessible depuis tout téléphone basique, même avec un simple réseau 2G.
+Comment ça marche : Le témoin compose *123# → menu s'affiche sur son écran → il choisit "Signaler un accident" → il saisit le type de véhicule impliqué (moto, voiture, piéton) → le nombre de blessés estimés → le système géolocalise automatiquement par triangulation cellulaire (sans GPS) → les pompiers sont alertés automatiquement → un code de suivi est envoyé par SMS au témoin → le profil de la victime peut être remonté si un QR code a été scanné ou si l'identifiant du QR est saisi manuellement.
+Ce que le menu USSD propose :
+•	Option 1 : Signaler un accident
+•	Option 2 : Signaler un danger routier (route dégradée, carrefour dangereux, inondation)
+•	Option 3 : Numéros d'urgence (118, 15, 117)
+Le canal USSD élargit massivement la base d'utilisateurs potentiels — tout conducteur de moto-taxi, tout piéton, tout habitant des zones périurbaines peut déclencher une alerte sans smartphone ni data mobile. C'est la fonctionnalité qui rend SafeLife universellement accessible sur le territoire togolais.
+
+Pilier 3 — Réseau de zémidjan sentinelles pour la cartographie dynamique
+Les conducteurs de zémidjan (moto-taxis) sont les meilleurs capteurs humains du réseau routier togolais. Ils circulent sur tous les axes, connaissent les points noirs, les routes dégradées et les carrefours dangereux avant même qu'un accident ne survienne. SafeLife les intègre comme sentinelles routières volontaires.
+Comment ça marche : Un zémidjan inscrit dans le réseau signale un danger via l'app mobile ou via USSD → il choisit le type de signalement (route dégradée, carrefour dangereux, inondation, obstacle, brouillard) → sa position GPS est capturée automatiquement → le signalement est enregistré dans la base de données → après validation par l'équipe SafeLife → le point apparaît sur la carte des zones dangereuses → le conducteur reçoit une récompense de 100 à 200 FCFA créditée sur son compte Flooz ou T-Money.
+Ce que cette cartographie produit : Une carte dynamique et communautaire des zones à risque, mise à jour en temps réel, qui complète les données historiques d'accidents. Cette carte est accessible sur le dashboard pro LOTISEC pour les secouristes, et exportée périodiquement vers les autorités sous forme de rapport cartographique.
+Valeur pour le modèle économique : Cette carte est un actif de données unique et monnayable. Les compagnies d'assurance peuvent s'y abonner pour ajuster leurs primes par zone. Le Ministère des Transports peut l'utiliser pour prioriser les travaux de réfection routière. Les ONG de sécurité routière peuvent l'utiliser pour cibler leurs campagnes de sensibilisation.
+
+Pilier 4 — Redirection vers l'hôpital le plus rapide (pas juste le plus proche)
+Dans une ville comme Lomé, la distance géographique ne reflète pas le temps de trajet réel. Aux heures de pointe, un hôpital situé à 2 km peut prendre 25 minutes à atteindre tandis qu'un autre à 4 km n'en prend que 8. SafeLife intègre le trafic temps réel pour orienter les secours vers l'hôpital le plus rapide à atteindre depuis le lieu de l'accident.
+Comment ça marche : Dès qu'un SOS est déclenché ou qu'un accident est signalé → le système récupère les coordonnées GPS du lieu → interroge Google Maps Directions API avec le paramètre traffic_model: best_guess pour chaque hôpital partenaire enregistré → compare les temps de trajet estimés avec trafic réel → retourne l'hôpital le plus rapide à atteindre avec le temps estimé et l'itinéraire → l'information est affichée sur l'app mobile de l'utilisateur et sur le dashboard LOTISEC pour les secouristes.
+Ce qui s'affiche sur l'app mobile : Dès que le SOS est déclenché, l'écran affiche un bandeau "Hôpital recommandé : CHU Sylvanus Olympio — 8 min" avec un bouton "Itinéraire" qui ouvre Google Maps directement avec l'itinéraire calculé. L'utilisateur peut aussi accéder à la liste complète des hôpitaux proches depuis l'onglet "Hôpitaux" en bas de l'écran.
+Ce qui s'affiche sur le dashboard LOTISEC : Les secouristes professionnels voient pour chaque alerte SOS le lieu de l'accident, l'hôpital recommandé avec le temps de trajet estimé, et l'itinéraire de dégagement si le trajet principal est congestionné.
+Phase d'évolution : En phase 2, cette fonctionnalité sera enrichie par les données de vitesse des zémidjan sentinelles, qui constituent un excellent indicateur du trafic réel sur les axes urbains de Lomé — bien plus précis que les données Google pour les petites rues non indexées.
+Pilier 5 — Guidage vocal offline en langues locales (éwé, kabyè)
+Dans les zones périurbaines et rurales du Togo, deux barrières s'accumulent : le réseau mobile est faible ou absent, et une partie significative des conducteurs et secouristes communiquent principalement en éwé au sud ou en kabyè au nord. Un guidage en français avec connexion internet requise est inutile dans ces zones.
+Comment ça marche : Les cartes OpenStreetMap du Togo sont téléchargées et stockées localement sur le téléphone au moment de l'installation de l'app — aucune connexion requise pour les consulter. Le moteur de routage OSRM calcule l'itinéraire depuis le lieu de l'accident vers l'hôpital le plus proche entièrement en local. Les instructions vocales sont des phrases pré-enregistrées par des locuteurs natifs, déclenchées au bon moment selon les manœuvres calculées.
+Ce que l'utilisateur entend : Au lieu de "Dans 200 mètres, tournez à gauche", le secouriste entend la même instruction en éwé ou en kabyè selon la langue configurée dans l'application. Le vocabulaire nécessaire est limité — une cinquantaine de phrases couvrent 95% des situations de navigation : tourner à gauche, tourner à droite, continuer tout droit, faire demi-tour, vous êtes arrivé, ralentissez, danger devant.
+Pourquoi c'est stratégique : C'est un différenciateur majeur par rapport à toutes les solutions concurrentes, qui fonctionnent exclusivement en français ou en anglais et nécessitent une connexion internet. En guidant les premiers secouristes dans leur langue maternelle, SafeLife réduit le risque d'erreur d'itinéraire, gagne leur confiance, et s'inscrit comme une solution véritablement conçue pour le contexte togolais et non importée d'Europe ou des États-Unis.
+Faisabilité technique : Mapbox Navigation SDK et OSRM supportent le routage offline. L'enregistrement des phrases vocales nécessite deux sessions de studio avec des locuteurs natifs éwé et kabyè — une investissement modeste pour un impact culturel fort. Le déploiement commence par une langue en phase pilote (éwé, langue la plus répandue à Lomé et au sud), kabyè étant ajouté en phase 3 pour couvrir le nord du pays.
+
+
+
+
+
+Dashboard cartographique — vue consolidée
+Le dashboard pro LOTISEC intègre une carte unique qui superpose quatre couches d'information :
+Couche 1 — Points d'accidents historiques : chaque accident signalé via SOS, QR scan ou USSD est un point sur la carte, coloré selon la gravité (rouge = SOS déclenché, orange = scan pro, gris = scan public). Les zones avec forte concentration de points deviennent des zones rouges identifiées comme prioritaires.
+Couche 2 — Signalements sentinelles en temps réel : les dangers signalés par les zémidjan apparaissent comme des icônes (triangle orange = route dégradée, point rouge = carrefour dangereux, bleu = inondation) avec leur date et description.
+Couche 3 — Établissements de santé : tous les hôpitaux et cliniques partenaires sont visibles sur la carte avec leur disponibilité et le temps de trajet estimé depuis chaque point d'accident.
+Couche 4 — Secours disponibles : les ambulances et secours partenaires enregistrés dans le système apparaissent en temps réel avec leur position et leur statut (disponible / en intervention).
+Cette carte consolidée est exportée périodiquement vers le gouvernement sous forme de rapport statistique avec les données anonymisées pour la prise de décision d'infrastructure routière.
+
+Architecture — 3 dépôts GitHub
+QR-PYTHON — Backend FastAPI
+•	Auth téléphone + JWT
+•	Profils médicaux + QR tokens
+•	Scan public HTML + scan pro code institutionnel
+•	Alertes SOS WebSocket
+•	Canal USSD Africa's Talking
+•	Sentinelles routières + récompenses Flooz/T-Money
+•	Orientation hospitalière Google Maps Directions API trafic
+•	Dispatch géolocalisé secours partenaires avec scoring
+•	Micro-assurance Mobile Money
+•	Dashboard gouvernemental avec clés API sécurisées
+•	Export CSV/JSON pour Ministère Transports, INSEED, OMS
+
+Qr-mobile — React Native + Expo
+•	Inscription 5 étapes + sélecteur pays
+•	QR code + PDF téléchargeable
+•	Bouton SOS GPS + WhatsApp + WebSocket
+•	Onglet Hôpitaux avec trafic temps réel
+•	Onglet Conseils sécurité routière
+•	Onglet Mon QR avec modal agrandi
+•	Signalement danger routier
+•	Micro-assurance depuis l'app (T-Money/Flooz)
+mediqr-web — React TypeScript
+•	Page publique /scan/:token — fiche urgence 3 niveaux
+•	Dashboard pro LOTISEC — alertes temps réel, cartographie 4 couches, fiches victimes, dispatch, historique
+•	Dashboard gouvernemental — stats anonymisées, export CSV/JSON
+
+Modèle de données
+Table	Contenu
+users	téléphone, mot de passe hashé
+profiles	identité, médical, véhicule, école, is_insured
+emergency_contacts	nom, téléphone, relation, lié au profil
+scans	GPS, IP, horodatage, lié au profil
+medical_facilities	hôpitaux, GPS, téléphone
+accident_reports	GPS, heure, jour, type véhicule, déclencheur, gravité
+road_reports	signalements sentinelles, GPS, type danger, récompense
+responders	ambulances partenaires, GPS temps réel, score, disponibilité
+
+
+Segments clients
+B2C — conducteurs de moto-taxi, automobilistes, élèves, familles, personnes âgées, piétons
+B2B — hôpitaux, compagnies d'assurance, auto-écoles, établissements scolaires, entreprises avec flottes
+B2G — Ministère des Transports, Ministère de la Santé, forces de l'ordre, pompiers, INSEED, OMS, ONG sécurité routière
+
+Modèle économique
+Source	Prix	Cible
+Profil de base + QR code	Gratuit	Grand public
+Premium	500 FCFA/mois	Utilisateurs actifs
+Pro institutionnel	50 000 FCFA/an	Hôpitaux, police, gendarmerie
+Micro-assurance	1 000-2 000 FCFA/an	Conducteurs, élèves
+Macarons QR physiques	500-1 000 FCFA/unité	Écoles, entreprises
+Carte des risques dynamique	Abonnement	Assureurs, gouvernement
+Données anonymisées	Contrat	Ministère Transports, OMS
+Partenariats assurances	Sur mesure	Compagnies d'assurance
+Subventions	Variable	ONG, gouvernement
+
+Roadmap
+Phase 1 — MVP en cours . Application mobile, backend Railway, dashboard pro WebSocket, page scan publique, cartographie accidents, 50 beta testeurs Lomé
+Phase 2 — Lancement Mois 4-6 Google Play Store, CHU Sylvanus Olympio, Pompiers du Togo, USSD *123#, réseau zémidjan sentinelles, micro-assurance Flooz, dispatch 5-10 ambulances, trafic temps réel, objectif 5 000 utilisateurs
+Phase 3 — Croissance Mois 7-12 Bénin, Ghana, Côte d'Ivoire, iOS, flottes entreprises, guidage vocal offline éwé/kabyè, IA prédiction zones risque, objectif 50 000 utilisateurs
+Phase 4 — Scale Année 2-3 10 pays Afrique de l'Ouest, API publique hôpitaux, 500 000 utilisateurs, Série A
