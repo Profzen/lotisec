@@ -142,6 +142,8 @@ Notes: si le backend distant `https://safelife.up.railway.app` est accessible, l
 - 2026-06-02 — Push effectué sur `origin/main` avec socle harmonisé: `Qr-mobile/` + `backend/` + `frontend/` + docs racine.
 - 2026-06-02 — Mobile: bascule config API vers variable Expo `EXPO_PUBLIC_API_URL` (`Qr-mobile/src/api/config.ts`) avec fallback temporaire Railway.
 - 2026-06-02 — Mobile: profils EAS `development/preview/production` enrichis avec `EXPO_PUBLIC_API_URL` et ajout de `Qr-mobile/.env.example`.
+- 2026-06-02 — Déploiement Vercel multi-services préparé via `vercel.json` racine: `frontend` sur `/` et `backend` sur `/api`.
+- 2026-06-02 — Frontend web aligné pour appeler `/api` par défaut (`frontend/src/api/client.ts`).
 
 ## 12. Prochaines actions recommandées
 - Initialiser la nouvelle structure repo unifiée orientée cible (`backend/`, app web, mobile Expo).
