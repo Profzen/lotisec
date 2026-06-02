@@ -1,4 +1,6 @@
-export const API_URL = 'https://safelife.up.railway.app';
+const fallbackApiUrl = 'https://safelife.up.railway.app';
+
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || fallbackApiUrl).replace(/\/$/, '');
 
 export const api = async (
   endpoint: string,
