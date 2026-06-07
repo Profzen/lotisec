@@ -1,167 +1,181 @@
 # memoire.md — SafeLife / LOTISEC
 
-But: Ce fichier est le point de vérité pour reprendre le projet. Il doit être enrichi à chaque étape importante.
+Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
-Statut de référence: ce document reflète les décisions validées au 2026-06-02.
+Statut de référence: 2026-06-07.
 
-## 1. Résumé projet
-- Nom produit: SafeLife / LOTISEC (Localisation, Transmission, Identification, Sécurité, Cartographie).
-- But: Plateforme d'urgence routière (Togo) couvrant identification via QR, SOS, cartographie, USSD, et dashboard pro.
-- Dossiers présents dans le workspace (issus de repos clonés existants):
-  - `Qr-mobile` : application mobile Expo (React Native).
-  - `QR-PYTHON` : backend FastAPI (Python) + traces Node.
-  - `safelife-pro` : dashboard web (React + TypeScript + Leaflet).
+## 1. Contexte produit et périmètre
+- Produit: LOTISEC / SafeLife (Localisation, Transmission, Identification, Sécurité, Cartographie).
+- Mission: gestion d'urgence routière (QR médical, SOS, cartographie, alertes pro, extension USSD).
+- Cible de migration validée: remplacement du backend Python historique par un backend Node.js.
 
-## 1.1 Décisions d'architecture validées (IMPORTANT)
-- La cible backend devient **Node.js** (abandon progressif du backend Python en production).
-- Un nouveau dossier backend de référence sera créé: `backend/`.
-- `QR-PYTHON` est conservé temporairement en local pour comparaison/migration, mais ne doit plus être poussé.
-- Priorité immédiate: construire d'abord la **version web de la partie app mobile** déjà existante.
-- Déploiement cible: backend Node.js + frontend web sur Vercel (free tier), puis consommation API par l'app mobile Expo.
+## 2. Repositories, dossiers et ownership
+- Repo principal actif: https://github.com/Profzen/lotisec.
+- Dossiers métier actifs dans ce repo:
+  - `backend/`: nouveau backend Node.js/TypeScript (cible production).
+  - `frontend/`: nouvelle version web citoyenne (MVP), connectée au backend Node.
+  - `Qr-mobile/`: application mobile Expo existante (conservée, progressivement branchée sur backend Node).
+- Dossiers conservés localement mais exclus du push:
+  - `QR-PYTHON/`: backend FastAPI historique, référence de migration.
+  - `safelife-pro/`: périmètre collègue, non modifié.
+- Exclusion git appliquée via `.gitignore` racine pour `QR-PYTHON/` et `safelife-pro/`.
 
-## 2. Où commencer (points d'entrée)
-- Mobile: `Qr-mobile/App.tsx` → navigation: `Qr-mobile/src/navigation/AppNavigator.tsx`.
-- Backend: `QR-PYTHON/app/main.py` (FastAPI) ; `QR-PYTHON/Procfile` pour déploiement.
-- Web pro: `safelife-pro/src/App.tsx` → services: `safelife-pro/src/services/*`.
-- CDC (spec produit): `cdc.txt` à la racine du workspace.
-- Briefing technique complémentaire: `lt.txt` à la racine du workspace.
+## 3. Architecture cible validée
+- Backend Node.js/TypeScript/Express/PostgreSQL.
+- Frontend web citoyen (React + Vite) déployable séparément.
+- Mobile Expo consommant les APIs backend Node via variable d'environnement.
+- Déploiement visé en 2 projets Vercel séparés:
+  - projet frontend (root `frontend/`)
+  - projet backend (root `backend/`)
 
-## 3. Stack technique (consolidé)
-- Mobile: Expo + React Native (Expo SDK), React Navigation, expo-location, expo-print, QR svg.
-- Backend: FastAPI, Uvicorn, SQLAlchemy, PostgreSQL (Supabase), Alembic, GeoAlchemy2.
-- Web: React + TypeScript, React-Leaflet, Leaflet.heat.
-- Temps réel: WebSocket (implémenté côté web et backend).
-- USSD / Paiement: Afrique's Talking, T-Money / Flooz (prévu dans CDC mais non implémenté complètement).
+## 4. État d'avancement par composant
 
-## 3.1 Stack cible (migration)
-- Backend cible: Node.js + TypeScript + Express + ws + PostgreSQL.
-- Front web cible pour la partie app mobile: React/TypeScript (aligné avec composants mobile et logique métier existante).
-- Mobile cible: Expo, branché sur API publiées par le backend Node.js.
+### 4.1 Backend Node (`backend/`)
+Réalisé:
+- Socle API en place (Express + TypeScript).
+- Routeurs implémentés:
+  - `/auth` (register/login)
+  - `/pro` (login pro)
+  - `/profil` (create/update + scan)
+  - `/scan` et `/scans` (verify, create, historique)
+  - `/alertes` (create/list/update)
+  - `/accidents` (create, geojson, heatmap, hotspots, stats, update)
+  - `/geo` (heatmap, hotspots, hopital-proche, stats, accidents-zone, rapport)
+  - `/road-reports`
+  - `/responders`
+- Compatibilité Vercel serverless ajoutée:
+  - `backend/api/index.ts`
+  - `backend/vercel.json`
+  - factorisation app dans `backend/src/app.ts`.
+- Robustesse runtime:
+  - support `express-async-errors`
+  - middleware d'erreur JSON global
+  - timeout de connexion PostgreSQL (`connectionTimeoutMillis=5000`).
 
-## 4. Environnement & variables clés
-- Backend URL par défaut attendu par le mobile: `https://safelife.up.railway.app` (dans `Qr-mobile/src/api/config.ts`).
-- Backend dotenv: `QR-PYTHON/.env` (contient clés DB et secrets).
-- Web: `.env.production` présent dans `safelife-pro`.
+En attente / incomplet:
+- Contrat API à figer finement contre les flux mobile historiques (parité complète non encore prouvée).
+- WebSocket temps réel en mode Vercel serverless: contraintes inhérentes (non garanti en serverless pur).
+- USSD, micro-assurance, sentinelles, exports gouvernementaux: non implémentés.
 
-## 4.1 Repositories & Git (décisions)
-- Dépôt distant officiel pour le nouveau socle: `https://github.com/Profzen/lotisec`.
-- Les dossiers actuels étant des repos clonés, la stratégie sera de créer un **repo propre unifié** piloté par ce remote.
-- `QR-PYTHON/` doit être ajouté au `.gitignore` du nouveau repo afin d'éviter son push.
+### 4.2 Frontend web citoyen (`frontend/`)
+Réalisé:
+- MVP fonctionnel créé (auth, inscription, home, SOS, recommandations hôpitaux, conseils).
+- Fallback API défini vers `https://lotisec-backend.vercel.app`.
+- Build local validé.
 
-## 5. Comment lancer localement (rapide)
-- Mobile (dans `Qr-mobile`):
-  - Installer dépendances:
+En attente / incomplet:
+- UI/UX: version MVP utilitaire, pas encore finalisation design/ergonomie.
+- Validation fonctionnelle bout-en-bout dépendante de la connectivité DB backend.
 
-```bash
-cd Qr-mobile
-npm install
-```
+### 4.3 Mobile Expo (`Qr-mobile/`)
+Réalisé:
+- Bascule API vers variable Expo publique:
+  - `Qr-mobile/src/api/config.ts` lit `EXPO_PUBLIC_API_URL`.
+- Profils EAS mis à jour:
+  - `preview` et `production` pointent vers `https://lotisec-backend.vercel.app`.
+- `Qr-mobile/.env.example` ajouté.
 
-  - Démarrer Expo:
+État technique connu:
+- `npx tsc --noEmit` dans `Qr-mobile/` remonte des erreurs préexistantes non liées à la bascule API:
+  - typings navigation (`Home`, `Splash`)
+  - `colors.primaryLight` absent
+  - clé dupliquée `header` dans `HomeScreen`.
 
-```bash
-npx expo start
-# puis ouvrir dans Expo Go (scan QR) ou appuyer 'a' pour Android emulator
-```
+## 5. Déploiement Vercel: état réel
 
-- Backend (FastAPI):
-  - Créer virtualenv, installer `requirements.txt` puis lancer:
+### 5.1 Frontend Vercel
+- URL: https://lotisec-frontend.vercel.app
+- Statut: page chargée.
 
-```bash
-cd QR-PYTHON
-python -m venv .venv
-# activer .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+### 5.2 Backend Vercel
+- URL: https://lotisec-backend.vercel.app
+- Route racine observée: `{"status":"online","project":"SafeLife Node API","db_configured":true}`.
+- Route health observée: `{"ok":false,"db":"down","detail":"connect ECONNREFUSED 127.0.0.1:5432"}`.
 
-  - Vérifier la route racine: `GET /` → renvoie status project.
+Diagnostic confirmé:
+- Le backend est déployé et répond HTTP.
+- La connexion PostgreSQL en production échoue (la variable `DATABASE_URL` cible une base locale/non joignable depuis Vercel, typiquement localhost/127.0.0.1).
+- Conséquence directe: inscription/login échouent côté frontend (`Echec d inscription`, requêtes API échouées/timeout).
 
-- Web (dashboard):
+## 6. Tests réalisés et résultats
 
-```bash
-cd safelife-pro
-npm install
-npm start
-# ouvre http://localhost:3000
-```
+Tests backend:
+- `GET /` (prod Vercel): PASS (service en ligne).
+- `GET /health` (prod Vercel): FAIL (DB down, ECONNREFUSED 127.0.0.1:5432).
+- `POST /auth/register` (prod): FAIL / timeout (symptôme cohérent avec problème DB).
 
-Notes: si le backend distant `https://safelife.up.railway.app` est accessible, le mobile et le web peuvent utiliser ce serveur sans lancer localement le backend.
+Tests frontend:
+- Chargement page d'accueil: PASS.
+- Parcours inscription: FAIL (message "Echec d inscription").
 
-## 6. Flux critiques à tester en priorité
-- Mobile: onboarding (register 5 étapes), génération du QR, affichage QR, bouton SOS (vérifier ouverture WhatsApp et GPS), écran Hôpitaux.
-- Backend: routes `/auth/*`, `/profil/*`, `/scan/*`, endpoints alertes (WebSocket).
-- Web: connexion pro, réception d'alertes via WebSocket, affichage carte et fiches victimes.
+Tests build locaux:
+- `backend`: PASS (`npm run build`).
+- `frontend`: PASS (`npm run build`).
+- `Qr-mobile`: FAIL partiel (erreurs TypeScript préexistantes non bloquantes pour la migration backend).
 
-## 7. Conventions et règles de conduite (à respecter)
-- Branches: `main` = stable. Créer feature branches `feat/<quoi>` ou `fix/<quoi>`.
-- Commits: messages courts en anglais/français; préfixe `feat:`, `fix:`, `chore:`.
-- Tests: ajouter tests unitaires quand on touche logique métier importante.
-- Secrets: ne pas committer `.env` avec secrets; utiliser `.env.sample` et documenter.
-- Déploiement: cible en cours = Vercel pour frontend web + backend Node.js; mobile via EAS / Play Store pour builds.
+## 7. Blocage principal actuel
+- Blocage P0: DATABASE_URL backend Vercel incorrecte/non joignable.
+- Tant que ce point n'est pas corrigé, les parcours register/login/API métier restent indisponibles.
 
-## 8. API contract (quick reference)
-- Mobile expects:
-  - `POST /auth/login` -> { phone, password } => token
-  - `POST /auth/register` and profile endpoints under `/profil`
-  - `GET /scan/:token` (public scan page hosted on web)
-  - WebSocket path: defined in `safelife-pro/src/services/websocket.ts` and backend routers `app/routers/alertes.py`.
+## 8. Variables d'environnement attendues (production)
 
-(ATTENTION: vérifier routes exactes dans `QR-PYTHON/app/routers` avant de développer.)
+### 8.1 Backend Vercel (`backend`)
+- `DATABASE_URL` = URL PostgreSQL distante valide (pas localhost/127.0.0.1).
+- `JWT_SECRET` = secret fort.
+- `NODE_ENV` = `production`.
+- `CORS_ORIGIN` = `https://lotisec-frontend.vercel.app` (ou `*` temporaire).
 
-## 9. Écarts connus vs CDC
-- Manquants ou partiellement implémentés: USSD, sentinelles zémidjan, micro-assurance, guidage vocal offline, dispatch avancé, exports gouvernementaux.
-- Incohérences: `safelife-pro` contient un sous-dossier dupliqué `safelife-pro/` à nettoyer; backend contient un `index.js` Node en plus du FastAPI.
+### 8.2 Frontend Vercel (`frontend`)
+- `VITE_API_URL` = `https://lotisec-backend.vercel.app`.
 
-## 9.1 Incohérences techniques constatées (audit code)
-- `safelife-pro/src/services/api.ts` appelle certains endpoints avec des méthodes/contrats potentiellement divergents du backend Python (`POST` vs `PUT`, format de réponse alertes).
-- `QR-PYTHON/app/main.py` contient des indices de dette technique (référence `models` non explicite dans le fichier).
-- Nécessité de figer un contrat API unique pendant la migration pour éviter les régressions mobile/web.
+### 8.3 Mobile Expo (`Qr-mobile`)
+- `EXPO_PUBLIC_API_URL` = `https://lotisec-backend.vercel.app`.
 
-## 9.2 Objectif fonctionnel non négociable
-- Le backend Node.js doit reproduire le comportement fonctionnel actuel "comme ça l'était" avant d'ajouter des nouveautés.
+## 9. Plan de reprise immédiat (ordre recommandé)
+1. Corriger `DATABASE_URL` dans le projet backend Vercel.
+2. Redéployer backend.
+3. Vérifier `GET /health` attendu: `ok=true` et `db=up`.
+4. Retester `POST /auth/register`.
+5. Retester inscription depuis frontend.
+6. Si PASS, confirmer les flux login/profil/sos.
+7. Ensuite seulement: passe UI/UX frontend et parité API complète avec mobile.
 
-## 10. Procédure d'enrichissement du fichier
-- Chaque action importante (nouvelle API, migration DB, changement de contrat, décision d'architecture) doit être ajoutée en bas du fichier sous "Changelog" avec date et auteur.
-- Exemple d'entrée:
-  - `2026-05-29 — Import initial du projet et notes d'analyse — copilot`.
+## 10. Plan court terme (après déblocage DB)
+1. Figer le contrat API canonique (payloads + statuts + erreurs) dans un document dédié.
+2. Exécuter une matrice de tests bout-en-bout:
+   - auth register/login
+   - profil create/update
+   - scan verify
+   - alertes create/list/update
+   - accidents stats/geojson
+3. Corriger les erreurs TypeScript préexistantes de `Qr-mobile`.
+4. Ajuster frontend responsive et design final.
 
-## 11. Changelog initial
-- 2026-05-29 — Mémo initial créé et enregistré au workspace root.
+## 11. Risques techniques connus
+- Vercel serverless et WebSocket persistent: risque de limitations temps réel.
+- Contrats API encore susceptibles de divergence entre backend Node et legacy Python.
+- Données/DDL PostgreSQL non entièrement vérifiées en production (types, extensions PostGIS, index).
 
-## 11.1 Changelog récent
-- 2026-06-01 — Revue globale des dossiers `Qr-mobile`, `QR-PYTHON`, `safelife-pro`, `cdc.txt`, `lt.txt`.
-- 2026-06-01 — Décision validée: migration backend Python -> backend Node.js dans `backend/`.
-- 2026-06-01 — Décision validée: conserver `QR-PYTHON/` localement mais l'exclure du push via `.gitignore`.
-- 2026-06-01 — Priorité validée: développer d'abord la version web de la partie app mobile.
-- 2026-06-02 — Remote de travail confirmé: `https://github.com/Profzen/lotisec` (repo vierge à initialiser localement).
-- 2026-06-02 — Backend Node.js initial créé dans `backend/` (Express + TypeScript + ws + PostgreSQL + JWT + routes principales).
-- 2026-06-02 — Frontend web citoyen initial créé dans `frontend/` (Vite + React + TypeScript), aligné sur les flux mobile: auth, SOS, QR, hôpitaux.
-- 2026-06-02 — `.gitignore` racine ajouté avec exclusion explicite de `QR-PYTHON/` et `safelife-pro/`.
-- 2026-06-02 — Nouveau dépôt Git racine initialisé, remote configuré vers `https://github.com/Profzen/lotisec`.
-- 2026-06-02 — Push effectué sur `origin/main` avec socle harmonisé: `Qr-mobile/` + `backend/` + `frontend/` + docs racine.
-- 2026-06-02 — Mobile: bascule config API vers variable Expo `EXPO_PUBLIC_API_URL` (`Qr-mobile/src/api/config.ts`) avec fallback temporaire Railway.
-- 2026-06-02 — Mobile: profils EAS `development/preview/production` enrichis avec `EXPO_PUBLIC_API_URL` et ajout de `Qr-mobile/.env.example`.
-- 2026-06-02 — Déploiement Vercel multi-services préparé via `vercel.json` racine: `frontend` sur `/` et `backend` sur `/api`.
-- 2026-06-02 — Frontend web aligné pour appeler `/api` par défaut (`frontend/src/api/client.ts`).
-- 2026-06-02 — Ajustement pour déploiement Vercel en 2 projets séparés: frontend pointe désormais par défaut vers `https://lotisec-backend.vercel.app`.
-- 2026-06-02 — Backend rendu compatible Vercel Serverless via `backend/api/index.ts` + `backend/vercel.json` + factorisation `backend/src/app.ts`.
-- 2026-06-02 — Gestion tolérante de l'absence `DATABASE_URL` pour éviter crash immédiat de la fonction; diagnostic visible sur `/health`.
-- 2026-06-02 — Correctif anti-504 backend: ajout de `express-async-errors`, middleware d'erreur JSON global, et timeout de connexion PostgreSQL (5s).
+## 12. Journal des décisions et changements
+- 2026-06-01: audit complet des dossiers, décision de migration backend Python -> Node.
+- 2026-06-02: création du repo unifié `Profzen/lotisec` et push initial.
+- 2026-06-02: création `backend/` (Node) et `frontend/` (web citoyen MVP).
+- 2026-06-02: exclusion git de `QR-PYTHON/` et `safelife-pro/`.
+- 2026-06-02: bascule mobile vers `EXPO_PUBLIC_API_URL`.
+- 2026-06-02: adaptation backend Vercel serverless + fallbacks URL frontend/mobile.
+- 2026-06-02: correctifs anti-timeout backend (errors async + timeout DB).
+- 2026-06-07: constat de blocage production confirmé sur DB (`ECONNREFUSED 127.0.0.1:5432`).
 
-## 12. Prochaines actions recommandées
-- Initialiser la nouvelle structure repo unifiée orientée cible (`backend/`, app web, mobile Expo).
-- Ajouter `QR-PYTHON/` au `.gitignore` du nouveau repo.
-- Définir et documenter le contrat API canonique (auth, profil, scan, alertes, accidents, websocket).
-- Implémenter le socle backend Node.js minimal compatible avec les appels existants.
-- Porter la partie app mobile vers une version web (écrans et flux prioritaires), puis connecter sur le backend Node.js.
-- Préparer le déploiement Vercel (frontend + backend) avec variables d'environnement.
-
-## 13. Règle de maintien du contexte
-- À chaque décision produit/architecture/devops, ajouter une entrée datée dans la section Changelog.
-- À chaque changement de contrat API, mettre à jour les sections 8 (contrat) et 12 (actions).
-- Ce fichier est la source primaire de reprise inter-conversation: le garder synchronisé avec le code.
+## 13. Références de reprise rapide
+- Spécification produit: `cdc.txt`.
+- Brief technique détaillé: `lt.txt`.
+- Configuration backend Vercel: `backend/vercel.json` et `backend/api/index.ts`.
+- Point d'entrée API: `backend/src/app.ts`.
+- Client API frontend: `frontend/src/api/client.ts`.
+- Config API mobile: `Qr-mobile/src/api/config.ts` et `Qr-mobile/eas.json`.
 
 ---
 
-Note d'usage: ce document doit rester strictement factuel et orienté exécution.
+Règle de maintenance du fichier:
+- Toute décision architecture/devops/test doit être tracée immédiatement.
+- Toute régression ou blocage prod doit être documenté avec symptôme + cause + action corrective.
