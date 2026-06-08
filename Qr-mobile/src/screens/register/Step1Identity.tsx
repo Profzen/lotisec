@@ -62,6 +62,7 @@ export default function Step1Identity({ navigation, route }: Props) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [apiError, setApiError] = useState<{message: string, isExists?: boolean} | null>(null);
 
   const [selectedCountry, setSelectedCountry] = useState<Country>(
     (SUPPORTED_COUNTRIES as Country[]).find((c: Country) => c.value === nationality) || (SUPPORTED_COUNTRIES[0] as Country)
@@ -87,14 +88,15 @@ export default function Step1Identity({ navigation, route }: Props) {
   };
 
   const handleNext = async () => {
+    setApiError(null);
     if (!isDateValid(birthDate)) {
-      Alert.alert("Date invalide", "La date de naissance n'est pas correcte.");
+      setApiError({ message: "La date de naissance n'est pas correcte." });
       setDateError(true);
       return;
     }
 
     if (!hasMinLength || !hasUpperCase || !hasNumber) {
-      Alert.alert("Sécurité", "Veuillez respecter les critères du mot de passe.");
+      setApiError({ message: "Veuillez respecter les critères de sécurité du mot de passe." });
       return;
     }
 
@@ -112,12 +114,9 @@ export default function Step1Identity({ navigation, route }: Props) {
       });
     } catch (err: any) {
       if (err.message?.includes("déjà") || err.message?.includes("exists")) {
-        Alert.alert("Compte existant", "Ce numéro est déjà utilisé.", [
-          { text: "Réessayer" },
-          { text: "Se connecter", onPress: () => navigation.navigate('Login' as any) }
-        ]);
+        setApiError({ message: "Ce numéro de téléphone est déjà utilisé.", isExists: true });
       } else {
-        Alert.alert("Erreur", err.message || "Une erreur est survenue lors de l'inscription.");
+        setApiError({ message: err.message || "Une erreur est survenue lors de l'inscription." });
       }
     }
   };
@@ -232,6 +231,17 @@ export default function Step1Identity({ navigation, route }: Props) {
               </View>
             </View>
 
+            {apiError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorBoxText}>{apiError.message}</Text>
+                {apiError.isExists && (
+                  <TouchableOpacity style={styles.errorActionBtn} onPress={() => navigation.navigate('Login' as any)}>
+                    <Text style={styles.errorActionText}>Se connecter</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             <TouchableOpacity 
               style={[styles.btnPrimary, (authLoading || !firstName || dateError || !hasMinLength) && styles.btnDisabled]} 
               onPress={handleNext}
@@ -283,4 +293,8 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: 10 },
   btnDisabled: { opacity: 0.5 },
   btnText: { color: '#fff', fontSize: fontSizes.md, fontFamily: fonts.bold },
+  errorBox: { backgroundColor: '#FDECEA', padding: 16, borderRadius: 12, marginTop: 4, borderWidth: 1, borderColor: '#F5C6CB', alignItems: 'center' },
+  errorBoxText: { color: '#721C24', fontFamily: fonts.medium, fontSize: fontSizes.sm, textAlign: 'center' },
+  errorActionBtn: { marginTop: 12, paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#721C24', borderRadius: 8 },
+  errorActionText: { color: '#fff', fontFamily: fonts.bold, fontSize: fontSizes.sm },
 });

@@ -29,6 +29,8 @@ export default function ProfilePanel({
   const [newPwd,      setNewPwd]      = useState('');
   const [confirmPwd,  setConfirmPwd]  = useState('');
   const [showPwd,     setShowPwd]     = useState(false);
+  const [pwdError,    setPwdError]    = useState<string | null>(null);
+  const [pwdSuccess,  setPwdSuccess]  = useState<string | null>(null);
 
   // Notifications
   const [notifSMS,      setNotifSMS]      = useState(true);
@@ -50,20 +52,22 @@ export default function ProfilePanel({
   };
 
   const handleChangePassword = () => {
+    setPwdError(null);
+    setPwdSuccess(null);
     if (!currentPwd || !newPwd || !confirmPwd)
-      return Alert.alert('Erreur', 'Tous les champs sont obligatoires.');
+      return setPwdError('Tous les champs sont obligatoires.');
     if (newPwd !== confirmPwd)
-      return Alert.alert('Erreur', 'Les mots de passe ne correspondent pas.');
+      return setPwdError('Les mots de passe ne correspondent pas.');
     if (newPwd.length < 8)
-      return Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 8 caractères.');
+      return setPwdError('Le mot de passe doit faire au moins 8 caractères.');
 
     // TODO Sprint 2 : appeler authService.changePassword(currentPwd, newPwd)
-    Alert.alert('Succès', 'Mot de passe modifié avec succès.', [
-      { text: 'OK', onPress: () => {
-        setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
-        setActiveSection(null);
-      }},
-    ]);
+    setPwdSuccess('Mot de passe modifié avec succès.');
+    setTimeout(() => {
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+      setPwdSuccess(null);
+      setActiveSection(null);
+    }, 2000);
   };
 
   const handleLogout = () => {
@@ -221,6 +225,18 @@ export default function ProfilePanel({
                       {showPwd ? 'Masquer' : 'Afficher'} les mots de passe
                     </Text>
                   </TouchableOpacity>
+
+                  {pwdError && (
+                    <View style={styles.inlineErrorBox}>
+                      <Text style={styles.inlineErrorText}>{pwdError}</Text>
+                    </View>
+                  )}
+                  {pwdSuccess && (
+                    <View style={styles.inlineSuccessBox}>
+                      <Text style={styles.inlineSuccessText}>{pwdSuccess}</Text>
+                    </View>
+                  )}
+
                   <TouchableOpacity
                     style={styles.savePwdBtn}
                     onPress={handleChangePassword}
@@ -357,4 +373,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 16,
   },
   logoutText:      { fontSize: fontSizes.sm, fontFamily: fonts.bold, color: colors.danger },
+  inlineErrorBox: { backgroundColor: '#FDECEA', padding: 12, borderRadius: 8, marginTop: 12, borderWidth: 1, borderColor: '#F5C6CB' },
+  inlineErrorText: { color: '#721C24', fontFamily: fonts.medium, fontSize: fontSizes.xs, textAlign: 'center' },
+  inlineSuccessBox: { backgroundColor: '#E8F5E9', padding: 12, borderRadius: 8, marginTop: 12, borderWidth: 1, borderColor: '#C8E6C9' },
+  inlineSuccessText: { color: '#2E7D32', fontFamily: fonts.medium, fontSize: fontSizes.xs, textAlign: 'center' },
 });

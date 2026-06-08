@@ -164,7 +164,11 @@ Tests build locaux:
 - 2026-06-02: bascule mobile vers `EXPO_PUBLIC_API_URL`.
 - 2026-06-02: adaptation backend Vercel serverless + fallbacks URL frontend/mobile.
 - 2026-06-02: correctifs anti-timeout backend (errors async + timeout DB).
-- 2026-06-07: constat de blocage production confirmé sur DB (`ECONNREFUSED 127.0.0.1:5432`).
+- 2026-06-07: Constat de blocage production confirmé sur DB (`ECONNREFUSED 127.0.0.1:5432`).
+- 2026-06-07: Bascule initiée vers Supabase pour la base de données. Ajout des clés d'API (anon/service_role) dans les `.env` (backend, frontend, Qr-mobile). **Blocage P0 levé localement**: La chaîne de connexion PostgreSQL complète (`DATABASE_URL`) et le nouveau `JWT_SECRET` ont été fournis et renseignés dans le `backend/.env`. Prêt pour les tests de connexion.
+- 2026-06-08: Tests de connexion locaux validés. Le backend local Node.js se connecte parfaitement à Supabase via l'URL de pooler IPv4. Création d'un compte de test réussie (insertion dans `users` et `profiles`).
+- 2026-06-08: Installation de `react-native-web` sur `Qr-mobile` pour tester l'application mobile localement via le navigateur. Identification d'un bug d'affichage des alertes sur le web (silence crash sur erreur 400).
+- 2026-06-08: Attente du redéploiement manuel du backend sur Vercel avec la nouvelle `DATABASE_URL` pour confirmer la levée définitive du blocage P0 en production.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.
@@ -179,3 +183,6 @@ Tests build locaux:
 Règle de maintenance du fichier:
 - Toute décision architecture/devops/test doit être tracée immédiatement.
 - Toute régression ou blocage prod doit être documenté avec symptôme + cause + action corrective.
+
+Règle UI/UX (Frontend & Mobile):
+- Les erreurs API et de validation doivent être affichées de manière visuelle et inline dans l'interface (ex: textes d'erreur rouges sous les champs). L'utilisation de pop-ups systèmes (`Alert.alert`) est proscrite pour les flux principaux afin d'assurer une compatibilité Web parfaite et une expérience utilisateur premium.

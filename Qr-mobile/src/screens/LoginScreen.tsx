@@ -22,10 +22,12 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    setApiError(null);
     if (!phone || !password) {
-      Alert.alert("Champs requis", "Veuillez saisir votre numéro et votre mot de passe.");
+      setApiError("Veuillez saisir votre numéro et votre mot de passe.");
       return;
     }
     setLoading(true);
@@ -45,10 +47,10 @@ export default function LoginScreen({ navigation }: Props) {
           navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Accueil' } }] });
         }
       } else {
-        Alert.alert("Échec", data.detail || "Identifiants incorrects");
+        setApiError(data.detail || "Identifiants incorrects");
       }
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de joindre le serveur.");
+      setApiError("Impossible de joindre le serveur.");
     } finally {
       setLoading(false);
     }
@@ -103,6 +105,12 @@ export default function LoginScreen({ navigation }: Props) {
               </View>
             </View>
 
+            {apiError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorBoxText}>{apiError}</Text>
+              </View>
+            )}
+
             <TouchableOpacity 
               style={[styles.btnPrimary, loading && { opacity: 0.7 }]} 
               onPress={handleLogin} 
@@ -140,4 +148,6 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontSize: fontSizes.md, fontFamily: fonts.bold },
   linkText: { textAlign: 'center', marginTop: 16, color: colors.textSecondary },
   link: { color: colors.primary, fontFamily: fonts.bold },
+  errorBox: { backgroundColor: '#FDECEA', padding: 16, borderRadius: 12, marginTop: 4, borderWidth: 1, borderColor: '#F5C6CB', alignItems: 'center' },
+  errorBoxText: { color: '#721C24', fontFamily: fonts.medium, fontSize: fontSizes.sm, textAlign: 'center' },
 });
