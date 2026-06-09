@@ -114,8 +114,8 @@ Tests build locaux:
 - `Qr-mobile`: FAIL partiel (erreurs TypeScript préexistantes non bloquantes pour la migration backend).
 
 ## 7. Blocage principal actuel
-- Blocage P0: DATABASE_URL backend Vercel incorrecte/non joignable.
-- Tant que ce point n'est pas corrigé, les parcours register/login/API métier restent indisponibles.
+- Aucun blocage P0 actif. Le backend Vercel est connecté à la base de données Supabase.
+- (Précédent blocage levé: DATABASE_URL backend Vercel joignable en production).
 
 ## 8. Variables d'environnement attendues (production)
 
@@ -168,7 +168,9 @@ Tests build locaux:
 - 2026-06-07: Bascule initiée vers Supabase pour la base de données. Ajout des clés d'API (anon/service_role) dans les `.env` (backend, frontend, Qr-mobile). **Blocage P0 levé localement**: La chaîne de connexion PostgreSQL complète (`DATABASE_URL`) et le nouveau `JWT_SECRET` ont été fournis et renseignés dans le `backend/.env`. Prêt pour les tests de connexion.
 - 2026-06-08: Tests de connexion locaux validés. Le backend local Node.js se connecte parfaitement à Supabase via l'URL de pooler IPv4. Création d'un compte de test réussie (insertion dans `users` et `profiles`).
 - 2026-06-08: Installation de `react-native-web` sur `Qr-mobile` pour tester l'application mobile localement via le navigateur. Identification d'un bug d'affichage des alertes sur le web (silence crash sur erreur 400).
-- 2026-06-08: Attente du redéploiement manuel du backend sur Vercel avec la nouvelle `DATABASE_URL` pour confirmer la levée définitive du blocage P0 en production.
+- 2026-06-08: Refonte UX/UI globale de la gestion des erreurs sur `Qr-mobile`. Suppression de `Alert.alert` pour les formulaires au profit de messages inline (bannières dynamiques) pour une compatibilité web 100% et une meilleure expérience native.
+- 2026-06-08: Erreur humaine temporaire corrigée sur l'URL de connexion (`eu-central-1` vs `eu-west-1`).
+- 2026-06-09: **Blocage P0 définitivement levé en production**. Le backend sur Vercel est redéployé avec succès avec la bonne `DATABASE_URL` pointant vers Supabase. Les tests d'inscription bout-en-bout depuis l'application Web/Mobile vers Vercel sont concluants.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.
