@@ -11,6 +11,7 @@ import alertesRouter from './routers/alertes';
 import geodecisionRouter from './routers/geodecision';
 import roadReportsRouter from './routers/roadReports';
 import respondersRouter from './routers/responders';
+import zemRouter from './routers/zem';
 import { pool } from './database';
 
 dotenv.config();
@@ -50,6 +51,7 @@ app.use('/alertes', alertesRouter);
 app.use('/geo', geodecisionRouter);
 app.use('/road-reports', roadReportsRouter);
 app.use('/responders', respondersRouter);
+app.use('/zem', zemRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   // Keep backend errors explicit in JSON to simplify frontend diagnosis.

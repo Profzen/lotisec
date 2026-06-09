@@ -280,6 +280,29 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
+          <Text style={[styles.cardTitle, { color: th.text2 }]}>DÉPLACEMENT & ZEM</Text>
+          <TouchableOpacity style={styles.alertRow} onPress={() => navigation.navigate('ZemPassenger' as any)}>
+            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>🛵</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.alertTitle, { color: th.text }]}>Commander un Zem</Text>
+              <Text style={[styles.alertSub, { color: th.text3 }]}>Trouvez un conducteur à proximité</Text>
+            </View>
+            <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+          </TouchableOpacity>
+
+          {profile?.is_zem && (
+            <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)' }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
+              <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><Text>🛣️</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.alertTitle, { color: colors.success }]}>Mode Conducteur</Text>
+                <Text style={[styles.alertSub, { color: colors.success, opacity: 0.7 }]}>Recevoir des courses</Text>
+              </View>
+              <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: th.text2 }]}>CONTACTS D'URGENCE</Text>
           {CONTACTS.map((c, i) => (
             <View key={c.id} style={[styles.contactRow, { borderBottomColor: th.divider }, i === CONTACTS.length - 1 && { borderBottomWidth: 0 }]}>

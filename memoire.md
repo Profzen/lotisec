@@ -171,6 +171,8 @@ Tests build locaux:
 - 2026-06-08: Refonte UX/UI globale de la gestion des erreurs sur `Qr-mobile`. Suppression de `Alert.alert` pour les formulaires au profit de messages inline (bannières dynamiques) pour une compatibilité web 100% et une meilleure expérience native.
 - 2026-06-08: Erreur humaine temporaire corrigée sur l'URL de connexion (`eu-central-1` vs `eu-west-1`).
 - 2026-06-09: **Blocage P0 définitivement levé en production**. Le backend sur Vercel est redéployé avec succès avec la bonne `DATABASE_URL` pointant vers Supabase. Les tests d'inscription bout-en-bout depuis l'application Web/Mobile vers Vercel sont concluants.
+- 2026-06-09: Correction d'un bug majeur sur l'écran de connexion (`LoginScreen.tsx`) de l'application mobile : l'URL de l'API était codée en dur (Railway) au lieu d'utiliser la variable d'environnement, et la limite de caractères bloquait les espaces dans le numéro de téléphone. Remplacement du fetch direct par le hook centralisé `useAuth`.
+- 2026-06-09: Refonte totale de la géolocalisation des hôpitaux. Suppression des données fictives (`HOPITAUX_DEMO`) de l'écran `HopitauxScreen.tsx`. Modification de la base Supabase (table `medical_facilities`) pour ajouter les colonnes requises par l'UI (`type`, `address`, `urgences`). Correction de l'API Vercel (`/geo/hopital-proche`) pour utiliser la colonne `location` (Type PostGIS Geography) afin d'assurer un calcul exact de la distance via `ST_Distance`. Connexion finale du mobile à la vraie API.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.
