@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { useAuth } from '../hooks/useAuth';
+
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
@@ -21,8 +23,8 @@ export default function LoginScreen({ navigation }: Props) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const { login, loading } = useAuth();
 
   const handleLogin = async () => {
     setApiError(null);
@@ -30,29 +32,12 @@ export default function LoginScreen({ navigation }: Props) {
       setApiError("Veuillez saisir votre numéro et votre mot de passe.");
       return;
     }
-    setLoading(true);
     try {
       const fullPhone = "+228" + phone.replace(/\s/g, ''); // Formatage pour le Togo
-      const response = await fetch('https://safelife.up.railway.app/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: fullPhone, password: password }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        const token = data.token || data.access_token;
-        if (token) {
-          await AsyncStorage.setItem('token', token);
-          navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Accueil' } }] });
-        }
-      } else {
-        setApiError(data.detail || "Identifiants incorrects");
-      }
-    } catch (error) {
-      setApiError("Impossible de joindre le serveur.");
-    } finally {
-      setLoading(false);
+      await login(fullPhone, password);
+      navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Accueil' } }] });
+    } catch (error: any) {
+      setApiError(error.message || "Impossible de se connecter.");
     }
   };
 
@@ -81,7 +66,7 @@ export default function LoginScreen({ navigation }: Props) {
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
-                  maxLength={8}
+                  maxLength={11}
                   editable={!loading}
                 />
               </View>
