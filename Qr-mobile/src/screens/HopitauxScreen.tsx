@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
+import { api } from '../api/config';
 
 // ─── Types ────────────────────────────────────────────────────
 interface Hopital {
@@ -45,38 +46,8 @@ const FILTRES = [
   { key: 'urgences',    label: 'Urgences 24h',      icon: '🚨' },
 ];
 
-// ─── Haversine ────────────────────────────────────────────────
-const calculerDistance = (
-  lat1: number, lon1: number,
-  lat2: number, lon2: number
-): number => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
 const estimerMinutes = (km: number): number =>
   Math.round((km / 30) * 60);
-
-// ─── Données démo ─────────────────────────────────────────────
-const HOPITAUX_DEMO: Omit<Hopital, 'distance' | 'minutes'>[] = [
-  { id: '1',  name: 'CHU Sylvanus Olympio',       type: 'hopital',     address: 'Bd du 13 Janvier, Lomé',          phone: '+22822212501', latitude: 6.1375, longitude: 1.2124, urgences: true  },
-  { id: '2',  name: 'Hôpital de Bè',              type: 'hopital',     address: 'Quartier Bè, Lomé',               phone: '+22822253344', latitude: 6.1201, longitude: 1.2244, urgences: true  },
-  { id: '3',  name: "Clinique de l'Espoir",        type: 'clinique',    address: 'Avenue du 24 Janvier, Lomé',      phone: '+22891000001', latitude: 6.1420, longitude: 1.2050, urgences: false },
-  { id: '4',  name: 'Clinique Biasa',              type: 'clinique',    address: 'Nyékonakpoè, Lomé',               phone: '+22891000002', latitude: 6.1480, longitude: 1.2180, urgences: true  },
-  { id: '5',  name: 'Dispensaire de Tokoin',       type: 'dispensaire', address: 'Tokoin, Lomé',                    phone: '+22891000003', latitude: 6.1550, longitude: 1.2300, urgences: false },
-  { id: '6',  name: 'Centre de Santé Adidogomé',   type: 'cs',          address: 'Adidogomé, Lomé',                 phone: '+22891000004', latitude: 6.1680, longitude: 1.1980, urgences: false },
-  { id: '7',  name: 'Hôpital Militaire de Lomé',   type: 'hopital',     address: 'Camp Gnassingbé Eyadéma, Lomé',  phone: '+22822214455', latitude: 6.1320, longitude: 1.2400, urgences: true  },
-  { id: '8',  name: 'Clinique Ambroise Paré',      type: 'clinique',    address: 'Quartier Hédzranawoé, Lomé',     phone: '+22891000005', latitude: 6.1600, longitude: 1.2100, urgences: false },
-  { id: '9',  name: 'Dispensaire Saint-Joseph',    type: 'dispensaire', address: 'Agoè, Lomé',                     phone: '+22891000006', latitude: 6.1780, longitude: 1.2050, urgences: false },
-  { id: '10', name: 'Centre de Santé Kodjoviakopé',type: 'cs',          address: 'Kodjoviakopé, Lomé',             phone: '+22891000007', latitude: 6.1250, longitude: 1.2200, urgences: false },
-];
 
 export default function HospitauxScreen({ navigation }: any) {
   const [location,   setLocation]   = useState<Location.LocationObject | null>(null);
@@ -101,21 +72,29 @@ export default function HospitauxScreen({ navigation }: any) {
         accuracy: Location.Accuracy.Balanced,
       });
       setLocation(loc);
-      calculerEtTrier(loc.coords.latitude, loc.coords.longitude);
+      fetchHopitaux(loc.coords.latitude, loc.coords.longitude);
     } catch {
       setErreur('Impossible de récupérer votre position.');
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  const calculerEtTrier = (lat: number, lon: number) => {
-    const liste = HOPITAUX_DEMO.map(h => {
-      const d = calculerDistance(lat, lon, h.latitude, h.longitude);
-      return { ...h, distance: Math.round(d * 10) / 10, minutes: estimerMinutes(d) };
-    }).sort((a, b) => a.distance - b.distance);
-    setHopitaux(liste);
+  const fetchHopitaux = async (lat: number, lon: number) => {
+    try {
+      const data = await api(`/geo/hopital-proche?lat=${lat}&lng=${lon}`, 'GET');
+      const liste: Hopital[] = data.map((h: any) => ({
+        ...h,
+        distance: Number(h.distance_km),
+        minutes: estimerMinutes(Number(h.distance_km))
+      }));
+      setHopitaux(liste);
+    } catch (err) {
+      setErreur("Erreur lors de la récupération des hôpitaux.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => { chargerPosition(); }, []);

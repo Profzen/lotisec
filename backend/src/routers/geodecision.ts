@@ -46,14 +46,14 @@ router.get('/hopital-proche', async (req, res) => {
   }
 
   const rows = await query<any>(
-    `SELECT nom, latitude, longitude, telephone,
+    `SELECT id, name, type, address, phone, urgences, latitude, longitude,
             ROUND(ST_Distance(
-              geom::geography,
+              location::geography,
               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
             )::numeric / 1000, 2) AS distance_km
      FROM medical_facilities
      ORDER BY distance_km
-     LIMIT 3`,
+     LIMIT 50`,
     [lng, lat]
   );
 
