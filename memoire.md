@@ -83,11 +83,15 @@ Statut de référence: **2026-06-11**.
 - Build local validé (`npm run build`).
 - Déployé sur Vercel: https://lotisec-frontend.vercel.app.
 
+**Réalisé ✅ (Nouveautés Récentes) :**
+- **UI/UX Pixel-Perfect** : L'interface web a été entièrement refondue pour être le clone exact de l'application mobile (Fond vert Lotisec, effet radar SOS, panel blanc arrondi, navigation bottom bar avec icônes Lucide).
+- **Module Zem Web** : `MapZem.tsx` fonctionnel sur le web avec OpenStreetMap, Nominatim (recherche), OSRM (itinéraires) et intégration Supabase Realtime pour commander une moto en temps réel.
+- Bug 404 Vercel corrigé via `vercel.json` (rewrites pour React Router).
+- Script de création de comptes de test (Passager + Zem) inséré directement en base via API.
+
 **En attente / incomplet ⏳:**
-- UI/UX: version MVP utilitaire, **pas encore de design final**. Priorité haute.
-- Pas de responsive mobile finalisé.
+- Pages Hôpitaux, Conseils et Mon QR : actuellement des placeholders statiques.
 - Pas de page profil détaillé / édition profil.
-- Pas de page cartographie / heatmap accidents (uniquement sur dashboard pro).
 - Pas de scan QR web intégré.
 
 ### 4.3 Mobile Expo (`Qr-mobile/`)
