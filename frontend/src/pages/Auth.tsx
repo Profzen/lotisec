@@ -7,7 +7,7 @@ export function Landing() {
   const navigate = useNavigate();
   return (
     <div className="app-container justify-center items-center" style={{ backgroundColor: 'var(--color-primary)' }}>
-      <div className="card text-center" style={{ maxWidth: '400px', width: '90%' }}>
+      <div className="lotisec-card text-center" style={{ maxWidth: '400px', width: '90%' }}>
         <img src="/Lotisec.png" alt="Lotisec Logo" style={{ width: '120px', margin: '0 auto 1rem' }} />
         <h1 style={{ color: 'var(--color-primary)' }}>LOTISEC</h1>
         <p className="text-secondary mb-4">Urgence routière, Secours et Réservation Zemidjan au Togo.</p>
@@ -51,7 +51,7 @@ export function Login() {
 
   return (
     <div className="app-container justify-center items-center">
-      <form className="card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
+      <form className="lotisec-card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
         <div className="text-center mb-4">
           <Shield size={48} className="text-primary mx-auto" />
           <h2 className="mt-4">Connexion</h2>
@@ -107,7 +107,7 @@ export function Register() {
 
   return (
     <div className="app-container justify-center items-center">
-      <form className="card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
+      <form className="lotisec-card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
         <div className="text-center mb-4">
           <Shield size={48} className="text-primary mx-auto" />
           <h2 className="mt-4">Inscription</h2>
