@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   phoneInputRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   countryPrefix: { paddingHorizontal: 12, justifyContent: 'center', borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: '#F9F9F9' },
   prefixText: { fontFamily: fonts.bold, fontSize: 14 },
-  flexInput: { flex: 1, padding: 14, fontSize: fontSizes.md },
+  flexInput: { flex: 1, padding: 14, fontSize: fontSizes.md, color: colors.text },
   eyeBtn: { padding: 14, justifyContent: 'center' },
   btnPrimary: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
   btnText: { color: '#fff', fontSize: fontSizes.md, fontFamily: fonts.bold },
