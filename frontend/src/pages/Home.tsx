@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { api, authHeaders } from '../api/client';
-import { ShieldAlert, Activity, Heart, Info, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
+import { User, Car, ChevronRight, Phone, Flame } from 'lucide-react';
 
 type UserData = {
   id: string;
@@ -8,40 +9,22 @@ type UserData = {
   qr_token?: string;
 };
 
-type Hospital = {
-  nom: string;
-  distance_km?: number;
-  telephone?: string;
-};
-
 export function Home() {
+  const navigate = useNavigate();
   const user = useMemo(() => {
     const raw = localStorage.getItem('lotisec_user');
     return raw ? (JSON.parse(raw) as UserData) : null;
   }, []);
   
-  const [message, setMessage] = useState('Prêt pour une urgence.');
-  const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loadingSOS, setLoadingSOS] = useState(false);
-
-  const detectHospitals = async (lat: number, lng: number) => {
-    try {
-      const { data } = await api.get('/geo/hopital-proche', { params: { lat, lng } });
-      setHospitals(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const sendSOS = async () => {
     if (!navigator.geolocation) {
-      setMessage('Géolocalisation non supportée par votre navigateur.');
+      alert('Géolocalisation non supportée par votre navigateur.');
       return;
     }
 
     setLoadingSOS(true);
-    setMessage('Détection GPS en cours...');
-
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const latitude = position.coords.latitude;
@@ -66,91 +49,117 @@ export function Home() {
               adresse: 'Position GPS web'
             })
           ]);
-
-          await detectHospitals(latitude, longitude);
-          setMessage('SOS envoyé avec succès. Secours notifiés.');
+          alert('SOS envoyé ! Les secours ont reçu votre position.');
         } catch {
-          setMessage('Échec de l\'envoi du SOS. Vérifiez votre connexion.');
+          alert('Échec de l\'envoi du SOS.');
         } finally {
           setLoadingSOS(false);
         }
       },
       () => {
         setLoadingSOS(false);
-        setMessage('Position GPS refusée ou indisponible.');
+        alert('Position GPS refusée.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Profil Header */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--color-primary)', color: 'white' }}>
-        <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '50%' }}>
-          <ShieldAlert size={32} />
+    <>
+      {/* Top Header */}
+      <div className="top-header">
+        <div className="top-header-title">LOTI<span>SEC</span></div>
+        <div className="profile-avatar">
+          <User size={24} />
         </div>
+      </div>
+
+      {/* SOS Area (Green background) */}
+      <div className="sos-container">
+        <div className="sos-radar">
+          <div className="sos-ring sos-ring-1"></div>
+          <div className="sos-ring sos-ring-2"></div>
+          <div className="sos-ring sos-ring-3"></div>
+          <button 
+            className="sos-btn-huge" 
+            onClick={sendSOS} 
+            disabled={loadingSOS}
+          >
+            <div className="sos-text-main">SOS</div>
+            <div className="sos-text-sub">URGENCE</div>
+          </button>
+        </div>
+        <div className="sos-instruction">DÉCLENCHER LE SOS</div>
+      </div>
+
+      {/* White Bottom Sheet Content */}
+      <div className="white-sheet">
+        
+        {/* Zem Section */}
         <div>
-          <h2 style={{ color: 'white', margin: 0 }}>ID Lotisec: {user?.id.split('-')[0]}</h2>
-          <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Tel: {user?.phone}</p>
-        </div>
-      </div>
-
-      {/* SOS Section */}
-      <div className="card text-center">
-        <h2>Urgence Médicale</h2>
-        <p>{message}</p>
-        <button 
-          className="sos-btn-huge" 
-          onClick={sendSOS} 
-          disabled={loadingSOS}
-        >
-          {loadingSOS ? <Activity className="animate-spin" size={48} /> : 'SOS'}
-        </button>
-        <p className="text-secondary" style={{ fontSize: '0.875rem' }}>
-          Un appui enverra votre position exacte aux urgences.
-        </p>
-      </div>
-
-      {/* Hôpitaux Proches */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-4">
-          <Heart className="text-primary" size={24} />
-          <h2 style={{ margin: 0 }}>Hôpitaux recommandés</h2>
-        </div>
-        {hospitals.length === 0 ? (
-          <p className="text-center" style={{ padding: '2rem 0', color: 'var(--color-text-secondary)' }}>
-            Déclenchez un SOS pour obtenir les recommandations d'hôpitaux les plus proches.
-          </p>
-        ) : (
-          <div className="flex flex-col">
-            {hospitals.map((h, i) => (
-              <div key={`${h.nom}-${i}`} className="list-item">
-                <div>
-                  <div className="list-item-title">{h.nom}</div>
-                  <div className="list-item-subtitle">{h.telephone || 'Pas de numéro'}</div>
-                </div>
-                <div style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                  {h.distance_km ? `${h.distance_km} km` : '-'}
-                </div>
-              </div>
-            ))}
+          <div className="lotisec-card-header">DÉPLACEMENT & ZEM</div>
+          <div className="action-item" onClick={() => navigate('/map')}>
+            <div className="action-icon green">
+              <Car size={24} />
+            </div>
+            <div className="action-content">
+              <div className="action-title">Commander un Zem</div>
+              <div className="action-subtitle">Trouvez un conducteur à proximité</div>
+            </div>
+            <ChevronRight size={20} color="#9ca3af" />
           </div>
-        )}
-      </div>
-
-      {/* Conseils */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-4">
-          <Info className="text-primary" size={24} />
-          <h2 style={{ margin: 0 }}>Conseils sécurité</h2>
         </div>
-        <ul style={{ paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <li>Portez toujours le casque et gardez vos papiers à jour.</li>
-          <li>Partagez votre QR personnel avec vos proches.</li>
-          <li>En cas d'accident, sécurisez d'abord la zone avant de porter secours.</li>
-        </ul>
+
+        {/* Emergency Contacts Section */}
+        <div>
+          <div className="lotisec-card-header">CONTACTS D'URGENCE</div>
+          <div className="lotisec-card">
+            <div className="contact-list">
+              
+              <div className="contact-item">
+                <div className="contact-avatar" style={{ backgroundColor: '#f59e0b' }}>
+                  <Flame size={20} />
+                </div>
+                <div className="action-content">
+                  <div className="action-title">Sapeurs-Pompiers</div>
+                  <div className="action-subtitle">118</div>
+                </div>
+                <button className="action-btn" onClick={() => window.location.href = 'tel:118'}>
+                  <Phone size={20} />
+                </button>
+              </div>
+
+              <div className="contact-item">
+                <div className="contact-avatar" style={{ backgroundColor: '#ef4444' }}>
+                  <User size={20} />
+                </div>
+                <div className="action-content">
+                  <div className="action-title">A prévenir</div>
+                  <div className="action-subtitle">+22891127584</div>
+                </div>
+                <button className="action-btn" onClick={() => window.location.href = 'tel:+22891127584'}>
+                  <Phone size={20} />
+                </button>
+              </div>
+
+              <div className="contact-item">
+                <div className="contact-avatar" style={{ backgroundColor: '#eab308' }}>
+                  <User size={20} />
+                </div>
+                <div className="action-content">
+                  <div className="action-title">A prévenir</div>
+                  <div className="action-subtitle">+22898000493</div>
+                </div>
+                <button className="action-btn" onClick={() => window.location.href = 'tel:+22898000493'}>
+                  <Phone size={20} />
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
       </div>
-    </div>
+    </>
   );
 }
