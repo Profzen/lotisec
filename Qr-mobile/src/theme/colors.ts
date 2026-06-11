@@ -4,10 +4,12 @@ export const colors = {
   red:    '#D21034',
 
   // Couleurs principales
-  primary:     '#006a4e',
-  primaryDark: '#005C2E',
-  danger:      '#D21034',
-  warning:     '#FFCD00',
+  primary:      '#006a4e',
+  primaryDark:  '#005C2E',
+  primaryLight: '#e6f2ed',
+  danger:       '#D21034',
+  warning:      '#FFCD00',
+  success:      '#2E7D32',
 
   // Neutres
   white:         '#FFFFFF',
@@ -17,4 +19,4 @@ export const colors = {
   text:          '#1A1A1A',
   textSecondary: '#6B6B6B',
   textLight:     '#9E9E9E',
-};
+};

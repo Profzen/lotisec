@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../api/supabase';
@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
+import { getRoute, RouteData } from '../utils/osrm';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const [user, setUser] = useState<any>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [destination, setDestination] = useState<{lat: number, lng: number} | null>(null);
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [activeRide, setActiveRide] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const mapRef = useRef<MapView>(null);
@@ -54,46 +56,57 @@ export default function ZemPassengerScreen({ navigation }: any) {
     const loc = await Location.getCurrentPositionAsync({});
     setLocation(loc);
 
-    // Écouter les mises à jour des courses
-    supabase
-      .channel('public:rides')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, payload => {
-        if (activeRide && payload.new.id === activeRide.id) {
-          setActiveRide(payload.new);
-          if (payload.new.status === 'accepted') {
-            Alert.alert("Succès", "Un Zem a accepté votre course ! Il est en route.");
-          } else if (payload.new.status === 'completed') {
-            Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec SafeLife Zem !");
-            setActiveRide(null);
-            setDestination(null);
-          } else if (payload.new.status === 'declined') {
-            // Le Zem a refusé, on pourrait relancer la recherche ici
-            Alert.alert("Désolé", "Le Zem a décliné. Relancez la recherche.");
-            setActiveRide(null);
+    // Écouter les mises à jour des courses (si Supabase est configuré)
+    if (supabase) {
+      supabase
+        .channel('public:rides')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, payload => {
+          if (activeRide && payload.new.id === activeRide.id) {
+            setActiveRide(payload.new);
+            if (payload.new.status === 'accepted') {
+              Alert.alert("Succès", "Un Zem a accepté votre course ! Il est en route.");
+            } else if (payload.new.status === 'completed') {
+              Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec SafeLife Zem !");
+              setActiveRide(null);
+              setDestination(null);
+              setRouteData(null);
+            } else if (payload.new.status === 'declined') {
+              // Le Zem a refusé, on pourrait relancer la recherche ici
+              Alert.alert("Désolé", "Le Zem a décliné. Relancez la recherche.");
+              setActiveRide(null);
+            }
           }
-        }
-      })
-      .subscribe();
+        })
+        .subscribe();
+    }
 
     setLoading(false);
   };
 
-  const handleMapPress = (e: any) => {
+  const handleMapPress = async (e: any) => {
     if (activeRide) return; // On ne change pas si une course est en cours
-    setDestination({
+    
+    const dest = {
       lat: e.nativeEvent.coordinate.latitude,
       lng: e.nativeEvent.coordinate.longitude
-    });
+    };
+    setDestination(dest);
+
+    if (location) {
+      setLoading(true);
+      const rData = await getRoute(
+        { latitude: location.coords.latitude, longitude: location.coords.longitude },
+        { latitude: dest.lat, longitude: dest.lng }
+      );
+      setRouteData(rData);
+      setLoading(false);
+    }
   };
 
   const requestZem = async () => {
-    if (!destination || !location || !user) return;
+    if (!destination || !location || !user || !routeData) return;
 
-    const dist = calculateDistance(
-      location.coords.latitude, location.coords.longitude,
-      destination.lat, destination.lng
-    );
-    const price = Math.round(dist * 75);
+    const price = Math.round(routeData.distanceKm * 75);
 
     try {
       setLoading(true);
@@ -103,7 +116,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         originLng: location.coords.longitude,
         destLat: destination.lat,
         destLng: destination.lng,
-        distanceKm: Math.round(dist * 10) / 10,
+        distanceKm: Math.round(routeData.distanceKm * 10) / 10,
         priceFcfa: price
       });
 
@@ -121,7 +134,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   };
 
   const cancelRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || !supabase) return;
     try {
       await supabase
         .from('rides')
@@ -129,6 +142,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         .eq('id', activeRide.id);
       setActiveRide(null);
       setDestination(null);
+      setRouteData(null);
     } catch (err) {
       console.error(err);
     }
@@ -155,6 +169,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
       <MapView
         ref={mapRef}
         style={styles.map}
+        mapType="none"
         initialRegion={{
           latitude: location?.coords.latitude || 6.13,
           longitude: location?.coords.longitude || 1.21,
@@ -165,10 +180,21 @@ export default function ZemPassengerScreen({ navigation }: any) {
         showsMyLocationButton={true}
         onPress={handleMapPress}
       >
+        <UrlTile
+          urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+          flipY={false}
+        />
         {destination && (
           <Marker coordinate={{ latitude: destination.lat, longitude: destination.lng }} title="Destination" pinColor="red" />
         )}
-        {(destination && location) && (
+        {(destination && location && routeData) ? (
+          <Polyline 
+            coordinates={routeData.coordinates} 
+            strokeColor={colors.primary} 
+            strokeWidth={4} 
+          />
+        ) : (destination && location) ? (
           <Polyline 
             coordinates={[
               { latitude: location.coords.latitude, longitude: location.coords.longitude },
@@ -178,7 +204,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
             strokeWidth={4} 
             lineDashPattern={[5, 5]}
           />
-        )}
+        ) : null}
       </MapView>
 
       <View style={styles.bottomPanel}>
@@ -187,13 +213,13 @@ export default function ZemPassengerScreen({ navigation }: any) {
             <Text style={styles.instruction}>
               {destination ? "Destination sélectionnée" : "Appuyez sur la carte pour choisir votre destination"}
             </Text>
-            {destination && location && (
+            {destination && location && routeData && (
               <View style={styles.estimateBox}>
                 <Text style={styles.estimateText}>
-                  Distance: {Math.round(calculateDistance(location.coords.latitude, location.coords.longitude, destination.lat, destination.lng) * 10) / 10} km
+                  Distance: {Math.round(routeData.distanceKm * 10) / 10} km
                 </Text>
                 <Text style={styles.priceText}>
-                  ~ {Math.round(calculateDistance(location.coords.latitude, location.coords.longitude, destination.lat, destination.lng) * 75)} FCFA
+                  ~ {Math.round(routeData.distanceKm * 75)} FCFA
                 </Text>
               </View>
             )}

@@ -13,14 +13,21 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lotisec-backend.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://lotisec-backend.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://xtalrmoacijdwioazfps.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0YWxybW9hY2lqZHdpb2F6ZnBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MzI3MTcsImV4cCI6MjA5MTQwODcxN30.rVTdM7KNgWDC3r8MQ7_TVOf-xZd4j_XeFTJXeLXBHcA"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lotisec-backend.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://lotisec-backend.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://xtalrmoacijdwioazfps.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0YWxybW9hY2lqZHdpb2F6ZnBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MzI3MTcsImV4cCI6MjA5MTQwODcxN30.rVTdM7KNgWDC3r8MQ7_TVOf-xZd4j_XeFTJXeLXBHcA"
       }
     }
   },

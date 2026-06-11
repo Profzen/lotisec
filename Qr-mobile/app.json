@@ -30,6 +30,11 @@
         "backgroundColor": "#006a4e"
       },
       "package": "com.safelife.togo",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSy_FAKE_KEY_FOR_OPENSTREETMAP_BYPASS"
+        }
+      },
       "splash": {
         "image": "./assets/SafeLife.png",
         "resizeMode": "contain",
@@ -51,9 +56,8 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "16ee73cc-4920-413b-8d7b-95f0b73e1efc"
+        "projectId": "3f8d2fc4-3470-46c4-9ad7-02a45d9b2414"
       }
-    },
-    "owner": "remakdev"
+    }
   }
 }

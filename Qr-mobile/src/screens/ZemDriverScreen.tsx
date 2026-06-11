@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../api/supabase';
@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
+import { getRoute, RouteData } from '../utils/osrm';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,6 +22,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [activeRide, setActiveRide] = useState<any>(null);
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [loading, setLoading] = useState(true);
   const mapRef = useRef<MapView>(null);
 
@@ -53,21 +55,24 @@ export default function ZemDriverScreen({ navigation }: any) {
       }
     });
 
-    // Écouter les nouvelles courses via Supabase Realtime
-    supabase
-      .channel('public:rides')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: `zem_id=eq.${userId}` }, payload => {
-        if (payload.new.status === 'requested') {
-          handleNewRideRequest(payload.new);
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `zem_id=eq.${userId}` }, payload => {
-        if (payload.new.status === 'canceled' && activeRide?.id === payload.new.id) {
-          Alert.alert("Annulation", "La course a été annulée par le client.");
-          setActiveRide(null);
-        }
-      })
-      .subscribe();
+    // Écouter les nouvelles courses via Supabase Realtime (si configuré)
+    if (supabase) {
+      supabase
+        .channel('public:rides')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: `zem_id=eq.${userId}` }, payload => {
+          if (payload.new.status === 'requested') {
+            handleNewRideRequest(payload.new);
+          }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `zem_id=eq.${userId}` }, payload => {
+          if (payload.new.status === 'canceled' && activeRide?.id === payload.new.id) {
+            Alert.alert("Annulation", "La course a été annulée par le client.");
+            setActiveRide(null);
+            setRouteData(null);
+          }
+        })
+        .subscribe();
+    }
 
     setLoading(false);
   };
@@ -106,6 +111,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   };
 
   const acceptRide = async (ride: any) => {
+    if (!supabase) return;
     try {
       // Mettre à jour Supabase
       const { data, error } = await supabase
@@ -122,6 +128,13 @@ export default function ZemDriverScreen({ navigation }: any) {
       setIsOnline(false);
       updateZemLocation(user.id, location!.coords.latitude, location!.coords.longitude, false);
 
+      // Calculer la route OSRM
+      const rData = await getRoute(
+        { latitude: data.origin_lat, longitude: data.origin_lng },
+        { latitude: data.dest_lat, longitude: data.dest_lng }
+      );
+      setRouteData(rData);
+
       // Centrer la carte
       mapRef.current?.fitToCoordinates([
         { latitude: data.origin_lat, longitude: data.origin_lng },
@@ -134,6 +147,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   };
 
   const declineRide = async (rideId: string) => {
+    if (!supabase) return;
     try {
       await supabase
         .from('rides')
@@ -145,7 +159,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   };
 
   const completeRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || !supabase) return;
     try {
       await supabase
         .from('rides')
@@ -154,6 +168,7 @@ export default function ZemDriverScreen({ navigation }: any) {
       
       Alert.alert("Terminé", `Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
       setActiveRide(null);
+      setRouteData(null);
       setIsOnline(true);
       updateZemLocation(user.id, location!.coords.latitude, location!.coords.longitude, true);
     } catch (err) {
@@ -182,6 +197,7 @@ export default function ZemDriverScreen({ navigation }: any) {
       <MapView
         ref={mapRef}
         style={styles.map}
+        mapType="none"
         initialRegion={{
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -191,18 +207,31 @@ export default function ZemDriverScreen({ navigation }: any) {
         showsUserLocation={true}
         showsMyLocationButton={true}
       >
+        <UrlTile
+          urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+          flipY={false}
+        />
         {activeRide && (
           <>
             <Marker coordinate={{ latitude: activeRide.origin_lat, longitude: activeRide.origin_lng }} title="Départ" pinColor="green" />
             <Marker coordinate={{ latitude: activeRide.dest_lat, longitude: activeRide.dest_lng }} title="Destination" pinColor="red" />
-            <Polyline 
-              coordinates={[
-                { latitude: activeRide.origin_lat, longitude: activeRide.origin_lng },
-                { latitude: activeRide.dest_lat, longitude: activeRide.dest_lng }
-              ]} 
-              strokeColor={colors.primary} 
-              strokeWidth={4} 
-            />
+            {routeData ? (
+              <Polyline 
+                coordinates={routeData.coordinates} 
+                strokeColor={colors.primary} 
+                strokeWidth={4} 
+              />
+            ) : (
+              <Polyline 
+                coordinates={[
+                  { latitude: activeRide.origin_lat, longitude: activeRide.origin_lng },
+                  { latitude: activeRide.dest_lat, longitude: activeRide.dest_lng }
+                ]} 
+                strokeColor={colors.primary} 
+                strokeWidth={4} 
+              />
+            )}
           </>
         )}
       </MapView>
