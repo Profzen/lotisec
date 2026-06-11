@@ -1,4 +1,4 @@
-const BASE_URL = "https://safelife.up.railway.app";
+const BASE_URL = "https://lotisec-backend.vercel.app";
 
 export const EmergencyService = {
   // Récupérer l'établissement le plus proche via latitude/longitude

@@ -32,7 +32,7 @@ export default function LandingScreen({ navigation }: Props) {
         <View style={styles.logoContainer}>
           {/* REMPLACEMENT DU TEXTE PAR L'IMAGE */}
           <Image 
-            source={require('../../assets/SafeLife-bg.png')} 
+            source={require('../../assets/Lotisec-bg.png')} 
             style={styles.logoImage}
             resizeMode="contain"
           />

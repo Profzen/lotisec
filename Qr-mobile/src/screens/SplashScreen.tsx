@@ -86,7 +86,7 @@ export default function SplashScreen({ navigation }: Props) {
           justifyContent: 'center',
         }}>
           <Image
-            source={require('../../assets/SafeLife.png')}
+            source={require('../../assets/Lotisec.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />

@@ -1,4 +1,4 @@
-const fallbackApiUrl = 'https://safelife.up.railway.app';
+const fallbackApiUrl = 'https://lotisec-backend.vercel.app';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || fallbackApiUrl).replace(/\/$/, '');
 

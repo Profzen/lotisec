@@ -8,7 +8,7 @@ import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = "https://safelife.up.railway.app";
+const API_URL = "https://lotisec-backend.vercel.app";
 
 export default function ScanResultScreen({ route, navigation }: any) {
   const { profileId } = route.params;
@@ -44,7 +44,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
         setAccessCode('');
       }
     } catch (e) {
-      Alert.alert("Erreur", "Liaison au serveur SafeLife interrompue.");
+      Alert.alert("Erreur", "Liaison au serveur Lotisec interrompue.");
     } finally {
       setVerifying(false);
     }
@@ -56,7 +56,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Ionicons name="shield-half" size={70} color={colors.primary} />
-          <Text style={styles.headerTitle}>SafeLife</Text>
+          <Text style={styles.headerTitle}>Lotisec</Text>
           <Text style={styles.headerSub}>Fiche d'urgence scannée</Text>
         </View>
 

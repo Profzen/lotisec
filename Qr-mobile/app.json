@@ -1,22 +1,22 @@
 {
   "expo": {
-    "name": "SafeLife",
-    "slug": "safelife",
-    "version": "1.0.1",
+    "name": "Lotisec",
+    "slug": "lotisec",
+    "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/Safe_icon.png",
+    "icon": "./assets/Lotisec.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/SafeLife.png",
+      "image": "./assets/Lotisec.png",
       "resizeMode": "contain",
       "backgroundColor": "#006a4e"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.safelife.togo",
+      "bundleIdentifier": "com.lotisec.togo",
       "splash": {
-        "image": "./assets/SafeLife.png",
+        "image": "./assets/Lotisec.png",
         "resizeMode": "contain",
         "backgroundColor": "#006a4e"
       },
@@ -26,17 +26,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/SafeLife.png",
+        "foregroundImage": "./assets/Lotisec.png",
         "backgroundColor": "#006a4e"
       },
-      "package": "com.safelife.togo",
+      "package": "com.lotisec.togo",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSy_FAKE_KEY_FOR_OPENSTREETMAP_BYPASS"
         }
       },
       "splash": {
-        "image": "./assets/SafeLife.png",
+        "image": "./assets/Lotisec.png",
         "resizeMode": "contain",
         "backgroundColor": "#006a4e"
       }
@@ -49,7 +49,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#006a4e",
-          "image": "./assets/SafeLife.png",
+          "image": "./assets/Lotisec.png",
           "imageWidth": 200
         }
       ]

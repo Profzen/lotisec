@@ -165,7 +165,7 @@ export default function HomeScreen({ navigation }: Props) {
       }
       let location = await Location.getCurrentPositionAsync({});
       const mapsUrl = `https://www.google.com/maps?q=${location.coords.latitude},${location.coords.longitude}`;
-      const message = `🚨 *URGENCE SOS - SAFELIFE* 🚨\n\n` +
+      const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\n` +
                       `Bonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n` +
                       `📍 Voici ma position actuelle : ${mapsUrl}`;
 
@@ -196,7 +196,7 @@ export default function HomeScreen({ navigation }: Props) {
     if(!qrToken) return Alert.alert("Erreur", "Token introuvable.");
     const html = `
       <html><body style="text-align:center;font-family:Helvetica;padding:40px;">
-        <h1 style="color:#D21034;">SafeLife</h1> 
+        <h1 style="color:#D21034;">Lotisec</h1> 
         <h2>Fiche d'urgence</h2>
         <hr/>
         <div style="margin:30px;">

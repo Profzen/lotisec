@@ -50,7 +50,7 @@ export default function LoginScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           <Text style={styles.title}>Connexion</Text>
-          <Text style={styles.subtitle}>Accédez à votre profil SafeLife</Text>
+          <Text style={styles.subtitle}>Accédez à votre profil Lotisec</Text>
 
           <View style={styles.form}>
             {/* Champ Téléphone Uniformisé */}
