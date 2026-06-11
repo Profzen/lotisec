@@ -1,11 +1,11 @@
-# memoire.md — SafeLife / LOTISEC
+# memoire.md — LOTISEC (ex-SafeLife)
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
 Statut de référence: **2026-06-11**.
 
 ## 1. Contexte produit et périmètre
-- Produit: LOTISEC / SafeLife (Localisation, Transmission, Identification, Sécurité, Cartographie).
+- Produit: LOTISEC (Anciennement SafeLife). Mission: localisation, transmission, identification, sécurité, cartographie.
 - Mission: gestion d'urgence routière (QR médical, SOS, cartographie, alertes pro, module Zem, extension USSD).
 - Cible de migration validée: remplacement du backend Python historique par un backend Node.js.
 - Base de données: **Supabase PostgreSQL** (migration depuis Railway effectuée le 2026-06-07).
@@ -103,8 +103,8 @@ Statut de référence: **2026-06-11**.
   - `ConseilsScreen` — conseils sécurité routière
   - `QRCodeScreen` — affichage/partage QR personnel
   - `ProfilePanel` — thème sombre/clair, déconnexion
-  - `ZemPassengerScreen` — commande de course Zem (carte OSM, sélection destination, tracé OSRM, prix 75 FCFA/km)
-  - `ZemDriverScreen` — mode conducteur Zem (toggle online/offline, suivi GPS, notifications de course)
+  - `ZemPassengerScreen` — commande de course Zem (carte OSM, barre de recherche Nominatim, géocodage inversé, tracé OSRM, prix 75 FCFA/km)
+  - `ZemDriverScreen` — mode conducteur Zem (carte OSM, suivi GPS, notifications de course)
   - `ScanResultScreen` — résultat de scan QR
 - Bascule API vers variable Expo publique (`EXPO_PUBLIC_API_URL`).
 - Client Supabase Realtime pour le temps réel Zem (`rides`, `zem_locations`).
@@ -144,8 +144,9 @@ Statut de référence: **2026-06-11**.
 
 ### 5.3 Mobile APK (EAS Build)
 - Profil: `preview` → génère un `.apk` Android installable.
-- Variables d'environnement: **✅ Complètes dans `eas.json`** (`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`).
-- **✅ Build du 2026-06-11 réussi**. APK prête à être testée sur appareil physique.
+- Variables d'environnement: **✅ Complètes dans `eas.json`**.
+- Projet EAS réinitialisé le 2026-06-11 suite au renommage du slug (`safelife` → `lotisec`).
+- **⏳ Build du 2026-06-11 en cours de génération**. En attente des serveurs Expo.
 
 ## 6. Tests réalisés et résultats
 
@@ -196,8 +197,13 @@ Statut de référence: **2026-06-11**.
   3. Gardes `if (supabase)` ajoutées dans `ZemPassengerScreen` et `ZemDriverScreen`.
   4. Couleurs manquantes (`primaryLight`, `success`) ajoutées à `colors.ts`.
 
-### Blocage actuel: **Aucun blocage P0**.
-- Action requise: **Tester l'APK généré le 2026-06-11** sur appareil physique pour confirmer la résolution définitive du crash.
+### [RÉSOLU ✅] Blocage 4 — Échec du Build EAS après renommage du package (2026-06-11)
+- **Symptôme**: `eas build` échoue immédiatement avec une erreur `slug` mismatch.
+- **Cause**: Le `projectId` renseigné dans `app.json` correspondait à l'ancien projet "safelife" tandis que le slug avait été mis à jour à "lotisec".
+- **Résolution**: Suppression de `projectId` dans `app.json`, exécution de `eas init --force` pour lier le nouveau projet, puis relance du build.
+
+### Blocage actuel: **Files d'attente EAS saturées**.
+- Action requise: **Patienter** pour le téléchargement de la nouvelle APK "Lotisec", puis la **tester** sur appareil physique (désinstaller l'ancienne version d'abord).
 
 ## 8. Variables d'environnement attendues (production)
 
@@ -227,9 +233,10 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 5. ~~Retester inscription depuis frontend.~~ ✅ FAIT (2026-06-09)
 6. ~~Corriger crash APK Supabase.~~ ✅ FAIT (2026-06-11)
 7. ~~Commit + push les corrections du 2026-06-11 sur GitHub.~~ ✅ FAIT
-8. ~~Relancer `eas build --platform android --profile preview` pour générer un nouvel APK.~~ ✅ FAIT
-9. **⏳ Tester l'APK sur appareil physique: vérifier que l'app se lance, s'inscrit, se connecte.**
-10. **⏳ Si PASS: passe UI/UX frontend et parité API complète avec mobile.**
+8. ~~Relancer `eas build --platform android --profile preview` pour générer un nouvel APK.~~ ✅ FAIT (bloqué temporairement par EAS projectId, résolu avec `eas init`).
+9. **⏳ Attendre la fin du build EAS Lotisec**.
+10. **⏳ Désinstaller l'ancienne application SafeLife et installer Lotisec**.
+11. **⏳ Tester le flux Zem: carte OSM visible, recherche d'adresse Nominatim fonctionnelle**.
 
 ## 10. Plan court/moyen terme
 
