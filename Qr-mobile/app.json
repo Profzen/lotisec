@@ -54,6 +54,11 @@
         }
       ]
     ],
-    "extra": {}
+    "extra": {
+      "eas": {
+        "projectId": "aca73ec4-a52e-4350-83cc-0804d7730ac5"
+      }
+    },
+    "owner": "profzen"
   }
 }
