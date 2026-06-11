@@ -145,7 +145,7 @@ Statut de référence: **2026-06-11**.
 ### 5.3 Mobile APK (EAS Build)
 - Profil: `preview` → génère un `.apk` Android installable.
 - Variables d'environnement: **✅ Complètes dans `eas.json`** (`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`).
-- **⏳ À reconstruire** après les corrections du 2026-06-11 (crash Supabase + couleurs manquantes).
+- **✅ Build du 2026-06-11 réussi**. APK prête à être testée sur appareil physique.
 
 ## 6. Tests réalisés et résultats
 
@@ -168,7 +168,7 @@ Statut de référence: **2026-06-11**.
 - Écran hôpitaux (API réelle): **PASS** ✅.
 - Module Zem (carte + OSRM): **PASS** ✅ en dev local.
 - Build APK (EAS `preview`): **PASS** ✅ (APK générée avec succès).
-- Lancement APK sur appareil: **FAIL** 🔴 → **CORRIGÉ le 2026-06-11** (voir §7).
+- Lancement APK sur appareil: **⏳ En attente de test du nouveau build**.
 
 ### Tests build locaux:
 - `backend` (`npm run build`): **PASS** ✅.
@@ -197,7 +197,7 @@ Statut de référence: **2026-06-11**.
   4. Couleurs manquantes (`primaryLight`, `success`) ajoutées à `colors.ts`.
 
 ### Blocage actuel: **Aucun blocage P0**.
-- Action requise: **Rebuild APK** pour valider les corrections du 2026-06-11 puis test sur appareil physique.
+- Action requise: **Tester l'APK généré le 2026-06-11** sur appareil physique pour confirmer la résolution définitive du crash.
 
 ## 8. Variables d'environnement attendues (production)
 
@@ -226,8 +226,8 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 4. ~~Retester `POST /auth/register`.~~ ✅ FAIT (2026-06-09)
 5. ~~Retester inscription depuis frontend.~~ ✅ FAIT (2026-06-09)
 6. ~~Corriger crash APK Supabase.~~ ✅ FAIT (2026-06-11)
-7. **⏳ Commit + push les corrections du 2026-06-11 sur GitHub.**
-8. **⏳ Relancer `eas build --platform android --profile preview` pour générer un nouvel APK.**
+7. ~~Commit + push les corrections du 2026-06-11 sur GitHub.~~ ✅ FAIT
+8. ~~Relancer `eas build --platform android --profile preview` pour générer un nouvel APK.~~ ✅ FAIT
 9. **⏳ Tester l'APK sur appareil physique: vérifier que l'app se lance, s'inscrit, se connecte.**
 10. **⏳ Si PASS: passe UI/UX frontend et parité API complète avec mobile.**
 
@@ -307,6 +307,7 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 - 2026-06-09: **Génération APK & Crash**. Premier APK généré avec succès. L'application crashe au démarrage sur appareil physique. Cause isolée : `react-native-maps` exige une clé API Google Maps Android dans `app.json` en mode Standalone. Le blocage est documenté en attente de clé.
 - 2026-06-10: **Contournement Clé Google Maps (Hack OSM)**. Pour éviter le renseignement obligatoire d'une carte bancaire (Google/Mapbox), une fausse clé API a été ajoutée à `app.json` pour éviter le crash Android natif. Les écrans de cartes (`ZemPassengerScreen`, `ZemDriverScreen`) ont été modifiés pour utiliser `mapType="none"` (désactive le rendu Google) et afficher les tuiles libres d'OpenStreetMap via `UrlTile`. La solution est 100% gratuite et maintient la parité avec le routage OSRM.
 - 2026-06-11: **Crash APK au lancement (P0) — Variables Supabase manquantes en build EAS**. Symptôme : l'APK téléchargée via le lien Expo crashait immédiatement à l'ouverture. Cause : le `.gitignore` racine exclut `**/.env`, donc les variables `EXPO_PUBLIC_SUPABASE_URL` et `EXPO_PUBLIC_SUPABASE_ANON_KEY` étaient absentes lors du build EAS. Le module `supabase.ts` appelait `createClient(undefined, undefined)` au chargement, crashant l'app avant tout rendu. Corrections : (1) `supabase.ts` rendu défensif — retourne `null` si les vars manquent au lieu de crasher. (2) Variables Supabase ajoutées dans `eas.json` pour les profils `preview` et `production`. (3) Gardes null ajoutées dans `ZemPassengerScreen` et `ZemDriverScreen`. (4) Couleurs manquantes (`primaryLight`, `success`) ajoutées à `colors.ts`.
+- 2026-06-11: **Nettoyage et Maintenance Expo**. Suite à des avertissements soulevés par `expo doctor` (dépendances natives dupliquées pour `expo-constants` et versions mineures divergentes), un nettoyage complet a été effectué: suppression de `node_modules` et `package-lock.json`, réinstallation fraîche via `npm install`, et exécution de `npx expo install --fix` pour aligner les versions du SDK Expo (`expo`, `expo-font`, `expo-linking`). La version `1.27.2` de `react-native-maps` a été conservée délibérément malgré l'attente de `1.20.1` pour préserver le bon fonctionnement de `UrlTile` et des cartes OSM.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.
