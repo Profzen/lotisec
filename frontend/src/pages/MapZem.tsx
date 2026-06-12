@@ -201,8 +201,8 @@ export function MapZem() {
       if (res.data.ride) {
         setActiveRide(res.data.ride);
       }
-    } catch (err) {
-      alert("Erreur lors de la commande.");
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Erreur lors de la commande.");
     } finally {
       setLoading(false);
     }
