@@ -137,7 +137,7 @@ Statut de référence: **2026-06-12**.
   - **Live Tracking** (`ZemPassengerScreen.tsx`) : Visualisation en temps réel de l'approche du Zem sur la carte après validation de la commande.
 
 **État technique connu ⚠️:**
-- `npx tsc --noEmit` remonte **0 erreur**. L'application est 100% clean au niveau TypeScript (correction du `RootStackParamList`).
+- `npx tsc --noEmit` remonte **0 erreur**. L'application est 100% clean au niveau TypeScript (correction du `RootStackParamList`, et résolution des imports croisés + appels optionnels `supabase?.` dans les modules `Rides`).
 
 **En attente / incomplet ⏳:**
 - Tests APK bout-en-bout sur appareil physique (après rebuild avec corrections Supabase du 06-11).
