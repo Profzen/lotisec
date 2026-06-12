@@ -2,7 +2,7 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
-Statut de référence: **2026-06-11**.
+Statut de référence: **2026-06-12**.
 
 ## 1. Contexte produit et périmètre
 - Produit: LOTISEC (Anciennement SafeLife). Mission: localisation, transmission, identification, sécurité, cartographie.
@@ -85,13 +85,13 @@ Statut de référence: **2026-06-11**.
 
 **Réalisé ✅ (Nouveautés Récentes) :**
 - **UI/UX Pixel-Perfect** : L'interface web a été entièrement refondue pour être le clone exact de l'application mobile (Fond vert Lotisec, effet radar SOS, panel blanc arrondi, navigation bottom bar avec icônes Lucide).
-- **Module Zem Web** : `MapZem.tsx` fonctionnel sur le web avec OpenStreetMap, Nominatim (recherche), OSRM (itinéraires) et intégration Supabase Realtime pour commander une moto en temps réel.
+- **Module Zem Web** : `MapZem.tsx` fonctionnel sur le web avec OpenStreetMap, Nominatim (recherche), OSRM (itinéraires) et intégration Supabase Realtime pour commander une moto en temps réel (passager) ou recevoir des courses (conducteur via `MapZemDriver.tsx`).
 - Bug 404 Vercel corrigé via `vercel.json` (rewrites pour React Router).
 - Script de création de comptes de test (Passager + Zem) inséré directement en base via API.
+- **Parité Totale Atteinte** : Implémentation du Panneau de Profil (Drawer), modale QR Code sécurisée (impression PDF), Historique des Scans, et Scan Web sécurisé pour les professionnels (`ScanResult.tsx`).
 
 **En attente / incomplet ⏳:**
-- Pas de page profil détaillé / édition profil.
-- Pas de scan QR web intégré.
+- Tout le périmètre actuel (MVP + Parité stricte) est terminé. Rien en attente pour cette phase.
 
 ### 4.3 Mobile Expo (`Qr-mobile/`)
 
@@ -322,6 +322,10 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 - 2026-06-11: **Renommage SafeLife → Lotisec**. Remplacement complet du nom de marque dans tout le projet : `app.json` (name, slug, package `com.lotisec.togo`, version bumped à 1.1.0), 10 écrans mobile, 3 fichiers backend, 2 fichiers de config API (fallback URLs migrées de Railway vers Vercel). Nouveau logo Lotisec généré (bouclier aux couleurs du drapeau togolais) et copié dans les assets. Suppression de toutes les références à l'ancien backend Railway (`safelife.up.railway.app`).
 - 2026-06-11: **Refonte Module Zem — Recherche d'adresse Nominatim**. L'écran `ZemPassengerScreen` a été entièrement réécrit : (1) Barre de recherche d'adresse avec autocomplétion via l'API gratuite Nominatim (OpenStreetMap), debounce 400ms, limité au Togo. (2) Géocodage inversé au clic sur la carte — affiche le nom du lieu sélectionné. (3) Nouvel utilitaire `src/utils/nominatim.ts` avec rate-limiting intégré (1 req/sec). (4) Correction du serveur de tuiles OSM (`tile.openstreetmap.org` au lieu de `a.tile.openstreetmap.org`) pour meilleure compatibilité Android. (5) Indicateur de chargement de la carte. (6) Panneau inférieur amélioré avec distance et prix structurés.
 - 2026-06-11: **Fix texte invisible dans les champs de saisie**. Ajout de `color: colors.text` explicite sur tous les styles `input` et `flexInput` des écrans `Step1Identity`, `Step2Contacts` et `LoginScreen`. Certains appareils Android en mode sombre appliquaient une couleur de texte blanche par défaut, rendant le texte invisible sur fond blanc.
+- 2026-06-12: **Atteinte de la Parité Totale Web/Mobile**. L'application Web React a été entièrement mise à niveau pour reproduire à l'identique les fonctionnalités et le design du mobile : Bouton SOS avec animations, tiroir de profil, modale QR code avec export PDF, historique de scans. 
+- 2026-06-12: **Mise à jour Cartographie et Module Zem Web**. Transition de `getCurrentPosition` vers `watchPosition` pour un tracking continu sur Web. Création d'une vue dédiée pour les conducteurs `MapZemDriver.tsx` (toggle online/offline, acceptation de courses via canal Supabase, routage OSRM).
+- 2026-06-12: **Scan QR Web Sécurisé**. Création d'une page `ScanResult.tsx` permettant au web de lire les tags d'urgence (`/scan/:token`), avec interface protégée par code PIN et restitution de la fiche médicale intégrale, calquée sur `ScanResultScreen.tsx`.
+- 2026-06-12: **Succès du Build EAS Android**. Après correction des anomalies AAPT2 (faux fichiers PNG) de la veille, le build `preview` via Expo EAS a été généré avec succès. L'APK finale de Lotisec est prête à être testée sur appareil physique.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.

@@ -62,7 +62,10 @@ export function MapZem() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    let watchId: number;
+
     if (navigator.geolocation) {
+      // Obtenir la première position rapidement
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
@@ -74,7 +77,25 @@ export function MapZem() {
           setLoading(false);
         }
       );
+
+      // Suivre les déplacements
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => console.error("GPS Watch Error", err),
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      );
+    } else {
+      setLoading(false);
     }
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  useEffect(() => {
 
     if (supabase && user) {
       const channel = supabase
