@@ -105,14 +105,7 @@ export function Hopitaux() {
     window.open(url, '_blank');
   };
 
-  if (loading) {
-    return (
-      <div className="center-state">
-        <div className="spinner"></div>
-        <p className="mt-4">Localisation en cours...</p>
-      </div>
-    );
-  }
+  // Le chargement est géré via un overlay désormais
 
   if (erreur) {
     return (
@@ -126,6 +119,12 @@ export function Hopitaux() {
 
   return (
     <>
+      {loading && (
+        <div className="loader-overlay">
+          <div className="spinner"></div>
+          <p className="mt-4" style={{color: 'var(--color-primary)', fontWeight: 'bold'}}>Chargement...</p>
+        </div>
+      )}
       <div className="top-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
           <ChevronLeft color="white" size={24} onClick={() => window.history.back()} style={{ cursor: 'pointer' }} />

@@ -219,7 +219,16 @@ export function MapZem() {
     }
   };
 
-  if (!location) return <div className="app-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Chargement position GPS...</div>;
+  if (!location) {
+    return (
+      <div className="app-content" style={{ position: 'relative', height: '100vh' }}>
+        <div className="loader-overlay">
+          <div className="spinner"></div>
+          <p className="mt-4" style={{color: 'var(--color-primary)', fontWeight: 'bold'}}>Acquisition GPS...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="map-container">

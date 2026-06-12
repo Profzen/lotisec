@@ -178,7 +178,16 @@ export function MapZemDriver() {
     }
   };
 
-  if (!location) return <div className="center-state">Chargement position GPS...</div>;
+  if (!location) {
+    return (
+      <div className="app-content" style={{ position: 'relative', height: '100vh' }}>
+        <div className="loader-overlay">
+          <div className="spinner"></div>
+          <p className="mt-4" style={{color: 'var(--color-primary)', fontWeight: 'bold'}}>Acquisition GPS...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="map-container">
@@ -191,8 +200,9 @@ export function MapZemDriver() {
       </button>
 
       {loading && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, backgroundColor: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="spinner" style={{ width: '40px', height: '40px', borderTopColor: 'var(--color-primary)' }}></div>
+        <div className="loader-overlay">
+          <div className="spinner"></div>
+          <p className="mt-4" style={{color: 'var(--color-primary)', fontWeight: 'bold'}}>Chargement...</p>
         </div>
       )}
 

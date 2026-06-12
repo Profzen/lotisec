@@ -271,19 +271,7 @@ export default function HospitauxScreen({ navigation }: any) {
   );
 
   // ─── États loading / erreur ───────────────────────────────
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
-        {renderHeader()}
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.centerText}>Localisation en cours...</Text>
-          <Text style={styles.centerSub}>Merci de patienter</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // loading est géré via un overlay à la fin du return principal
 
   if (erreur) {
     return (
@@ -368,6 +356,14 @@ export default function HospitauxScreen({ navigation }: any) {
           </View>
         }
       />
+
+      {/* Overlay de chargement transparent */}
+      {loading && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.7)', zIndex: 1000, justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 10, color: colors.primary, fontWeight: 'bold' }}>Chargement...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

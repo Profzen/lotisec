@@ -8,23 +8,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 
 export default function RidesScreen({ navigation }: any) {
+  const [rides, setRides] = useState<any[]>([]);
   const [activeRide, setActiveRide] = useState<any>(null);
   const [zemLocation, setZemLocation] = useState<{lat: number, lng: number} | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchActiveRide = async () => {
+  const fetchHistory = async () => {
     try {
       setLoading(true);
       const raw = await AsyncStorage.getItem('lotisec_user');
       if (!raw) return;
       const user = JSON.parse(raw);
       
-      const res = await api.get(`/zem/active/${user.id}`);
-      if (res.data.ride) {
-        setActiveRide(res.data.ride);
-        fetchZemLoc(res.data.ride.zem_id);
-      } else {
-        setActiveRide(null);
+      const res = await api.get(`/zem/history/${user.id}`);
+      if (res.data.rides) {
+        setRides(res.data.rides);
+        const currentActive = res.data.rides.find((r: any) => ['requested', 'accepted', 'in_progress'].includes(r.status));
+        setActiveRide(currentActive || null);
+        if (currentActive) {
+          fetchZemLoc(currentActive.zem_id);
+        }
       }
     } catch (err) {
       console.log(err);
@@ -42,7 +45,7 @@ export default function RidesScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    fetchActiveRide();
+    fetchHistory();
   }, []);
 
   useEffect(() => {
@@ -52,7 +55,8 @@ export default function RidesScreen({ navigation }: any) {
       .channel('ride_updates_mobile')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRide.id}` }, payload => {
         setActiveRide(payload.new);
-        if (payload.new.status === 'completed') {
+        setRides(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+        if (['completed', 'canceled', 'declined'].includes(payload.new.status)) {
           setActiveRide(null);
           setZemLocation(null);
         }
@@ -76,7 +80,7 @@ export default function RidesScreen({ navigation }: any) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mes Trajets</Text>
-        <TouchableOpacity onPress={fetchActiveRide}>
+        <TouchableOpacity onPress={fetchHistory}>
           <Ionicons name="refresh" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
@@ -84,31 +88,53 @@ export default function RidesScreen({ navigation }: any) {
       <View style={styles.content}>
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-        ) : activeRide ? (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</Text>
-              <Text style={styles.cardSub}>{activeRide.price_fcfa} FCFA • {activeRide.distance_km} km</Text>
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.statusText}>
-                {activeRide.status === 'requested' && "Recherche d'un conducteur..."}
-                {activeRide.status === 'accepted' && "Le conducteur est en route !"}
-                {activeRide.status === 'in_progress' && "Trajet en cours."}
-              </Text>
-              <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('ZemPassenger')}>
-                <Text style={styles.btnText}>Ouvrir la Carte</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="map-outline" size={64} color={colors.border} />
-            <Text style={styles.emptyTitle}>Aucune course active</Text>
-            <Text style={styles.emptySub}>Vous n'avez pas de trajet en cours.</Text>
-            <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('ZemPassenger')}>
-              <Text style={styles.btnText}>Commander un Zem</Text>
-            </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            {activeRide && (
+              <View style={[styles.card, { marginBottom: 20, borderWidth: 2, borderColor: colors.primary }]}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</Text>
+                  <Text style={styles.cardSub}>{activeRide.price_fcfa} FCFA • {activeRide.distance_km} km</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.statusText}>
+                    {activeRide.status === 'requested' && "Recherche d'un conducteur..."}
+                    {activeRide.status === 'accepted' && "Le conducteur est en route !"}
+                    {activeRide.status === 'in_progress' && "Trajet en cours vers la destination !"}
+                  </Text>
+                  <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('ZemPassenger')}>
+                    <Text style={styles.btnText}>Ouvrir la Carte</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.historyTitle}>Historique</Text>
+            {rides.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="map-outline" size={64} color={colors.border} />
+                <Text style={styles.emptyTitle}>Aucune course</Text>
+                <Text style={styles.emptySub}>Vous n'avez pas encore effectué de trajet.</Text>
+                <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('ZemPassenger')}>
+                  <Text style={styles.btnText}>Commander un Zem</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ paddingBottom: 20 }}>
+                {rides.filter(r => r.id !== activeRide?.id).map((ride, idx) => (
+                  <View key={idx} style={styles.historyItem}>
+                    <View style={[styles.historyIcon, { backgroundColor: ride.status === 'completed' ? colors.success : ride.status === 'canceled' || ride.status === 'declined' ? colors.danger : colors.warning }]}>
+                      {ride.status === 'completed' ? <Ionicons name="checkmark" size={24} color="white" /> : ride.status === 'canceled' || ride.status === 'declined' ? <Ionicons name="close" size={24} color="white" /> : <Ionicons name="time" size={24} color="white" />}
+                    </View>
+                    <View style={styles.historyContent}>
+                      <Text style={styles.historyItemTitle}>Trajet ZEM</Text>
+                      <Text style={styles.historyItemSub}>{new Date(ride.created_at).toLocaleDateString()} • {ride.distance_km} km</Text>
+                    </View>
+                    <Text style={styles.historyItemPrice}>{ride.price_fcfa} FCFA</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -131,5 +157,11 @@ const styles = StyleSheet.create({
   btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   emptyState: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingBottom: 50 },
   emptyTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 15, marginBottom: 5 },
-  emptySub: { color: colors.textSecondary, textAlign: 'center', marginBottom: 30 }
+  historyTitle: { fontSize: 16, fontWeight: 'bold', color: colors.textSecondary, marginBottom: 15, textTransform: 'uppercase', letterSpacing: 1 },
+  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 15, borderRadius: 12, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  historyIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 15 },
+  historyContent: { flex: 1 },
+  historyItemTitle: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
+  historyItemSub: { fontSize: 12, color: colors.textSecondary },
+  historyItemPrice: { fontSize: 16, fontWeight: 'bold', color: colors.text }
 });

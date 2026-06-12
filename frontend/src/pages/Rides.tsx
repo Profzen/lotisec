@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../api/client';
 import { supabase } from '../api/supabase';
-import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
-import { Car, ChevronRight, Navigation, RefreshCw } from 'lucide-react';
+import { Car, Navigation, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function Rides() {
@@ -12,20 +12,23 @@ export function Rides() {
     return raw ? JSON.parse(raw) : null;
   }, []);
 
+  const [rides, setRides] = useState<any[]>([]);
   const [activeRide, setActiveRide] = useState<any>(null);
   const [zemLocation, setZemLocation] = useState<{lat: number, lng: number} | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadActiveRide = async () => {
+  const loadHistory = async () => {
     if (!user) return;
     try {
       setLoading(true);
-      const res = await api.get(`/zem/active/${user.id}`);
-      if (res.data.ride) {
-        setActiveRide(res.data.ride);
-        fetchZemLocation(res.data.ride.zem_id);
-      } else {
-        setActiveRide(null);
+      const res = await api.get(`/zem/history/${user.id}`);
+      if (res.data.rides) {
+        setRides(res.data.rides);
+        const currentActive = res.data.rides.find((r: any) => ['requested', 'accepted', 'in_progress'].includes(r.status));
+        setActiveRide(currentActive || null);
+        if (currentActive) {
+          fetchZemLocation(currentActive.zem_id);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -35,14 +38,15 @@ export function Rides() {
   };
 
   const fetchZemLocation = async (zemId: string) => {
-    const { data } = await supabase!.from('zem_locations').select('*').eq('zem_id', zemId).single();
+    if (!supabase) return;
+    const { data } = await supabase.from('zem_locations').select('*').eq('zem_id', zemId).single();
     if (data) {
       setZemLocation({ lat: data.latitude, lng: data.longitude });
     }
   };
 
   useEffect(() => {
-    loadActiveRide();
+    loadHistory();
   }, [user]);
 
   // Realtime subscription
@@ -54,8 +58,9 @@ export function Rides() {
       .channel('ride_updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRide.id}` }, payload => {
         setActiveRide(payload.new);
-        if (payload.new.status === 'completed') {
-          toast.success("Votre course est terminée !");
+        setRides(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+        if (['completed', 'canceled', 'declined'].includes(payload.new.status)) {
+          if (payload.new.status === 'completed') toast.success("Votre course est terminée !");
           setActiveRide(null);
           setZemLocation(null);
         }
@@ -85,34 +90,27 @@ export function Rides() {
       <div className="top-header" style={{ paddingBottom: '2rem' }}>
         <div style={{ color: 'white', textAlign: 'center', width: '100%' }}>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Mes Trajets</div>
-          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Suivez votre course en cours</div>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Historique et suivi en direct</div>
         </div>
       </div>
 
       <div className="white-sheet" style={{ paddingTop: '2rem' }}>
-        <button className="btn ghost mb-4" onClick={loadActiveRide}>
+        <button className="btn ghost mb-4" onClick={loadHistory}>
           <RefreshCw size={20} /> Rafraîchir
         </button>
 
-        {activeRide ? (
-          <div className="lotisec-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {/* Header info */}
+        {activeRide && (
+          <div className="lotisec-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: '2rem', border: '2px solid var(--color-primary)' }}>
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-primary)', color: 'white' }}>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</div>
               <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>{activeRide.price_fcfa} FCFA • {activeRide.distance_km} km</div>
             </div>
 
-            {/* Live Map */}
-            <div style={{ height: '300px', width: '100%' }}>
+            <div style={{ height: '250px', width: '100%' }}>
               <MapContainer center={[activeRide.origin_lat, activeRide.origin_lng]} zoom={14} style={{ height: '100%', width: '100%', zIndex: 0 }}>
                 <TileLayer url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png" />
-                
-                {/* Point de départ */}
                 <Marker position={[activeRide.origin_lat, activeRide.origin_lng]} />
-                {/* Destination */}
                 <Marker position={[activeRide.dest_lat, activeRide.dest_lng]} />
-                
-                {/* Position du Zem en live */}
                 {zemLocation && (
                   <Marker 
                     position={[zemLocation.lat, zemLocation.lng]} 
@@ -122,24 +120,42 @@ export function Rides() {
               </MapContainer>
             </div>
 
-            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--color-primary)', fontWeight: 'bold' }}>
               {activeRide.status === 'requested' && "Recherche d'un conducteur..."}
-              {activeRide.status === 'accepted' && "Le conducteur est en route vers votre point de départ !"}
-              {activeRide.status === 'in_progress' && "Vous êtes en route vers votre destination !"}
+              {activeRide.status === 'accepted' && "Le conducteur est en route vers vous !"}
+              {activeRide.status === 'in_progress' && "Trajet en cours vers la destination !"}
             </div>
           </div>
-        ) : (
+        )}
+
+        <div className="lotisec-card-header">Historique</div>
+        {rides.length === 0 ? (
           <div className="lotisec-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '3rem 1rem', textAlign: 'center' }}>
-            <div style={{ width: 80, height: 80, backgroundColor: 'rgba(0,106,78,0.1)', borderRadius: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-              <Navigation size={40} color="var(--color-primary)" />
-            </div>
-            <h3 style={{ marginBottom: '0.5rem' }}>Aucune course en cours</h3>
+            <Navigation size={40} color="var(--color-text-light)" style={{ marginBottom: '1rem' }} />
+            <h3 style={{ marginBottom: '0.5rem' }}>Aucune course</h3>
             <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1.5rem' }}>
-              Vous n'avez pas de trajet actif pour le moment.
+              Vous n'avez pas encore effectué de trajet.
             </p>
             <button className="btn primary" onClick={() => window.location.href = '/map'}>
               <Car size={20} /> Commander un Zem
             </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {rides.filter(r => r.id !== activeRide?.id).map((ride, idx) => (
+              <div key={idx} className="action-item" style={{ cursor: 'default' }}>
+                <div className={`action-icon ${ride.status === 'completed' ? 'green' : ride.status === 'canceled' || ride.status === 'declined' ? 'red' : 'yellow'}`}>
+                  {ride.status === 'completed' ? <CheckCircle size={24} /> : ride.status === 'canceled' || ride.status === 'declined' ? <XCircle size={24} /> : <Clock size={24} />}
+                </div>
+                <div className="action-content">
+                  <div className="action-title">Trajet ZEM</div>
+                  <div className="action-subtitle">{new Date(ride.created_at).toLocaleDateString()} • {ride.distance_km} km</div>
+                </div>
+                <div style={{ fontWeight: 'bold', color: 'var(--color-text)' }}>
+                  {ride.price_fcfa} FCFA
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -88,25 +88,19 @@ router.post('/location', async (req, res) => {
   }
 });
 
-// Endpoint pour récupérer la course en cours d'un passager
-router.get('/active/:userId', async (req, res) => {
+// Endpoint pour récupérer l'historique complet d'un utilisateur
+router.get('/history/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
     const result = await query<any>(`
       SELECT * FROM rides
-      WHERE passenger_id = $1
-      AND status IN ('requested', 'accepted', 'in_progress')
+      WHERE passenger_id = $1 OR zem_id = $1
       ORDER BY created_at DESC
-      LIMIT 1
     `, [userId]);
 
-    if (result.rows.length === 0) {
-      return res.json({ ride: null });
-    }
-
-    return res.json({ ride: result.rows[0] });
+    return res.json({ rides: result.rows });
   } catch (err: any) {
-    console.error("Erreur GET /active:", err);
+    console.error("Erreur GET /history:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
