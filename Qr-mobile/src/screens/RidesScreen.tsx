@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { supabase } from '../api/supabase';
-import { api } from '../api/client';
+import { api } from '../api/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
 
@@ -67,8 +67,8 @@ export default function RidesScreen({ navigation }: any) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(rideChannel);
-      supabase.removeChannel(locChannel);
+      supabase?.removeChannel(rideChannel);
+      supabase?.removeChannel(locChannel);
     };
   }, [activeRide]);
 

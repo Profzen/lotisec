@@ -71,8 +71,8 @@ export function Rides() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(rideChannel);
-      supabase.removeChannel(locChannel);
+      supabase?.removeChannel(rideChannel);
+      supabase?.removeChannel(locChannel);
     };
   }, [activeRide]);
 
