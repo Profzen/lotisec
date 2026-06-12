@@ -90,7 +90,6 @@ Statut de référence: **2026-06-11**.
 - Script de création de comptes de test (Passager + Zem) inséré directement en base via API.
 
 **En attente / incomplet ⏳:**
-- Pages Hôpitaux, Conseils et Mon QR : actuellement des placeholders statiques.
 - Pas de page profil détaillé / édition profil.
 - Pas de scan QR web intégré.
 
@@ -122,13 +121,9 @@ Statut de référence: **2026-06-11**.
 - Polices Montserrat (Regular/Medium/SemiBold/Bold) via `@expo-google-fonts/montserrat`.
 
 **État technique connu ⚠️:**
-- `npx tsc --noEmit` remonte des erreurs TypeScript préexistantes non bloquantes:
-  - typings navigation (`Splash` absent du `RootStackParamList`)
-  - clé dupliquée `header` dans `HomeScreen`
-  - ~~`colors.primaryLight` absent~~ → **CORRIGÉ le 2026-06-11**
+- `npx tsc --noEmit` remonte **0 erreur**. L'application est 100% clean au niveau TypeScript (correction du `RootStackParamList`).
 
 **En attente / incomplet ⏳:**
-- Nettoyage des erreurs TypeScript restantes.
 - Tests APK bout-en-bout sur appareil physique (après rebuild avec corrections Supabase du 06-11).
 - Signalement danger routier (formulaire zémidjan sentinelle): non implémenté.
 - Micro-assurance depuis l'app: non implémenté.
@@ -206,8 +201,13 @@ Statut de référence: **2026-06-11**.
 - **Cause**: Le `projectId` renseigné dans `app.json` correspondait à l'ancien projet "safelife" tandis que le slug avait été mis à jour à "lotisec".
 - **Résolution**: Suppression de `projectId` dans `app.json`, exécution de `eas init --force` pour lier le nouveau projet, puis relance du build.
 
-### Blocage actuel: **Files d'attente EAS saturées**.
-- Action requise: **Patienter** pour le téléchargement de la nouvelle APK "Lotisec", puis la **tester** sur appareil physique (désinstaller l'ancienne version d'abord).
+### [RÉSOLU ✅] Blocage 5 — Échec du Build Android EAS (Gradle AAPT2) (2026-06-12)
+- **Symptôme**: EAS échoue lors de la phase `Run gradlew` avec "Gradle build failed with unknown error". Les logs détaillés indiquent `ERROR: .../assets_lotisecbg.png: AAPT: error: file failed to compile` lors de `mergeReleaseResources`.
+- **Cause**: Les fichiers d'images `Lotisec-bg.png` et `Lotisec.png` avaient l'extension `.png` mais contenaient des données JPEG. Le compilateur de ressources Android (AAPT2) est extrêmement strict et refuse de compiler des images dont l'extension ne correspond pas au contenu binaire.
+- **Résolution**: Les images ont été converties en de véritables fichiers PNG transparents via un script Python local (`Pillow`).
+
+### Blocage actuel: **Aucun**.
+- Action requise: **Patienter** pour le téléchargement de la nouvelle APK "Lotisec", puis la **tester** sur appareil physique.
 
 ## 8. Variables d'environnement attendues (production)
 
@@ -246,7 +246,7 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 
 ### Phase actuelle — Stabilisation MVP (semaine en cours)
 1. ⏳ Valider l'APK corrigée sur appareil physique.
-2. ⏳ Figer le contrat API canonique (payloads + statuts + erreurs) dans un document dédié.
+2. ✅ Figer le contrat API canonique (payloads + statuts + erreurs) dans un document dédié (`backend/API_CONTRACT.md`).
 3. ⏳ Exécuter une matrice de tests bout-en-bout:
    - ✅ auth register/login
    - ⏳ profil create/update
@@ -255,8 +255,8 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
    - ⏳ accidents stats/geojson
    - ⏳ courses zem (dispatch + temps réel Supabase)
 4. ✅ Intégrer OSRM pour le tracé d'itinéraire et la tarification Zem.
-5. ⏳ Refonte UI/UX du **frontend web** (design premium, responsive mobile-first).
-6. ⏳ Nettoyer les erreurs TypeScript résiduelles dans `Qr-mobile`.
+5. ✅ Refonte UI/UX du **frontend web** (design premium, pages Hôpitaux, Conseils et QR Code réalisées).
+6. ✅ Nettoyer les erreurs TypeScript résiduelles dans `Qr-mobile`.
 
 ### Phase 2 — Lancement (Mois 4-6)
 - Publication Google Play Store.

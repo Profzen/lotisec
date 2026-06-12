@@ -238,6 +238,7 @@ const styles = StyleSheet.create({
   prefixText: { fontFamily: fonts.bold, fontSize: 14 },
   flexInput: { flex: 1, padding: 14, fontSize: fontSizes.md, color: colors.text },
   infoBox: { backgroundColor: '#EFF9F4', borderRadius: 10, borderWidth: 1, borderColor: '#C8EDD8', padding: 14 },
+  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   optionBtn: { borderWidth: 1.5, borderColor: colors.border, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
   optionBtnSelected: { borderColor: colors.primary, backgroundColor: '#F0F9F4' },
   optionText: { fontSize: fontSizes.xs, fontFamily: fonts.medium, color: colors.textSecondary },

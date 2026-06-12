@@ -3,19 +3,13 @@ import { Layout } from './components/Layout';
 import { Landing, Login, Register } from './pages/Auth';
 import { Home } from './pages/Home';
 import { MapZem } from './pages/MapZem';
+import { Hopitaux } from './pages/Hopitaux';
+import { Conseils } from './pages/Conseils';
+import { QrCode } from './pages/QrCode';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('lotisec_token');
   return token ? <>{children}</> : <Navigate to="/login" replace />;
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="app-content justify-center items-center text-center" style={{ backgroundColor: 'white' }}>
-      <h2 className="text-primary">{title}</h2>
-      <p className="text-secondary">Cette fonctionnalité sera disponible prochainement.</p>
-    </div>
-  );
 }
 
 export default function App() {
@@ -28,9 +22,9 @@ export default function App() {
       {/* Routes protégées avec le Layout (Sidebar / Bottom Nav) */}
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route path="home" element={<Home />} />
-        <Route path="hopitaux" element={<PlaceholderPage title="Hôpitaux" />} />
-        <Route path="conseils" element={<PlaceholderPage title="Conseils" />} />
-        <Route path="qr" element={<PlaceholderPage title="Mon QR Code" />} />
+        <Route path="hopitaux" element={<Hopitaux />} />
+        <Route path="conseils" element={<Conseils />} />
+        <Route path="qr" element={<QrCode />} />
       </Route>
 
       {/* MapZem est en plein écran, sans la bottom nav */}

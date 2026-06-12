@@ -25,6 +25,7 @@ import ZemDriverScreen from '../screens/ZemDriverScreen';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
 export type RootStackParamList = {
+  Splash:    undefined;
   Landing:   undefined;
   Login:     undefined;
   Register:  undefined;

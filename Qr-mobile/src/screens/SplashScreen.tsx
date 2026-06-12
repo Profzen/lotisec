@@ -8,7 +8,7 @@ import { colors } from '../theme/colors';
 import { fonts } from '../theme/typography';
 
 type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
+  navigation: NativeStackNavigationProp<any>;
 };
 
 const { width, height } = Dimensions.get('window');

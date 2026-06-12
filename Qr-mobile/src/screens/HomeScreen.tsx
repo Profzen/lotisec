@@ -18,7 +18,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
+  navigation: NativeStackNavigationProp<any>;
 };
 
 interface ScanHistorique {
@@ -388,8 +388,7 @@ export default function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: { paddingBottom: 30 },
-  header: { paddingTop: 30 },
+  header: { paddingBottom: 30, paddingTop: 30 },
   flagBar: { flexDirection: 'row', height: 3, marginBottom: 15 },
   flagStripe: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, marginBottom: 15 },
