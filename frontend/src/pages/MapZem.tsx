@@ -47,6 +47,9 @@ export function MapZem() {
     return raw ? JSON.parse(raw) : null;
   }, []);
 
+  // Fallback Lomé
+  const DEFAULT_LOCATION = { lat: 6.1319, lng: 1.2228 };
+
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [destination, setDestination] = useState<{lat: number, lng: number} | null>(null);
   const [destinationName, setDestinationName] = useState<string>('');
@@ -54,6 +57,7 @@ export function MapZem() {
   
   const [activeRide, setActiveRide] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [gpsError, setGpsError] = useState(false);
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,36 +66,45 @@ export function MapZem() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    let watchId: number;
+    let watchId: number | undefined;
 
-    if (navigator.geolocation) {
-      // Obtenir la première position rapidement
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setLoading(false);
-        },
-        (err) => {
-          console.error("GPS Error", err);
-          setLocation({ lat: 6.13, lng: 1.21 }); // Default to Lomé
-          setLoading(false);
-        }
-      );
-
-      // Suivre les déplacements
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
-        (err) => console.error("GPS Watch Error", err),
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-      );
-    } else {
+    if (!navigator.geolocation) {
+      // Navigateur ne supporte pas la géolocalisation
+      setLocation(DEFAULT_LOCATION);
+      setGpsError(true);
       setLoading(false);
+      return;
     }
 
+    // Obtenir la première position
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setLocation(loc);
+        setGpsError(false);
+        setLoading(false);
+
+        // Lancer le suivi continu seulement après un premier succès
+        watchId = navigator.geolocation.watchPosition(
+          (p) => {
+            setLocation({ lat: p.coords.latitude, lng: p.coords.longitude });
+          },
+          () => { /* silencieux — on a déjà une position */ },
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+        );
+      },
+      (_err) => {
+        // GPS refusé — utiliser Lomé par défaut
+        console.warn("GPS refusé, fallback sur Lomé");
+        setLocation(DEFAULT_LOCATION);
+        setGpsError(true);
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
     return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
     };
   }, []);
 
@@ -195,10 +208,22 @@ export function MapZem() {
     }
   };
 
-  if (!location) return <div className="app-content flex items-center justify-center">Chargement carte...</div>;
+  if (!location || loading) return <div className="app-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Chargement carte...</div>;
 
   return (
     <div className="map-container">
+      {/* GPS Warning */}
+      {gpsError && (
+        <div style={{ 
+          position: 'absolute', top: 60, left: 10, right: 10, zIndex: 1100,
+          backgroundColor: '#FFF3E0', border: '1px solid #FF9800', borderRadius: 10, padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#E65100'
+        }}>
+          <AlertCircle size={18} />
+          <span>GPS non autorisé. Position par défaut (Lomé). Vous pouvez quand même choisir une destination sur la carte.</span>
+        </div>
+      )}
+
       {/* Search Overlay */}
       {!activeRide && (
         <div className="map-search-overlay">
@@ -245,8 +270,8 @@ export function MapZem() {
         zoomControl={false}
       >
         <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         <MapController destination={destination} onMapClick={handleMapClick} />
         

@@ -208,7 +208,7 @@ export default function ZemDriverScreen({ navigation }: any) {
         showsMyLocationButton={true}
       >
         <UrlTile
-          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          urlTemplate="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
           maximumZ={19}
           flipY={false}
         />
