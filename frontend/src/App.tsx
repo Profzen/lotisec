@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { Layout } from './components/Layout';
 import { Landing, Login, Register } from './pages/Auth';
 import { Home } from './pages/Home';
@@ -16,13 +17,15 @@ function Protected({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      
-      {/* Route publique pour le scan QR (utilisée par les secours) */}
-      <Route path="/scan/:token" element={<ScanResult />} />
+    <>
+      <Toaster position="top-center" />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        
+        {/* Route publique pour le scan QR (utilisée par les secours) */}
+        <Route path="/scan/:token" element={<ScanResult />} />
       
       {/* Routes protégées avec le Layout (Sidebar / Bottom Nav) */}
       <Route path="/" element={<Protected><Layout /></Protected>}>
@@ -40,5 +43,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

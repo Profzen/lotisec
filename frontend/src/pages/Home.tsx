@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import QRCode from 'react-qr-code';
-import { User, Car, ChevronRight, Phone, Flame, Lock, Eye, CheckCircle2, ShieldAlert, ArrowRight, X } from 'lucide-react';
+import { User, Car, ChevronRight, Phone, Flame, Lock, Eye, CheckCircle2, ShieldAlert, ArrowRight, X, MessageCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 type UserData = {
   id: string;
@@ -49,7 +50,7 @@ export function Home() {
 
   const sendSOS = async () => {
     if (!navigator.geolocation) {
-      alert('Géolocalisation non supportée par votre navigateur.');
+      toast.error('Géolocalisation non supportée par votre navigateur.');
       return;
     }
 
@@ -75,14 +76,14 @@ export function Home() {
           window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 
         } catch {
-          alert("Erreur réseau");
+          toast.error("Erreur réseau lors de l'envoi du SOS.");
         } finally {
           setLoadingSOS(false);
         }
       },
       () => {
         setLoadingSOS(false);
-        alert('Position GPS refusée.');
+        toast.error('Position GPS refusée. Impossible d\'envoyer la position.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -188,8 +189,8 @@ export function Home() {
                       <Phone size={16} />
                     </button>
                     {!c.isPompiers && (
-                      <button className="action-btn" style={{ backgroundColor: '#FFFDE7', color: '#B7A200' }} onClick={() => window.open(`https://wa.me/${c.phone.replace(/[^\d+]/g, "")}`, '_blank')}>
-                        W
+                      <button className="action-btn" style={{ backgroundColor: '#e2f5ea', color: '#128c7e' }} onClick={() => window.open(`https://wa.me/${c.phone.replace(/[^\d+]/g, "")}`, '_blank')}>
+                        <MessageCircle size={16} />
                       </button>
                     )}
                   </div>

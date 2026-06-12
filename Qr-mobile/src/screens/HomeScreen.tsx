@@ -12,6 +12,7 @@ import { fontSizes, fonts } from '../theme/typography';
 import ProfilePanel from './ProfilePanel';
 import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome } from '@expo/vector-icons';
 
 import * as Location from 'expo-location';
 import * as Print from 'expo-print';
@@ -315,7 +316,9 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
               <View style={styles.contactActions}>
                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionCall }]} onPress={() => Linking.openURL(`tel:${c.phone}`)}><Text>📞</Text></TouchableOpacity>
-                {!c.isPompiers && <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionWA }]} onPress={() => Linking.openURL(`whatsapp://send?phone=${c.phone}`)}><Text>💬</Text></TouchableOpacity>}
+                {!c.isPompiers && <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#e2f5ea' }]} onPress={() => Linking.openURL(`whatsapp://send?phone=${c.phone}`)}>
+                  <FontAwesome name="whatsapp" size={24} color="#128c7e" />
+                </TouchableOpacity>}
               </View>
             </View>
           ))}

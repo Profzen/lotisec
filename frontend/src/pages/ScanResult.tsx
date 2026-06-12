@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { ShieldAlert, Activity, Phone, Car } from 'lucide-react';
 
@@ -13,7 +14,7 @@ export function ScanResult() {
 
   const handleUnlock = async () => {
     if (accessCode.trim().length < 4) {
-      alert("Le code d'accréditation est trop court.");
+      toast.error("Le code d'accréditation est trop court.");
       return;
     }
 
@@ -28,9 +29,9 @@ export function ScanResult() {
       setUnlockedData(response.data);
     } catch (e: any) {
       if (e.response && e.response.status === 403) {
-        alert("Accès Refusé. Code invalide.");
+        toast.error("Accès Refusé. Code invalide.");
       } else {
-        alert("Erreur de liaison au serveur Lotisec.");
+        toast.error("Erreur de liaison au serveur Lotisec.");
       }
       setAccessCode('');
     } finally {

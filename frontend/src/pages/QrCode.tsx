@@ -43,8 +43,10 @@ export function QrCode() {
       <div className="white-sheet" style={{ alignItems: 'center', paddingTop: '3rem' }}>
         
         {qrToken ? (
-          <div className="qr-container">
-            <QRCode value={qrUrl} size={200} />
+          <div className="printable-qr">
+            <div className="qr-container">
+              <QRCode value={qrUrl} size={200} />
+            </div>
           </div>
         ) : (
           <div className="qr-container" style={{ width: '264px', height: '264px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

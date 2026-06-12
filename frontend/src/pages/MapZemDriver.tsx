@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { ChevronLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { supabase } from '../api/supabase';
 import { getRoute, RouteData } from '../utils/osrm';
@@ -100,7 +102,7 @@ export function MapZemDriver() {
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `zem_id=eq.${user.id}` }, payload => {
         if (payload.new.status === 'canceled' && activeRide?.id === payload.new.id) {
-          alert("La course a été annulée par le client.");
+          toast("La course a été annulée par le client.", { icon: 'ℹ️' });
           setActiveRide(null);
           setRouteData(null);
         }
@@ -141,7 +143,7 @@ export function MapZemDriver() {
       setRouteData(rData);
 
     } catch (err) {
-      alert("Impossible d'accepter la course.");
+      toast.error("Impossible d'accepter la course.");
     }
   };
 
@@ -158,13 +160,13 @@ export function MapZemDriver() {
     if (!activeRide || !supabase) return;
     try {
       await supabase!.from('rides').update({ status: 'completed' }).eq('id', activeRide.id);
-      alert(`Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
+      toast.success(`Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
       setActiveRide(null);
       setRouteData(null);
       setIsOnline(true);
       if (location) updateZemLocation(location.lat, location.lng, true);
     } catch (err) {
-      alert("Impossible de clôturer la course.");
+      toast.error("Impossible de clôturer la course.");
     }
   };
 
@@ -176,11 +178,25 @@ export function MapZemDriver() {
     }
   };
 
-  if (!location || loading) return <div className="center-state">Chargement carte GPS...</div>;
+  if (!location) return <div className="center-state">Chargement position GPS...</div>;
 
   return (
     <div className="map-container">
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, backgroundColor: 'white', padding: '10px', borderRadius: '10px', fontWeight: 'bold' }}>
+      {/* Bouton retour */}
+      <button 
+        onClick={() => window.history.back()} 
+        style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1100, backgroundColor: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+      >
+        <ChevronLeft size={24} color="var(--color-primary)" />
+      </button>
+
+      {loading && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, backgroundColor: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="spinner" style={{ width: '40px', height: '40px', borderTopColor: 'var(--color-primary)' }}></div>
+        </div>
+      )}
+
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000, backgroundColor: 'white', padding: '10px', borderRadius: '10px', fontWeight: 'bold' }}>
         MODE CONDUCTEUR
       </div>
 

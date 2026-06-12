@@ -35,9 +35,19 @@
 }
 
 body {
-  background-color: var(--color-background);
+  background-color: #f0f2f5;
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background-color: var(--color-background);
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  position: relative;
   overflow-x: hidden;
 }
 
@@ -493,6 +503,29 @@ input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
+/* --- Print Styles for QR Code --- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-qr, .printable-qr * {
+    visibility: visible;
+  }
+  .printable-qr {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
 .search-bar {

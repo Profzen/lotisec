@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Search, MapPin, Navigation, Car, AlertCircle, X } from 'lucide-react';
+import { Search, MapPin, Navigation, Car, AlertCircle, X, ChevronLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
 import { getRoute, RouteData } from '../utils/osrm';
 import { api } from '../api/client';
@@ -116,9 +117,9 @@ export function MapZem() {
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, payload => {
           if (activeRide && payload.new.id === activeRide.id) {
             setActiveRide(payload.new);
-            if (payload.new.status === 'accepted') alert("Votre Zem est en route !");
+            if (payload.new.status === 'accepted') toast.success("Votre Zem est en route !");
             else if (payload.new.status === 'completed') {
-              alert("Course terminée.");
+              toast.success("Course terminée.");
               setActiveRide(null);
               setDestination(null);
               setRouteData(null);
@@ -202,16 +203,30 @@ export function MapZem() {
         setActiveRide(res.data.ride);
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || "Erreur lors de la commande.");
+      toast.error(err.response?.data?.error || "Erreur lors de la commande.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!location || loading) return <div className="app-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Chargement carte...</div>;
+  if (!location) return <div className="app-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Chargement position GPS...</div>;
 
   return (
     <div className="map-container">
+      {/* Bouton retour */}
+      <button 
+        onClick={() => window.history.back()} 
+        style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1100, backgroundColor: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+      >
+        <ChevronLeft size={24} color="var(--color-primary)" />
+      </button>
+
+      {/* Overlay de chargement transparent si on lance une commande */}
+      {loading && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, backgroundColor: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="spinner" style={{ width: '40px', height: '40px', borderTopColor: 'var(--color-primary)' }}></div>
+        </div>
+      )}
       {/* GPS Warning */}
       {gpsError && (
         <div style={{ 
