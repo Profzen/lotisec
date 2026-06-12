@@ -97,8 +97,9 @@ Statut de référence: **2026-06-12**.
   - Overlays MapZem : Chargement avec spinner flottant (au lieu du crash "écran vert") et ajout des boutons de retour `ChevronLeft`.
   - Impression propre : CSS `@media print` garantissant l'impression exclusive du QR Code depuis la page Web.
 - **Refonte Fullscreen Web & Suivi Live (12 Juin)** :
-  - **Layout Fullscreen** : Suppression du cadre étroit 480px. Le Web est désormais 100% responsive. La barre de navigation du bas devient une **Sidebar Desktop professionnelle** sur les grands écrans.
-  - **Onglet Trajets (`Rides.tsx`)** : Nouveau menu pour afficher la course en cours et suivre son Zem.
+  - **Layout Fullscreen / Dashboard PC** : Suppression du cadre étroit 480px. Le Web est désormais 100% responsive. La barre de navigation du bas devient une **Sidebar Desktop professionnelle** sur les grands écrans (Dashboard).
+  - **Onglet Trajets (`Rides.tsx`)** : Nouveau menu pour afficher la course en cours et **l'historique complet** des trajets (avec statut, prix et distance).
+  - **Loaders Transparents** : Suppression de l'écran vert bloquant ("Localisation en cours..."). Remplacé par un `.loader-overlay` élégant superposé au contenu (Hopitaux, MapZem).
   - **Live Tracking** : Abonnement WebSocket à `zem_locations`. Un point dynamique indique en temps réel où se trouve la moto.
   - **Origine Personnalisée** : Capacité de commander un Zem pour un proche en définissant un point de départ différent du GPS.
 
@@ -133,7 +134,8 @@ Statut de référence: **2026-06-12**.
 - Polices Montserrat (Regular/Medium/SemiBold/Bold) via `@expo-google-fonts/montserrat`.
 - **Améliorations UX/UI & Tracking (12 Juin)** : 
   - Synchronisation de toutes les icônes (remplacement des emojis par des composants `FontAwesome` et `Ionicons` pour un look professionnel).
-  - Ajout de l'écran "Trajets" (`RidesScreen.tsx`) dans le BottomTabNavigator.
+  - Ajout de l'écran "Trajets" (`RidesScreen.tsx`) avec un affichage de l'**historique complet** des courses (terminées, annulées, en attente).
+  - **Loaders Transparents** : Suppression de la vue verte bloquante dans `HopitauxScreen`. Remplacé par un `ActivityIndicator` avec fond translucide.
   - **Live Tracking** (`ZemPassengerScreen.tsx`) : Visualisation en temps réel de l'approche du Zem sur la carte après validation de la commande.
 
 **État technique connu ⚠️:**
@@ -161,7 +163,7 @@ Statut de référence: **2026-06-12**.
 - Profil: `preview` → génère un `.apk` Android installable.
 - Variables d'environnement: **✅ Complètes dans `eas.json`**.
 - Projet EAS réinitialisé le 2026-06-11 suite au renommage du slug (`safelife` → `lotisec`).
-- **✅ Build du 2026-06-12 réussi**. L'APK est disponible au téléchargement: [Lien Expo](https://expo.dev/accounts/profzen/projects/lotisec/builds/bb806bfe-67e0-48ca-afb1-4b2c5b7a3d99).
+- **✅ Build du 2026-06-12 (V2)** : Un build incluant l'historique des trajets, les loaders transparents et les corrections TS est actuellement en cours sur les serveurs d'Expo.
 
 ## 6. Tests réalisés et résultats
 
