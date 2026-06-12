@@ -39,7 +39,7 @@ router.post('/request', async (req, res) => {
     const zemResult = await query<any>(queryStr, params);
 
     if (zemResult.rows.length === 0) {
-      return res.status(404).json({ error: "Aucun Zem disponible à proximité." });
+      return res.status(400).json({ error: "Aucun Zem n'est actuellement disponible dans un rayon de 5 km." });
     }
 
     const nearestZem = zemResult.rows[0];
