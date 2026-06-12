@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Asterisk, Lightbulb, QrCode } from 'lucide-react';
+import { Home, Asterisk, Lightbulb, QrCode, Map as MapIcon } from 'lucide-react';
 
 export function Layout() {
   const navLinks = [
@@ -8,6 +8,7 @@ export function Layout() {
     { to: '/hopitaux', icon: <Asterisk size={24} />, label: 'Hôpitaux' },
     { to: '/conseils', icon: <Lightbulb size={24} />, label: 'Conseils' },
     { to: '/qr', icon: <QrCode size={24} />, label: 'Mon QR' },
+    { to: '/trajets', icon: <MapIcon size={24} />, label: 'Trajets' },
   ];
 
   return (

@@ -26,6 +26,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const [destinationName, setDestinationName] = useState<string>('');
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [activeRide, setActiveRide] = useState<any>(null);
+  const [zemLocation, setZemLocation] = useState<{lat: number, lng: number} | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapView>(null);
@@ -77,6 +78,16 @@ export default function ZemPassengerScreen({ navigation }: any) {
               Alert.alert("Désolé", "Le Zem a décliné. Relancez la recherche.");
               setActiveRide(null);
             }
+          }
+        })
+        .subscribe();
+        
+      // Suivi de la position de la moto si une course est active
+      supabase
+        .channel('zem_tracking')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'zem_locations' }, payload => {
+          if (activeRide && payload.new.zem_id === activeRide.zem_id) {
+            setZemLocation({ lat: payload.new.latitude, lng: payload.new.longitude });
           }
         })
         .subscribe();
@@ -207,6 +218,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         .update({ status: 'canceled' })
         .eq('id', activeRide.id);
       setActiveRide(null);
+      setZemLocation(null);
       setDestination(null);
       setRouteData(null);
       setDestinationName('');
@@ -345,6 +357,20 @@ export default function ZemPassengerScreen({ navigation }: any) {
             lineDashPattern={[5, 5]}
           />
         ) : null}
+        
+        {/* Marqueur dynamique de la moto Zem */}
+        {zemLocation && (
+          <Marker
+            coordinate={{ latitude: zemLocation.lat, longitude: zemLocation.lng }}
+            title="Votre Zem"
+          >
+            <View style={{
+              width: 24, height: 24, backgroundColor: colors.warning,
+              borderRadius: 12, borderWidth: 3, borderColor: 'white',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3
+            }} />
+          </Marker>
+        )}
       </MapView>
 
       {/* Message si carte ne charge pas */}

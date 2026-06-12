@@ -52,6 +52,8 @@ export function MapZem() {
   const DEFAULT_LOCATION = { lat: 6.1319, lng: 1.2228 };
 
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [origin, setOrigin] = useState<{lat: number, lng: number} | null>(null);
+  const [originName, setOriginName] = useState<string>('Ma position (GPS)');
   const [destination, setDestination] = useState<{lat: number, lng: number} | null>(null);
   const [destinationName, setDestinationName] = useState<string>('');
   const [routeData, setRouteData] = useState<RouteData | null>(null);
@@ -82,6 +84,10 @@ export function MapZem() {
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setLocation(loc);
+        if (!origin) {
+          setOrigin(loc);
+          setOriginName('Ma position (GPS)');
+        }
         setGpsError(false);
         setLoading(false);
 
@@ -98,6 +104,10 @@ export function MapZem() {
         // GPS refusé — utiliser Lomé par défaut
         console.warn("GPS refusé, fallback sur Lomé");
         setLocation(DEFAULT_LOCATION);
+        if (!origin) {
+          setOrigin(DEFAULT_LOCATION);
+          setOriginName('Lomé (Défaut)');
+        }
         setGpsError(true);
         setLoading(false);
       },
@@ -158,8 +168,8 @@ export function MapZem() {
     setSearchQuery(getShortName(res));
     setShowResults(false);
     
-    if (location) {
-      const route = await getRoute({ latitude: location.lat, longitude: location.lng }, { latitude: lat, longitude: lng });
+    if (origin) {
+      const route = await getRoute({ latitude: origin.lat, longitude: origin.lng }, { latitude: lat, longitude: lng });
       setRouteData(route);
     }
   };
@@ -178,22 +188,22 @@ export function MapZem() {
       setDestinationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     }
 
-    if (location) {
-      const route = await getRoute({ latitude: location.lat, longitude: location.lng }, { latitude: lat, longitude: lng });
+    if (origin) {
+      const route = await getRoute({ latitude: origin.lat, longitude: origin.lng }, { latitude: lat, longitude: lng });
       setRouteData(route);
     }
   };
 
   const requestRide = async () => {
-    if (!destination || !location || !user || !routeData) return;
+    if (!destination || !origin || !user || !routeData) return;
     const price = Math.round(routeData.distanceKm * 75);
 
     try {
       setLoading(true);
       const res = await api.post('/zem/request', {
         passengerId: user.id,
-        originLat: location.lat,
-        originLng: location.lng,
+        originLat: origin.lat,
+        originLng: origin.lng,
         destLat: destination.lat,
         destLng: destination.lng,
         distanceKm: routeData.distanceKm,
@@ -241,9 +251,35 @@ export function MapZem() {
 
       {/* Search Overlay */}
       {!activeRide && (
-        <div className="map-search-overlay">
+        <div className="map-search-overlay" style={{ top: '60px' }}>
+          <div className="search-input-wrapper" style={{ marginBottom: '8px', cursor: 'pointer' }} onClick={() => {
+            const newOrig = prompt("Saisissez l'adresse de départ (Laissez vide pour le GPS)");
+            if (newOrig && newOrig.trim() !== '') {
+              searchAddress(newOrig).then(res => {
+                if (res.length > 0) {
+                  setOrigin({ lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) });
+                  setOriginName(getShortName(res[0]));
+                  if (destination) {
+                    getRoute({ latitude: parseFloat(res[0].lat), longitude: parseFloat(res[0].lon) }, { latitude: destination.lat, longitude: destination.lng }).then(setRouteData);
+                  }
+                }
+              });
+            } else if (location) {
+              setOrigin(location);
+              setOriginName("Ma position (GPS)");
+              if (destination) {
+                getRoute({ latitude: location.lat, longitude: location.lng }, { latitude: destination.lat, longitude: destination.lng }).then(setRouteData);
+              }
+            }
+          }}>
+            <MapPin size={20} color="var(--color-success)" />
+            <div style={{ flex: 1, padding: '10px 0', fontSize: '0.9rem', color: originName.includes('GPS') ? 'var(--color-success)' : 'black' }}>
+              {originName}
+            </div>
+          </div>
+
           <div className="search-input-wrapper">
-            <Search size={20} className="text-secondary" />
+            <Search size={20} color="var(--color-danger)" />
             <input 
               type="text" 
               placeholder="Rechercher une destination..." 
@@ -279,7 +315,7 @@ export function MapZem() {
 
       {/* Leaflet Map */}
       <MapContainer 
-        center={[location.lat, location.lng]} 
+        center={origin ? [origin.lat, origin.lng] : [location.lat, location.lng]} 
         zoom={13} 
         style={{ height: '100%', width: '100%', zIndex: 0 }}
         zoomControl={false}
@@ -290,8 +326,10 @@ export function MapZem() {
         />
         <MapController destination={destination} onMapClick={handleMapClick} />
         
-        {/* User Location */}
-        <Marker position={[location.lat, location.lng]} />
+        {/* Origin Location */}
+        {origin && (
+          <Marker position={[origin.lat, origin.lng]} icon={L.divIcon({ className: 'custom-zem-icon', html: '<div style="background:var(--color-success);width:20px;height:20px;border-radius:10px;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.3)"></div>' })} />
+        )}
         
         {/* Destination Marker */}
         {destination && (

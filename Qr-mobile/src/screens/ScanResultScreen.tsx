@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
 
 const API_URL = "https://lotisec-backend.vercel.app";
 
@@ -61,11 +61,11 @@ export default function ScanResultScreen({ route, navigation }: any) {
         </View>
 
         <View style={styles.alertBanner}>
-          <Text style={styles.alertText}>⚠️ En cas d'urgence, appelez le 118</Text>
+          <Text style={styles.alertText}><FontAwesome name="warning" size={14} /> En cas d'urgence, appelez le 118</Text>
         </View>
 
         <View style={styles.lockBox}>
-          <Text style={styles.lockTitle}>🔐 Accès professionnel</Text>
+          <Text style={styles.lockTitle}><FontAwesome name="shield" size={24} /> Accès Médical Sécurisé</Text>
           <Text style={styles.lockSubtitle}>
             Saisissez votre code d'unité pour accéder aux données vitales complètes.{'\n'}
             Ex : QARO387963 · KAMA985463 · GEN909555
@@ -159,7 +159,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
 
       {/* Contacts d'urgence */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>📞 CONTACTS D'URGENCE</Text>
+        <Text style={styles.sectionLabel}><FontAwesome name="phone" size={16} /> CONTACTS D'URGENCE</Text>
         {emergency_contacts && emergency_contacts.length > 0
           ? emergency_contacts.map((c: any, i: number) => (
             <View key={i} style={styles.contactRow}>

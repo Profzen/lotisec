@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
@@ -216,7 +217,7 @@ export default function HospitauxScreen({ navigation }: any) {
               onPress={() => Linking.openURL(`tel:${item.phone}`)}
               activeOpacity={0.8}
             >
-              <Text style={{ fontSize: 14 }}>📞</Text>
+              <FontAwesome name="phone" size={14} />
               <Text style={styles.actionCallText}>Appeler</Text>
             </TouchableOpacity>
           )}

@@ -315,7 +315,9 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text style={[styles.contactPhone, { color: th.text3 }]}>{c.phone}</Text>
               </View>
               <View style={styles.contactActions}>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionCall }]} onPress={() => Linking.openURL(`tel:${c.phone}`)}><Text>📞</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionCall }]} onPress={() => Linking.openURL(`tel:${c.phone}`)}>
+                  <FontAwesome name="phone" size={20} color={isDark ? "white" : "black"} />
+                </TouchableOpacity>
                 {!c.isPompiers && <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#e2f5ea' }]} onPress={() => Linking.openURL(`whatsapp://send?phone=${c.phone}`)}>
                   <FontAwesome name="whatsapp" size={24} color="#128c7e" />
                 </TouchableOpacity>}

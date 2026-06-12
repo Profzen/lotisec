@@ -5,6 +5,7 @@ import {
   LayoutAnimation, Platform, UIManager, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 
@@ -296,7 +297,7 @@ export default function ConseilsScreen() {
                 onPress={() => Linking.openURL('tel:118')}
                 activeOpacity={0.85}
               >
-                <Text style={styles.appelBtnText}>📞 Appeler le 118 — Pompiers</Text>
+                <Text style={styles.appelBtnText}><FontAwesome name="phone" size={16} /> Appeler le 118 — Pompiers</Text>
               </TouchableOpacity>
             </View>
           )}

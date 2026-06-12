@@ -22,6 +22,7 @@ import ConseilsScreen  from '../screens/ConseilsScreen';
 import QRCodeScreen from '../screens/QRCodeScreen';
 import ZemPassengerScreen from '../screens/ZemPassengerScreen';
 import ZemDriverScreen from '../screens/ZemDriverScreen';
+import RidesScreen from '../screens/RidesScreen';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
 export type RootStackParamList = {
@@ -93,6 +94,16 @@ function TabNavigator() {
           tabBarLabel: 'Mon QR',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "qr-code" : "qr-code-outline"} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Rides" 
+        component={RidesScreen} 
+        options={{
+          tabBarLabel: 'Trajets',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "map" : "map-outline"} size={24} color={color} />
           ),
         }}
       />

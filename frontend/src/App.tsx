@@ -9,6 +9,7 @@ import { Hopitaux } from './pages/Hopitaux';
 import { Conseils } from './pages/Conseils';
 import { QrCode } from './pages/QrCode';
 import { ScanResult } from './pages/ScanResult';
+import { Rides } from './pages/Rides';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('lotisec_token');
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="hopitaux" element={<Hopitaux />} />
         <Route path="conseils" element={<Conseils />} />
         <Route path="qr" element={<QrCode />} />
+        <Route path="trajets" element={<Rides />} />
       </Route>
 
       {/* MapZem est en plein écran, sans la bottom nav */}
