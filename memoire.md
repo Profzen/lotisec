@@ -145,7 +145,7 @@ Statut de référence: **2026-06-12**.
 - Profil: `preview` → génère un `.apk` Android installable.
 - Variables d'environnement: **✅ Complètes dans `eas.json`**.
 - Projet EAS réinitialisé le 2026-06-11 suite au renommage du slug (`safelife` → `lotisec`).
-- **⏳ Build du 2026-06-11 en cours de génération**. En attente des serveurs Expo.
+- **✅ Build du 2026-06-12 réussi**. L'APK est disponible au téléchargement: [Lien Expo](https://expo.dev/accounts/profzen/projects/lotisec/builds/bb806bfe-67e0-48ca-afb1-4b2c5b7a3d99).
 
 ## 6. Tests réalisés et résultats
 
