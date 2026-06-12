@@ -326,6 +326,7 @@ Configurées dans `eas.json` (profils `preview` et `production`) ET dans `.env` 
 - 2026-06-12: **Mise à jour Cartographie et Module Zem Web**. Transition de `getCurrentPosition` vers `watchPosition` pour un tracking continu sur Web. Création d'une vue dédiée pour les conducteurs `MapZemDriver.tsx` (toggle online/offline, acceptation de courses via canal Supabase, routage OSRM).
 - 2026-06-12: **Scan QR Web Sécurisé**. Création d'une page `ScanResult.tsx` permettant au web de lire les tags d'urgence (`/scan/:token`), avec interface protégée par code PIN et restitution de la fiche médicale intégrale, calquée sur `ScanResultScreen.tsx`.
 - 2026-06-12: **Succès du Build EAS Android**. Après correction des anomalies AAPT2 (faux fichiers PNG) de la veille, le build `preview` via Expo EAS a été généré avec succès. L'APK finale de Lotisec est prête à être testée sur appareil physique.
+- 2026-06-12: **Fix Critiques Cartographie et GPS**. (1) Web : Correction d'un crash React (`f is not a function`) déclenché par le refus d'accès GPS (`GeolocationPositionError`). Mise en place d'un fallback sécurisé sur Lomé avec bandeau d'avertissement. (2) Mobile/Web : Remplacement du fournisseur de tuiles OSM (`tile.openstreetmap.org`) par **CartoDB Light** (`a.basemaps.cartocdn.com`) pour contourner le blocage strict des User-Agents génériques sur mobile qui rendait la carte grise.
 
 ## 13. Références de reprise rapide
 - Spécification produit: `cdc.txt`.
