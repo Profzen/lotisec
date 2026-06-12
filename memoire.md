@@ -63,6 +63,7 @@ Statut de référence: **2026-06-12**.
   - `migrate-hopitaux.js` (table `medical_facilities` avec PostGIS)
   - `migrate-zem.js` (tables `zem_locations` et `rides`)
   - `migrate-accidents-columns.js` (ajout des colonnes manquantes pour éviter l'erreur 500 sur le bouton SOS)
+- **Logique Métier Zem** : Limite de rayon de recherche de 5 km ajoutée (`ST_DWithin`) pour commander un Zem (`GET /zem/request`). Ajout de la route `GET /zem/active` pour récupérer le trajet en cours.
 
 **En attente / incomplet ⏳:**
 - Contrat API à figer finement contre les flux mobile historiques.
@@ -91,11 +92,15 @@ Statut de référence: **2026-06-12**.
 - Script de création de comptes de test (Passager + Zem) inséré directement en base via API.
 - **Parité Totale Atteinte** : Implémentation du Panneau de Profil (Drawer), modale QR Code sécurisée (impression PDF), Historique des Scans, et Scan Web sécurisé pour les professionnels (`ScanResult.tsx`).
 - **Améliorations UX/UI (12 Juin)** : 
-  - Layout Web Responsive : Design "Mobile-First" centré avec largeur max (480px) pour affichage propre sur PC/Tablette.
   - Notifications Toasts : Remplacement de tous les `alert()` par `react-hot-toast` pour des bulles non-bloquantes.
   - Icônes WhatsApp : Véritables icônes WhatsApp avec redirection `wa.me` sur les fiches de contact.
   - Overlays MapZem : Chargement avec spinner flottant (au lieu du crash "écran vert") et ajout des boutons de retour `ChevronLeft`.
   - Impression propre : CSS `@media print` garantissant l'impression exclusive du QR Code depuis la page Web.
+- **Refonte Fullscreen Web & Suivi Live (12 Juin)** :
+  - **Layout Fullscreen** : Suppression du cadre étroit 480px. Le Web est désormais 100% responsive. La barre de navigation du bas devient une **Sidebar Desktop professionnelle** sur les grands écrans.
+  - **Onglet Trajets (`Rides.tsx`)** : Nouveau menu pour afficher la course en cours et suivre son Zem.
+  - **Live Tracking** : Abonnement WebSocket à `zem_locations`. Un point dynamique indique en temps réel où se trouve la moto.
+  - **Origine Personnalisée** : Capacité de commander un Zem pour un proche en définissant un point de départ différent du GPS.
 
 **En attente / incomplet ⏳:**
 - Tout le périmètre actuel (MVP + Parité stricte) est terminé. Rien en attente pour cette phase.
@@ -126,7 +131,10 @@ Statut de référence: **2026-06-12**.
 - Gestion d'erreurs inline (bannières dynamiques, pas de `Alert.alert` pour les formulaires).
 - Palette de couleurs complète: `primaryLight` et `success` ajoutés à `colors.ts`.
 - Polices Montserrat (Regular/Medium/SemiBold/Bold) via `@expo-google-fonts/montserrat`.
-- **Améliorations UX/UI (12 Juin)** : Synchronisation du bouton WhatsApp (utilisation de `FontAwesome` pour afficher la véritable icône verte).
+- **Améliorations UX/UI & Tracking (12 Juin)** : 
+  - Synchronisation de toutes les icônes (remplacement des emojis par des composants `FontAwesome` et `Ionicons` pour un look professionnel).
+  - Ajout de l'écran "Trajets" (`RidesScreen.tsx`) dans le BottomTabNavigator.
+  - **Live Tracking** (`ZemPassengerScreen.tsx`) : Visualisation en temps réel de l'approche du Zem sur la carte après validation de la commande.
 
 **État technique connu ⚠️:**
 - `npx tsc --noEmit` remonte **0 erreur**. L'application est 100% clean au niveau TypeScript (correction du `RootStackParamList`).
