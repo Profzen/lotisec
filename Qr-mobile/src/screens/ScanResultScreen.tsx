@@ -44,7 +44,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
         setAccessCode('');
       }
     } catch (e) {
-      Alert.alert("Erreur", "Liaison au serveur Lotisec interrompue.");
+      Alert.alert("Erreur", "Liaison au serveur 118 interrompue.");
     } finally {
       setVerifying(false);
     }
@@ -56,7 +56,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Ionicons name="shield-half" size={70} color={colors.primary} />
-          <Text style={styles.headerTitle}>Lotisec</Text>
+          <Text style={styles.headerTitle}>118</Text>
           <Text style={styles.headerSub}>Fiche d'urgence scannée</Text>
         </View>
 

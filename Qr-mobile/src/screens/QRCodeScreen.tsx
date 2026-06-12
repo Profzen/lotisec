@@ -104,7 +104,7 @@ export default function QRCodeScreen() {
           <View style={styles.row}>
             <TouchableOpacity 
               style={styles.secondaryAction} 
-              onPress={() => Share.share({ message: `Lien vers ma fiche Lotisec : https://qr-web-dbap.vercel.app/scan/${qrToken}` })}
+              onPress={() => Share.share({ message: `Lien vers ma fiche 118 : https://qr-web-dbap.vercel.app/scan/${qrToken}` })}
             >
               <Ionicons name="share-social" size={20} color={colors.text} />
               <Text style={styles.secondaryText}>Partager le lien</Text>

@@ -38,5 +38,5 @@ app.get('/ws-status', (_req, res) => {
 const port = Number(process.env.PORT || 8000);
 server.listen(port, '0.0.0.0', () => {
   // eslint-disable-next-line no-console
-  console.log(`Lotisec Node API running on :${port}`);
+  console.log(`118 Node API running on :${port}`);
 });

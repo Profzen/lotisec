@@ -55,7 +55,7 @@ router.post('/register', async (req, res) => {
       qrToken,
       'CITIZEN',
       'Utilisateur',
-      'Lotisec',
+      '118',
       '01/01/2000',
       'M',
       'Togo',

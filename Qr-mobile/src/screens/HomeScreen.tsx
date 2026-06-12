@@ -197,7 +197,7 @@ export default function HomeScreen({ navigation }: Props) {
     if(!qrToken) return Alert.alert("Erreur", "Token introuvable.");
     const html = `
       <html><body style="text-align:center;font-family:Helvetica;padding:40px;">
-        <h1 style="color:#D21034;">Lotisec</h1> 
+        <h1 style="color:#D21034;">118</h1> 
         <h2>Fiche d'urgence</h2>
         <hr/>
         <div style="margin:30px;">

@@ -24,7 +24,7 @@ app.use(express.json({ limit: '2mb' }));
 app.get('/', (_req, res) => {
   res.json({
     status: 'online',
-    project: 'Lotisec Node API',
+    project: '118 Node API',
     db_configured: Boolean(process.env.DATABASE_URL)
   });
 });

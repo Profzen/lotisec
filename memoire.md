@@ -162,8 +162,8 @@ Statut de référence: **2026-06-12**.
 ### 5.3 Mobile APK (EAS Build)
 - Profil: `preview` → génère un `.apk` Android installable.
 - Variables d'environnement: **✅ Complètes dans `eas.json`**.
-- Projet EAS réinitialisé le 2026-06-11 suite au renommage du slug (`safelife` → `lotisec`).
 - **✅ Build du 2026-06-12 (V2)** : Un build incluant l'historique des trajets, les loaders transparents et les corrections TS est actuellement en cours sur les serveurs d'Expo.
+- **✅ Build du 2026-06-12 (V3 - Rebranding)** : Changement global de nom de "Lotisec" vers "118 App" avec un tout nouveau logo (bouclier et numéro 118). Le build est en cours sur les serveurs d'Expo.
 
 ## 6. Tests réalisés et résultats
 

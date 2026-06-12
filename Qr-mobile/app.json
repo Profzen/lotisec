@@ -1,24 +1,24 @@
 {
   "expo": {
-    "name": "Lotisec",
-    "slug": "lotisec",
+    "name": "118",
+    "slug": "118",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/Lotisec.png",
+    "icon": "./assets/logo-118.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/Lotisec.png",
+      "image": "./assets/logo-118.png",
       "resizeMode": "contain",
-      "backgroundColor": "#006a4e"
+      "backgroundColor": "#006A4E"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.lotisec.togo",
       "splash": {
-        "image": "./assets/Lotisec.png",
+        "image": "./assets/logo-118.png",
         "resizeMode": "contain",
-        "backgroundColor": "#006a4e"
+        "backgroundColor": "#006A4E"
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -26,8 +26,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/Lotisec.png",
-        "backgroundColor": "#006a4e"
+        "foregroundImage": "./assets/logo-118.png",
+        "backgroundColor": "#006A4E"
       },
       "package": "com.lotisec.togo",
       "config": {
@@ -36,20 +36,20 @@
         }
       },
       "splash": {
-        "image": "./assets/Lotisec.png",
+        "image": "./assets/logo-118.png",
         "resizeMode": "contain",
-        "backgroundColor": "#006a4e"
+        "backgroundColor": "#006A4E"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logo-118.png"
     },
     "plugins": [
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#006a4e",
-          "image": "./assets/Lotisec.png",
+          "backgroundColor": "#006A4E",
+          "image": "./assets/logo-118.png",
           "imageWidth": 200
         }
       ]

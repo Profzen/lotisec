@@ -389,11 +389,12 @@ export function MapZem() {
 
             <button 
               className="btn primary" 
-              disabled={!destination || !routeData || loading}
+              style={{ width: '100%', padding: '15px' }}
               onClick={requestRide}
+              disabled={!destination || !routeData || loading}
             >
               <Car size={20} />
-              {loading ? 'Commande en cours...' : 'Commander un Lotisec Zem'}
+              {loading ? 'Commande en cours...' : 'Commander un 118 Zem'}
             </button>
           </>
         ) : (
