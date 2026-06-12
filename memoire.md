@@ -62,6 +62,7 @@ Statut de référence: **2026-06-12**.
 - Scripts de migration:
   - `migrate-hopitaux.js` (table `medical_facilities` avec PostGIS)
   - `migrate-zem.js` (tables `zem_locations` et `rides`)
+  - `migrate-accidents-columns.js` (ajout des colonnes manquantes pour éviter l'erreur 500 sur le bouton SOS)
 
 **En attente / incomplet ⏳:**
 - Contrat API à figer finement contre les flux mobile historiques.
@@ -89,6 +90,12 @@ Statut de référence: **2026-06-12**.
 - Bug 404 Vercel corrigé via `vercel.json` (rewrites pour React Router).
 - Script de création de comptes de test (Passager + Zem) inséré directement en base via API.
 - **Parité Totale Atteinte** : Implémentation du Panneau de Profil (Drawer), modale QR Code sécurisée (impression PDF), Historique des Scans, et Scan Web sécurisé pour les professionnels (`ScanResult.tsx`).
+- **Améliorations UX/UI (12 Juin)** : 
+  - Layout Web Responsive : Design "Mobile-First" centré avec largeur max (480px) pour affichage propre sur PC/Tablette.
+  - Notifications Toasts : Remplacement de tous les `alert()` par `react-hot-toast` pour des bulles non-bloquantes.
+  - Icônes WhatsApp : Véritables icônes WhatsApp avec redirection `wa.me` sur les fiches de contact.
+  - Overlays MapZem : Chargement avec spinner flottant (au lieu du crash "écran vert") et ajout des boutons de retour `ChevronLeft`.
+  - Impression propre : CSS `@media print` garantissant l'impression exclusive du QR Code depuis la page Web.
 
 **En attente / incomplet ⏳:**
 - Tout le périmètre actuel (MVP + Parité stricte) est terminé. Rien en attente pour cette phase.
@@ -119,6 +126,7 @@ Statut de référence: **2026-06-12**.
 - Gestion d'erreurs inline (bannières dynamiques, pas de `Alert.alert` pour les formulaires).
 - Palette de couleurs complète: `primaryLight` et `success` ajoutés à `colors.ts`.
 - Polices Montserrat (Regular/Medium/SemiBold/Bold) via `@expo-google-fonts/montserrat`.
+- **Améliorations UX/UI (12 Juin)** : Synchronisation du bouton WhatsApp (utilisation de `FontAwesome` pour afficher la véritable icône verte).
 
 **État technique connu ⚠️:**
 - `npx tsc --noEmit` remonte **0 erreur**. L'application est 100% clean au niveau TypeScript (correction du `RootStackParamList`).
