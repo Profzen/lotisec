@@ -10,6 +10,7 @@ import { Conseils } from './pages/Conseils';
 import { QrCode } from './pages/QrCode';
 import { ScanResult } from './pages/ScanResult';
 import { Rides } from './pages/Rides';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('lotisec_token');
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <>
       <Toaster position="top-center" />
+      <PwaInstallPrompt />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

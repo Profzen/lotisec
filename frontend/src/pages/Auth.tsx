@@ -9,7 +9,7 @@ export function Landing() {
     <div className="app-container justify-center items-center" style={{ backgroundColor: 'var(--color-primary)' }}>
       <div className="lotisec-card text-center" style={{ maxWidth: '400px', width: '90%' }}>
         <img src="/logo-118.png" alt="118 Logo" style={{ width: '120px', margin: '0 auto 1rem', borderRadius: '20px' }} />
-        <h1 style={{ color: 'var(--color-primary)' }}>118 App</h1>
+        <h1 style={{ color: 'var(--color-primary)' }}>118</h1>
         <p className="text-secondary mb-4">Urgence routière, Secours et Réservation Zemidjan au Togo.</p>
         <div className="flex flex-col gap-4">
           <button className="btn primary" onClick={() => navigate('/login')}>
