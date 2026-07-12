@@ -23,6 +23,7 @@ import QRCodeScreen from '../screens/QRCodeScreen';
 import ZemPassengerScreen from '../screens/ZemPassengerScreen';
 import ZemDriverScreen from '../screens/ZemDriverScreen';
 import RidesScreen from '../screens/RidesScreen';
+import AssistantScreen from '../screens/AssistantScreen';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
 export type RootStackParamList = {
@@ -38,6 +39,7 @@ export type RootStackParamList = {
   MainTabs:  undefined; // Route principale après connexion
   ZemPassenger: undefined;
   ZemDriver: undefined;
+  Assistant: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -132,6 +134,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Step5"    component={Step5Review}    />
         <Stack.Screen name="ZemPassenger" component={ZemPassengerScreen} />
         <Stack.Screen name="ZemDriver"    component={ZemDriverScreen} />
+        <Stack.Screen name="Assistant"    component={AssistantScreen} />
 
         {/* Une fois connecté, on charge le TabNavigator. 
           Les écrans Hôpitaux, Conseils et QRCode sont déjà dedans !

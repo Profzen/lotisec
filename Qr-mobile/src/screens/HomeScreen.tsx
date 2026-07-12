@@ -269,7 +269,17 @@ export default function HomeScreen({ navigation }: Props) {
         )}
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
-          <Text style={[styles.cardTitle, { color: th.text2 }]}>ALERTES RAPIDES</Text>
+          <Text style={[styles.cardTitle, { color: th.text2 }]}>ALERTES RAPIDES & ASSISTANCE</Text>
+          
+          <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,122,61,0.05)' }]} onPress={() => navigation.navigate('Assistant' as any)}>
+            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>💬</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.alertTitle, { color: colors.primary }]}>Assistant IA 118</Text>
+              <Text style={[styles.alertSub, { color: colors.primary, opacity: 0.7 }]}>Questions sur le code de la route</Text>
+            </View>
+            <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.alertRow} onPress={handleSOS}>
             <View style={[styles.alertIcon, { backgroundColor: colors.danger }]}><Text>🚨</Text></View>
             <View style={{ flex: 1 }}>

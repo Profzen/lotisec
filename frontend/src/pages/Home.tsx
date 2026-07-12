@@ -137,7 +137,17 @@ export function Home() {
         )}
 
         <div>
-          <div className="lotisec-card-header">ALERTES RAPIDES</div>
+          <div className="lotisec-card-header">ALERTES RAPIDES & ASSISTANCE</div>
+          
+          <div className="action-item" onClick={() => navigate('/assistant')} style={{ backgroundColor: 'rgba(0,122,61,0.05)', border: 'none', marginBottom: '8px' }}>
+            <div className="action-icon green" style={{ backgroundColor: 'var(--color-primary)' }}><MessageCircle size={20} color="white" /></div>
+            <div className="action-content">
+              <div className="action-title" style={{ color: 'var(--color-primary)' }}>Assistant IA 118</div>
+              <div className="action-subtitle" style={{ color: 'var(--color-primary)', opacity: 0.7 }}>Vos questions sur le code de la route</div>
+            </div>
+            <ChevronRight size={20} color="#9ca3af" />
+          </div>
+
           <div className="action-item" onClick={handleSOS} style={{ backgroundColor: 'rgba(210,16,52,0.05)', border: 'none' }}>
             <div className="action-icon red"><ShieldAlert size={20} /></div>
             <div className="action-content">

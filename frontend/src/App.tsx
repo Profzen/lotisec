@@ -10,6 +10,7 @@ import { Conseils } from './pages/Conseils';
 import { QrCode } from './pages/QrCode';
 import { ScanResult } from './pages/ScanResult';
 import { Rides } from './pages/Rides';
+import { Assistant } from './pages/Assistant';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="conseils" element={<Conseils />} />
         <Route path="qr" element={<QrCode />} />
         <Route path="trajets" element={<Rides />} />
+        <Route path="assistant" element={<Assistant />} />
       </Route>
 
       {/* MapZem est en plein écran, sans la bottom nav */}
