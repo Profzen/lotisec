@@ -15,8 +15,8 @@ type ChatMessage = {
   content: string;
 };
 
-// Utiliser l'IP locale pour Android Emulator (10.0.2.2) ou l'IP machine pour le device physique
-const AI_API_URL = 'http://10.0.2.2:8000'; // Modifier pour tester sur vrai device
+// Production AI Service on Railway
+const AI_API_URL = 'https://agile-trust-production-c862.up.railway.app';
 
 export default function AssistantScreen({ navigation }: any) {
   const [messages, setMessages] = useState<ChatMessage[]>([

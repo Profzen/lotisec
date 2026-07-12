@@ -8,8 +8,8 @@ type ChatMessage = {
   content: string;
 };
 
-// Update this later for prod
-const AI_API_URL = 'http://localhost:8000';
+// Production AI Service on Railway
+const AI_API_URL = 'https://agile-trust-production-c862.up.railway.app';
 
 export function Assistant() {
   const navigate = useNavigate();
