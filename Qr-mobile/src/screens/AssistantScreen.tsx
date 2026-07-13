@@ -171,7 +171,8 @@ export default function AssistantScreen({ navigation }: any) {
 
       <KeyboardAvoidingView 
         style={styles.chatContainer} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 25}
       >
         <ScrollView 
           ref={scrollViewRef}
