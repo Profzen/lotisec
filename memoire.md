@@ -403,3 +403,5 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Les organisations concernées reçoivent une notification ciblée; après affectation, leurs comptes voient la mission et le suivi GPS sur la console responsive, même avant la sélection d’un hôpital.
 - Cinq comptes de recette ont été provisionnés en base : citoyen, Zem approuvé, pompier, ambulancier et administrateur. Les mots de passe ne sont pas versionnés.
 - Recette réelle réussie : cinq connexions, deux demandes de service, deux notifications ciblées, deux affectations, visibilité professionnelle, deux mises à jour GPS et refus console citoyen.
+- Déploiement `ec00fdd` vérifié sur `https://lotisec-delta.vercel.app/console` : la carte suit désormais l’unité vers l’incident avant toute sélection hospitalière.
+- Recette Vercel réussie : `requested_service=ambulance` accepté par le backend de production et notification ciblée reçue par le compte ambulancier.
