@@ -44,15 +44,21 @@ const CONTACTS = [
     name: 'Sapeurs-Pompiers',
     phone: '118',
     isPompiers: true,
+    service: 'fire' as const,
     avatarBg: '#fab41cc5',
     avatarColor: '#FF6B6B',
     initial: '🚒',
+  },
+  {
+    id: 'ambulance', name: 'Service ambulancier', phone: '8200', isPompiers: false,
+    service: 'ambulance' as const, avatarBg: '#EAF2FF', avatarColor: '#1565D8', initial: '🚑',
   },
   {
     id: '1',
     name: 'A prevenir',
     phone: '+22891127584',
     isPompiers: false,
+    service: null,
     avatarBg: '#fa1c1cc5',
     avatarColor: colors.primary,
     initial: '👨🏽‍🦱',
@@ -62,6 +68,7 @@ const CONTACTS = [
     name: 'A prevenir',
     phone: '+22898000493',
     isPompiers: false,
+    service: null,
     avatarBg: '#fab41cc5',
     avatarColor: colors.primary,
     initial: '👨🏽‍🦱',
@@ -91,17 +98,17 @@ export default function HomeScreen({ navigation }: Props) {
   const pulseOpacity2 = useRef(new Animated.Value(0.4)).current;
 
   const th = {
-    bg: isDark ? '#0D0D0D' : colors.background,
-    cardBg: isDark ? '#181818' : colors.white,
-    cardBorder: isDark ? '#252525' : colors.border,
-    text: isDark ? '#EFEFEF' : colors.text,
-    text2: isDark ? '#888888' : colors.textSecondary,
-    text3: isDark ? '#555555' : colors.textLight,
-    avatarBg: isDark ? '#1B3A2D' : '#E8F5E9',
-    avatarColor: isDark ? '#69F0AE' : colors.primary,
-    actionCall: isDark ? '#1B3A2D' : '#E8F5E9',
-    actionWA: isDark ? '#2C2A00' : '#FFFDE7',
-    divider: isDark ? '#252525' : colors.border,
+    bg: isDark ? '#061322' : colors.background,
+    cardBg: isDark ? '#0D2238' : colors.white,
+    cardBorder: isDark ? '#1C3854' : colors.border,
+    text: isDark ? '#F4F8FC' : colors.text,
+    text2: isDark ? '#A8B8C9' : colors.textSecondary,
+    text3: isDark ? '#7890A8' : colors.textLight,
+    avatarBg: isDark ? '#12385C' : colors.primaryLight,
+    avatarColor: isDark ? '#71D4F5' : colors.primary,
+    actionCall: isDark ? '#12385C' : colors.primaryLight,
+    actionWA: isDark ? '#14362F' : colors.successSoft,
+    divider: isDark ? '#1C3854' : colors.border,
   };
 
   useEffect(() => {
@@ -184,13 +191,37 @@ export default function HomeScreen({ navigation }: Props) {
                       `Bonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n` +
                       `📍 Voici ma position actuelle : ${mapsUrl}`;
 
-      const phone = CONTACTS[1].phone.replace(/[^\d+]/g, ""); 
-      await Linking.openURL(`whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`);
       setSosActif(true);
       setAlerteEnvoyee(true);
+      const personalContact=CONTACTS.find((item)=>!item.service);
+      if(personalContact){
+        const phone=personalContact.phone.replace(/[^\d+]/g,'');
+        try{await Linking.openURL(`whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`);}
+        catch{Alert.alert('SOS transmis','LOTISEC a reçu votre alerte. WhatsApp n’est pas disponible.');}
+      }
     } catch (e) {
-      Alert.alert("Erreur", "Vérifiez que WhatsApp est installé.");
+      Alert.alert("Échec de transmission", "LOTISEC n’a pas pu transmettre l’alerte. Vérifiez votre connexion.");
     }
+  };
+
+  const contactService = async (contact:typeof CONTACTS[number]) => {
+    if(!contact.service)return Linking.openURL(`tel:${contact.phone}`);
+    try{
+      const permission=await Location.requestForegroundPermissionsAsync();
+      if(permission.status!=='granted')return Alert.alert('GPS requis','La position permet au service de vous localiser.');
+      const location=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+      const storedUser=await AsyncStorage.getItem('user');
+      const currentUser=storedUser?JSON.parse(storedUser):null;
+      await api('/api/v1/incidents','POST',{
+        source:'mobile',type:`Demande ${contact.name}`,severity:'high',requested_service:contact.service,
+        latitude:location.coords.latitude,longitude:location.coords.longitude,accuracy:location.coords.accuracy||0,
+        address:'Position GPS mobile',description:`Demande de contact avec ${contact.name}`,
+        client_event_id:`service-${contact.service}-${currentUser?.id||'unknown'}-${Date.now()}`
+      });
+      Alert.alert('Demande transmise',`${contact.name} et la supervision LOTISEC ont reçu votre position.`,[
+        {text:'Fermer',style:'cancel'},{text:'Appeler maintenant',onPress:()=>Linking.openURL(`tel:${contact.phone}`)}
+      ]);
+    }catch(error:any){Alert.alert('Transmission impossible',error?.message||'Réessayez dans un instant.');}
   };
 
   const handleSOS = () => {
@@ -200,7 +231,7 @@ export default function HomeScreen({ navigation }: Props) {
         { text: 'Annuler', style: 'destructive', onPress: () => { setSosActif(false); setAlerteEnvoyee(false); }},
       ]);
     } else {
-      Alert.alert('🚨 SOS IMMÉDIAT', 'Votre position sera envoyée à votre contact d\'urgence via WhatsApp.', [
+      Alert.alert('🚨 SOS IMMÉDIAT', 'Votre position sera envoyée au centre LOTISEC. WhatsApp restera une action complémentaire.', [
         { text: 'Annuler', style: 'cancel' },
         { text: 'CONFIRMER', style: 'destructive', onPress: envoyerSOS },
       ]);
@@ -237,8 +268,8 @@ export default function HomeScreen({ navigation }: Props) {
 
         <View style={styles.topRow}>
           <View style={styles.logoWrap}>
-            <Text style={styles.logoSave}>Safe</Text>
-            <Text style={styles.logoMe}>Life</Text>
+            <Text style={styles.logoSave}>LOTI</Text>
+            <Text style={styles.logoMe}>SEC</Text>
           </View>
           <TouchableOpacity style={styles.profileIcon} onPress={() => setPanelVisible(true)}>
             <ProfileIconSVG />
@@ -283,9 +314,9 @@ export default function HomeScreen({ navigation }: Props) {
         )}
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
-          <Text style={[styles.cardTitle, { color: th.text2 }]}>ALERTES RAPIDES & ASSISTANCE</Text>
+          <Text style={[styles.cardTitle, { color: th.text2 }]}>CENTRE DE SÉCURITÉ</Text>
           
-          <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,122,61,0.05)' }]} onPress={() => navigation.navigate('Assistant' as any)}>
+          <TouchableOpacity style={[styles.alertRow, { backgroundColor: colors.primaryLight }]} onPress={() => navigation.navigate('Assistant' as any)}>
             <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>💬</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: colors.primary }]}>Assistant IA 118</Text>
@@ -339,7 +370,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text style={[styles.contactPhone, { color: th.text3 }]}>{c.phone}</Text>
               </View>
               <View style={styles.contactActions}>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionCall }]} onPress={() => Linking.openURL(`tel:${c.phone}`)}>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: th.actionCall }]} onPress={() => contactService(c)}>
                   <FontAwesome name="phone" size={20} color={isDark ? "white" : "black"} />
                 </TouchableOpacity>
                 {!c.isPompiers && <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#e2f5ea' }]} onPress={() => Linking.openURL(`whatsapp://send?phone=${c.phone}`)}>
@@ -417,13 +448,13 @@ export default function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: { paddingBottom: 30, paddingTop: 30 },
-  flagBar: { flexDirection: 'row', height: 3, marginBottom: 15 },
+  header: { paddingBottom: 28, paddingTop: 18, borderBottomLeftRadius:28, borderBottomRightRadius:28 },
+  flagBar: { flexDirection: 'row', height: 3, marginBottom: 15, marginHorizontal:18, borderRadius:3, overflow:'hidden', opacity:0.85 },
   flagStripe: { flex: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, marginBottom: 15 },
   logoWrap: { flexDirection: 'row', alignItems: 'baseline' },
-  logoSave: { fontSize: 26, fontFamily: fonts.bold, color: '#fff' },
-  logoMe: { fontSize: 26, fontFamily: fonts.bold, color: colors.yellow },
+  logoSave: { fontSize: 24, fontFamily: fonts.bold, color: '#fff', letterSpacing:1.5 },
+  logoMe: { fontSize: 24, fontFamily: fonts.bold, color: colors.accent, letterSpacing:1.5 },
   profileIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   sosSection: { alignItems: 'center', paddingHorizontal: 18 },
   sosHint: { fontSize: 13, fontFamily: fonts.medium, color: '#fff', letterSpacing: 1.2, marginBottom: 10 },
@@ -442,11 +473,11 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#00C853' },
   statusLabel: { fontSize: 13, color: '#fff' },
   body: { flex: 1 },
-  bodyContent: { padding: 15 },
-  card: { borderRadius: 15, borderWidth: 0.5, padding: 15, marginBottom: 12 },
+  bodyContent: { padding: 16, paddingTop:20 },
+  card: { borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 14, shadowColor:'#071A2E',shadowOffset:{width:0,height:6},shadowOpacity:0.07,shadowRadius:16,elevation:2 },
   cardTitle: { fontSize: 11, fontFamily: fonts.semiBold, letterSpacing: 1, marginBottom: 10 },
-  alertRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: 'rgba(210,16,52,0.05)', marginBottom: 8 },
-  alertIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  alertRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 14, backgroundColor: colors.surfaceRaised, marginBottom: 8, borderWidth:1,borderColor:colors.border },
+  alertIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   alertTitle: { fontSize: fontSizes.sm, fontFamily: fonts.bold },
   alertSub: { fontSize: fontSizes.xs, opacity: 0.7 },
   chevron: { fontSize: 18, marginLeft: 5 },
@@ -456,7 +487,7 @@ const styles = StyleSheet.create({
   contactName: { fontSize: fontSizes.sm, fontFamily: fonts.semiBold },
   contactPhone: { fontSize: fontSizes.xs, marginTop: 2 },
   contactActions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',borderWidth:1,borderColor:colors.border },
   qrCard: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   qrPreview: { width: 50, height: 50, borderRadius: 10, borderWidth: 1, padding: 4 },
   qrTitle: { fontSize: fontSizes.sm, fontFamily: fonts.semiBold },

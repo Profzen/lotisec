@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surface,
   },
-  electroBtnSelected:  { borderColor: colors.primary, backgroundColor: '#F0F9F4' },
+  electroBtnSelected:  { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   electroText:         { fontSize: fontSizes.sm, fontFamily: fonts.semiBold, color: colors.textSecondary },
   electroTextSelected: { color: colors.primary },
   input: {
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     fontSize: fontSizes.md, fontFamily: fonts.regular, color: colors.text,
   },
-  infoBox:   { backgroundColor: '#EFF9F4', borderRadius: 10, borderWidth: 1, borderColor: '#C8EDD8', padding: 14 },
+  infoBox:   { backgroundColor: colors.primaryLight, borderRadius: 14, borderWidth: 1, borderColor: '#C8D9F2', padding: 14 },
   infoText:  { fontSize: fontSizes.xs, fontFamily: fonts.regular, color: colors.primary, lineHeight: 18 },
   btnPrimary:  { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   btnDisabled: { backgroundColor: colors.border },

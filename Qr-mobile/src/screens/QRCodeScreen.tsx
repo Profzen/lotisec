@@ -130,7 +130,7 @@ export default function QRCodeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { padding: 25, backgroundColor: '#074d16e3', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  header: { padding: 25, backgroundColor: colors.primaryDark, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#ffffff' },
   headerSub: { fontSize: 14, color: '#ffffff', marginTop: 4 },
   content: { flex: 1, padding: 20, alignItems: 'center', justifyContent: 'center' },

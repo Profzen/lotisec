@@ -4,6 +4,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { colors, shadows } from '../theme/colors';
+import { fonts } from '../theme/typography';
 
 import { ProfileData } from '../types/profile';
 
@@ -51,14 +53,19 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#FFA700', 
-        tabBarInactiveTintColor: '#555',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textLight,
+        tabBarLabelStyle: { fontFamily:fonts.semiBold, fontSize:11, marginTop:2 },
         tabBarStyle: {
-          backgroundColor: '#FFFF', 
-          borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
+          backgroundColor: colors.white,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          height: Platform.OS === 'ios' ? 88 : 72,
+          paddingTop: 9,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          ...shadows.card,
         },
+        tabBarItemStyle: { borderRadius:14, marginHorizontal:2 },
       }}
     >
       <Tab.Screen 

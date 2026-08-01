@@ -393,3 +393,13 @@ Fondations ajoutées : RBAC multi-rôles et multi-organisations, accréditation 
 Références : `docs/OPERATIONAL_PLATFORM.md`, `docs/DEPLOY_CONSOLE_VERCEL.md` et `backend/migrations/20260731_operational_platform.sql`.
 
 La console inclut désormais notifications persistantes avec accusé de lecture, audit administrateur, gestion des agents hospitaliers, capacités isolées par établissement, affichage des responders/accidents historiques, et indication explicite du mode `SUPABASE REALTIME ACTIF` ou du repli `POLLING API AUTHENTIFIÉ`.
+
+## Mise à jour produit — 2026-08-01
+
+- Refonte du design system mobile : marine `#071A2E`, bleu action `#1565D8`, cyan connectivité `#19B5E8`, fonds froids et cartes à forte lisibilité. Le rouge est désormais réservé au SOS/erreur et le vert au succès.
+- Nouveaux composants mobiles partagés : cartes de surface, titres de section, boutons d’action et badges d’état.
+- Refonte des écrans Landing, connexion, choix de compte/inscription, accueil, navigation inférieure et harmonisation des écrans existants par tokens.
+- Les actions « Sapeurs-Pompiers » et « Service ambulancier » créent désormais un incident géolocalisé `requested_service` avant de proposer l’appel téléphonique.
+- Les organisations concernées reçoivent une notification ciblée; après affectation, leurs comptes voient la mission et le suivi GPS sur la console responsive, même avant la sélection d’un hôpital.
+- Cinq comptes de recette ont été provisionnés en base : citoyen, Zem approuvé, pompier, ambulancier et administrateur. Les mots de passe ne sont pas versionnés.
+- Recette réelle réussie : cinq connexions, deux demandes de service, deux notifications ciblées, deux affectations, visibilité professionnelle, deux mises à jour GPS et refus console citoyen.

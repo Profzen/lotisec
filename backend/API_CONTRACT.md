@@ -238,3 +238,7 @@ Toutes les routes ci-dessous exigent `Authorization: Bearer <jwt>` et appliquent
 - `GET /api/v1/organizations/:id/members` exige `organization:members` dans l’organisation active, ou admin.
 - `POST /api/v1/organizations/:id/agents` crée un agent hospitalier avec un mot de passe temporaire de 12 caractères minimum.
 - `DELETE /api/v1/organizations/:id/members/:userId` désactive l’appartenance et retire ses rôles institutionnels sans supprimer l’utilisateur.
+
+### Demande directe d’un service
+
+`POST /api/v1/incidents` accepte `requested_service: "fire" | "ambulance" | "samu" | "police"`. Le backend crée l’incident canonique, notifie la supervision et cible aussi la première organisation active du type demandé. L’appel téléphonique reste complémentaire; la trace LOTISEC est créée avant son ouverture.

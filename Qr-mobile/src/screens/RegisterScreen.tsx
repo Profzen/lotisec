@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput,
-  StyleSheet, Alert,
+  StyleSheet, Alert, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,6 +9,8 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 import { emptyProfile, ProfileType } from '../types/profile';
+import { Ionicons } from '@expo/vector-icons';
+import { ActionButton, SectionHeading, StatusPill, SurfaceCard } from '../components/ui';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Register'>;
@@ -59,24 +61,21 @@ export default function RegisterScreen({ navigation }: Props) {
         <Text style={styles.backText}>← Retour</Text>
       </TouchableOpacity>
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Créer mon profil</Text>
-        <Text style={styles.subtitle}>
-          Choisissez votre type de profil pour commencer
-        </Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <SectionHeading eyebrow="Inscription LOTISEC" title="Quel usage vous correspond ?" description="Votre parcours sera adapté à votre activité. Vous pourrez compléter vos informations médicales ensuite."/>
 
         <View style={styles.optionRow}>
-          <TouchableOpacity style={[styles.optionBtn, accountType === 'citizen' && styles.cardSelected]} onPress={() => setAccountType('citizen')}><Text style={styles.cardTitle}>Utilisateur</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.optionBtn, accountType === 'zem_driver' && styles.cardSelected]} onPress={() => setAccountType('zem_driver')}><Text style={styles.cardTitle}>Conducteur Zem</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.optionBtn, accountType === 'citizen' && styles.cardSelected]} onPress={() => setAccountType('citizen')}><Ionicons name="person-outline" size={24} color={accountType==='citizen'?colors.primary:colors.textSecondary}/><Text style={styles.optionTitle}>Utilisateur</Text><Text style={styles.optionDescription}>Sécurité, SOS et mobilité</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.optionBtn, accountType === 'zem_driver' && styles.cardSelected]} onPress={() => setAccountType('zem_driver')}><Ionicons name="bicycle-outline" size={24} color={accountType==='zem_driver'?colors.primary:colors.textSecondary}/><Text style={styles.optionTitle}>Conducteur Zem</Text><Text style={styles.optionDescription}>Courses après validation</Text></TouchableOpacity>
         </View>
-        {accountType === 'zem_driver' && <View style={styles.zemFields}>
-          <Text style={styles.cardDesc}>Votre compte conducteur sera activé après validation LOTISEC.</Text>
+        {accountType === 'zem_driver' && <SurfaceCard style={styles.zemFields}>
+          <StatusPill label="Accréditation requise" tone="warning"/><Text style={styles.cardDesc}>Votre compte conducteur sera activé après contrôle de ces justificatifs.</Text>
           <TextInput style={styles.input} placeholder="Pièce d’identité" value={identityDocument} onChangeText={setIdentityDocument} />
           <TextInput style={styles.input} placeholder="Numéro de permis" value={licenseNumber} onChangeText={setLicenseNumber} />
           <TextInput style={styles.input} placeholder="Marque de la moto" value={motorcycleMake} onChangeText={setMotorcycleMake} />
           <TextInput style={styles.input} placeholder="Immatriculation" value={plate} onChangeText={setPlate} />
           <TextInput style={styles.input} placeholder="Zone d’activité" value={workZone} onChangeText={setWorkZone} />
-        </View>}
+        </SurfaceCard>}
 
         <View style={styles.cards}>
           {profileTypes.map((item) => (
@@ -100,39 +99,32 @@ export default function RegisterScreen({ navigation }: Props) {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={[styles.btnPrimary, !selected && styles.btnDisabled]}
-          onPress={handleContinue}
-          disabled={!selected}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.btnText}>Continuer →</Text>
-        </TouchableOpacity>
+        <ActionButton label="Continuer" onPress={handleContinue} disabled={!selected}/>
 
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
           <Text style={styles.linkText}>
             Déjà un compte ? <Text style={styles.link}>Se connecter</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:         { flex: 1, backgroundColor: colors.background, padding: 24 },
-  back:              { marginBottom: 24 },
+  container:         { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20 },
+  back:              { marginTop:8,marginBottom: 12,alignSelf:'flex-start',backgroundColor:colors.white,borderWidth:1,borderColor:colors.border,borderRadius:12,paddingHorizontal:12,paddingVertical:9 },
   backText:          { fontSize: fontSizes.sm, fontFamily: fonts.medium, color: colors.primary },
-  content:           { flex: 1, justifyContent: 'center', gap: 20 },
+  content:           { gap: 18,paddingBottom:32 },
   title:             { fontSize: fontSizes.xxl, fontFamily: fonts.bold, color: colors.text },
   subtitle:          { fontSize: fontSizes.md, fontFamily: fonts.regular, color: colors.textSecondary },
   cards:             { gap: 12 },
   optionRow:         { flexDirection: 'row', gap: 10 },
-  optionBtn:         { flex: 1, borderWidth: 2, borderColor: colors.border, borderRadius: 12, padding: 12, alignItems: 'center' },
-  zemFields:         { gap: 8 },
-  input:             { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
-  card:              { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 2, borderColor: colors.border, padding: 20, alignItems: 'center', position: 'relative' },
-  cardSelected:      { borderColor: colors.primary, backgroundColor: '#F0F9F4' },
+  optionBtn:         { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 14, gap:6, backgroundColor:colors.white },optionTitle:{fontFamily:fonts.bold,fontSize:fontSizes.sm,color:colors.text},optionDescription:{fontFamily:fonts.regular,fontSize:10,color:colors.textSecondary,textAlign:'center'},
+  zemFields:         { gap: 10 },
+  input:             { backgroundColor: colors.surfaceRaised, borderRadius: 13, borderWidth: 1, borderColor: colors.borderStrong, padding: 14,color:colors.text },
+  card:              { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 18, alignItems: 'center', position: 'relative' },
+  cardSelected:      { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   cardIcon:          { fontSize: 40, marginBottom: 10 },
   cardTitle:         { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
   cardTitleSelected: { color: colors.primary },

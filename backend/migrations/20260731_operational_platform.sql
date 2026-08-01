@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS incidents_status_created_idx ON incidents(status, created_at DESC);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS requested_service text CHECK (requested_service IS NULL OR requested_service IN ('fire','ambulance','samu','police'));
 
 CREATE TABLE IF NOT EXISTS incident_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

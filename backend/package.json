@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "create-admin": "node create-initial-admin.js",
+    "create:acceptance-users": "node create-acceptance-users.js",
     "migrate:operations": "node run-operational-migration.js",
     "verify:schema": "node verify-operational-schema.js",
     "inspect:operations": "node inspect-operational-state.js",

@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#074d16e3',
+    backgroundColor: '#0B3153',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',

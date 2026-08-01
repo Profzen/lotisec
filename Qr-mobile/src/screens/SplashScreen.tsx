@@ -70,7 +70,7 @@ export default function SplashScreen({ navigation }: Props) {
   return (
     <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
       
-      <StatusBar barStyle="light-content" backgroundColor="#006a4e" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
 
       {/* ── Cercles décoratifs (Opacité légère pour le relief) ── */}
       <View style={styles.circle1} />
@@ -110,7 +110,7 @@ export default function SplashScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#006a4e', 
+    backgroundColor: colors.primaryDark,
     justifyContent: 'center',
   },
   circle1: {
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     width: width * 1.2,
     height: width * 1.2,
     borderRadius: width * 0.6,
-    backgroundColor: '#006a4e', 
+    backgroundColor: colors.primaryDark,
     left: -width * 0.1,
   },
   circle2: {
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     height: width * 0.8,
     borderRadius: width * 0.4,
-    backgroundColor: '#006a4e',
+    backgroundColor: colors.primaryDark,
     bottom: -width * 0.2,
     right: -width * 0.2,
   },
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#006a4e', 
+    backgroundColor: colors.primaryDark,
     top: height * 0.15,
     right: 40,
   },

@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   rowValue:       { fontSize: fontSizes.sm, fontFamily: fonts.semiBold, color: colors.text, flex: 2, textAlign: 'right' },
   contactDivider: { marginTop: 8, borderTopWidth: 0.5, borderColor: colors.border, paddingTop: 8 },
   noData:         { fontSize: fontSizes.sm, fontFamily: fonts.regular, color: colors.textLight, textAlign: 'center', paddingVertical: 8 },
-  securityBox:    { backgroundColor: '#EFF9F4', borderRadius: 10, borderWidth: 1, borderColor: '#C8EDD8', padding: 14, marginBottom: 16 },
+  securityBox:    { backgroundColor: colors.primaryLight, borderRadius: 14, borderWidth: 1, borderColor: '#C8D9F2', padding: 14, marginBottom: 16 },
   securityText:   { fontSize: fontSizes.xs, fontFamily: fonts.regular, color: colors.primary, lineHeight: 18 },
   checkRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20, marginTop: 8 },
   checkbox: {

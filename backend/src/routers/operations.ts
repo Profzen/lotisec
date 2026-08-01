@@ -23,6 +23,7 @@ const incidentSchema = z.object({
   accuracy: z.number().min(0).max(5000).default(0), address: z.string().optional(),
   victims: z.number().int().min(0).max(99).default(0), vehicles: z.number().int().min(0).max(30).default(0),
   vehicle_type: z.string().optional(), description: z.string().max(2000).optional(),
+  requested_service:z.enum(['fire','ambulance','samu','police']).optional(),
   flags: z.array(z.string()).max(12).default([]), qr_token: z.string().optional(), client_event_id: z.string().max(120).optional()
 });
 
@@ -38,16 +39,22 @@ router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
   const allowedSource = req.permissions?.some((p) => p === '*' || p === 'incidents:manage') ? d.source : (d.source === 'web' ? 'web' : 'mobile');
   const saved = await query<any>(
     `INSERT INTO incidents (reporter_id, organization_id, source, type, severity, latitude, longitude, accuracy, address,
-      victims, vehicles, vehicle_type, description, flags, priority_score, qr_token, client_event_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      victims, vehicles, vehicle_type, description, flags, priority_score, qr_token, client_event_id,requested_service)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (client_event_id) DO UPDATE SET client_event_id=EXCLUDED.client_event_id RETURNING *`,
     [req.userId, req.organizationId, allowedSource, d.type, d.severity, d.latitude, d.longitude, d.accuracy,
      d.address || null, d.victims, d.vehicles, d.vehicle_type || null, d.description || null, d.flags,
-     score(d.severity,d.victims,d.vehicles,d.flags), d.qr_token || null, d.client_event_id || null]
+     score(d.severity,d.victims,d.vehicles,d.flags), d.qr_token || null, d.client_event_id || null,d.requested_service||null]
   );
   await query(`INSERT INTO incident_events (incident_id, actor_id, type, to_status) VALUES ($1,$2,'created','new')`, [saved.rows[0].id, req.userId]);
   await audit(req.userId,req.organizationId,'incident.created','incident',saved.rows[0].id,{source:allowedSource,severity:d.severity});
   await createNotification({roles:['admin','supervisor','dispatcher'],type:'incident.created',title:'Nouvel incident',message:`${d.type} · priorité ${saved.rows[0].priority_score}`,entityType:'incident',entityId:saved.rows[0].id});
+  if(d.requested_service){
+    const organizationTypes:Record<string,string[]>={fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']};
+    const target=await query<any>(`SELECT id FROM organizations WHERE active=true AND type=ANY($1::text[]) ORDER BY created_at ASC LIMIT 1`,[organizationTypes[d.requested_service]]);
+    const targetRoles:Record<string,string[]>={fire:['firefighter'],ambulance:['ambulance_driver'],samu:['ambulance_driver'],police:[]};
+    if(target.rows[0])await createNotification({organizationId:target.rows[0].id,roles:targetRoles[d.requested_service],type:'service.requested',title:'Demande de service',message:`${d.type} · position GPS disponible`,entityType:'incident',entityId:saved.rows[0].id});
+  }
   return res.status(201).json({ incident: saved.rows[0] });
 });
 

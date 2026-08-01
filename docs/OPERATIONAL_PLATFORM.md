@@ -76,6 +76,14 @@ La migration additive `backend/migrations/20260731_operational_platform.sql` cr�
 
 L’inventaire détaillé des payloads et réponses se trouve dans `backend/API_CONTRACT.md`.
 
+### Contact d’un service depuis le mobile
+
+Les boutons pompiers et ambulance ne sont plus de simples liens `tel:`. Le mobile géolocalise l’utilisateur et crée d’abord un incident avec `requested_service`. La supervision centrale reçoit l’incident; l’organisation pompier/ambulance reçoit une notification ciblée. Après validation et affectation, le professionnel voit la mission et l’itinéraire incident dans sa console responsive. Ses positions GPS alimentent `response_units` et Supabase Realtime. L’hôpital n’est requis qu’après la prise en charge du patient.
+
+## Design system mobile 2026
+
+La palette principale n’utilise plus le dégradé rouge/vert comme structure d’interface. Le rouge est réservé à l’urgence; le vert au succès. La navigation et les actions ordinaires reposent sur un marine opérationnel, un bleu d’action et un cyan de connectivité. Les composants partagés définissent cartes, boutons, états, espacements, rayons et ombres. Les écrans d’entrée, l’inscription, l’accueil SOS, les onglets, les parcours Zem, QR et conseils conservent leurs fonctionnalités tout en héritant de ces tokens.
+
 ## Temps réel et RLS
 
 La migration publie les tables opérationnelles dans Supabase Realtime et installe des politiques RLS par rôle/organisation. Le backend émet un jeton Realtime court lorsque `SUPABASE_JWT_SECRET` est configuré. Les mutations sensibles passent toujours par le backend avec JWT/RBAC ; le polling authentifié reste le repli si Realtime n'est pas configuré.

@@ -730,7 +730,7 @@ function buildGeoRoute(start, end, alternative = false) {
 
 function routeEndpoints() {
   const { mission, incident, ambulance, hospital } = getMissionData();
-  const headingToHospital = ["Vers l'hôpital", "Terminée"].includes(mission.phase);
+  const headingToHospital = Boolean(hospital)&&["to_hospital","arrived_hospital","completed","Vers l'hôpital","Terminée"].includes(mission.phase);
   return {
     start: headingToHospital ? [incident.lat, incident.lng] : [ambulance.lat, ambulance.lng],
     end: headingToHospital ? [hospital.lat, hospital.lng] : [incident.lat, incident.lng]
@@ -822,7 +822,6 @@ function initOperationalMaps() {
   const missionData = getMissionData();
   if (!missionData) return;
   const { mission, incident, ambulance, hospital } = missionData;
-  if (!hospital) return;
   const route = currentGeoRoute();
   const normalRoute = primaryGeoRoute();
   const split = splitRouteAtProgress(route, mission.progress);
@@ -860,10 +859,10 @@ function initOperationalMaps() {
       icon: L.divIcon({ className: "incident-leaflet-icon", html: `<div><span>!</span><b>Incident</b><small>${escapeHtml(incident.place || "Position GPS")}</small></div>`, iconSize: [128, 54], iconAnchor: [18, 45] })
     }).addTo(map);
     const hospitalMarkers = hospitals.map((item) => L.marker([item.lat, item.lng], {
-      zIndexOffset: item.id === hospital.id ? 650 : 300,
+      zIndexOffset: item.id === hospital?.id ? 650 : 300,
       icon: L.divIcon({
         className: "hospital-leaflet-icon",
-        html: hospitalIconMarkup(item, item.id === hospital.id),
+        html: hospitalIconMarkup(item, item.id === hospital?.id),
         iconSize: [138, 62],
         iconAnchor: [18, 45]
       })
@@ -898,7 +897,7 @@ function initOperationalMaps() {
 
 function liveMapMarkup({ compact = false } = {}) {
   const missionData = getMissionData();
-  if (!missionData || !missionData.hospital) return '<div class="empty-state"><strong>Aucune mission cartographiable</strong><p>Affectez une ressource puis sélectionnez un hôpital.</p></div>';
+  if (!missionData) return '<div class="empty-state"><strong>Aucune mission cartographiable</strong><p>Affectez une ressource pour démarrer le suivi GPS.</p></div>';
   const { mission, incident, ambulance, hospital } = missionData;
   const distance = Math.max(0, mission.totalDistance * (1 - mission.progress / 100));
   const eta = Math.max(0, Math.ceil((distance / Math.max(mission.speed, 10)) * 60));
@@ -909,7 +908,7 @@ function liveMapMarkup({ compact = false } = {}) {
       <div class="map-decision-flow">
         <span><i>🚑</i><b>${escapeHtml(ambulance.name)}</b><small>Ambulance affectée</small></span><em>→</em>
         <span><i>!</i><b>${escapeHtml(incident?.place || "Incident")}</b><small>Lieu d'intervention</small></span><em>→</em>
-        <span class="is-recommended"><i>✚</i><b>${escapeHtml(hospital.name)}</b><small>Plus proche · ${hospital.eta} min</small></span>
+        ${hospital?`<span class="is-recommended"><i>✚</i><b>${escapeHtml(hospital.name)}</b><small>Cible hospitalière · ${hospital.eta} min</small></span>`:'<span><i>✚</i><b>Hôpital à déterminer</b><small>Après prise en charge</small></span>'}
       </div>
       <div class="route-decision-banner ${mission.routeBlocked ? "is-alert" : ""}">
         <strong>${demoMode ? (mission.routeBlocked ? "CONGESTION DÉTECTÉE AVANT DÉPART" : "VOIE RETENUE PAR LE FOG") : 'ITINÉRAIRE ROUTIER OSRM'}</strong>
@@ -917,7 +916,7 @@ function liveMapMarkup({ compact = false } = {}) {
       </div>
       <div class="mission-hud">
         <small>MISSION ACTIVE · ${escapeHtml(mission.phase)}</small>
-        <strong>${escapeHtml(ambulance.name)} → ${escapeHtml(["Vers l'hôpital", "Terminée"].includes(mission.phase) ? hospital.name : (incident?.place || "position GPS"))}</strong>
+        <strong>${escapeHtml(ambulance.name)} → ${escapeHtml(hospital&&["to_hospital","arrived_hospital","completed","Vers l'hôpital","Terminée"].includes(mission.phase) ? hospital.name : (incident?.place || "position GPS"))}</strong>
         <div><span><b data-live-eta>${eta}</b> min</span><span><b data-live-distance>${distance.toFixed(1)}</b> km</span><span><b data-live-speed>${mission.speed}</b> km/h</span></div>
         <progress data-live-progress max="100" value="${mission.progress}"></progress>
       </div>
@@ -991,7 +990,7 @@ function renderHospitals() {
 
 function renderMapPage() {
   const missionData = getMissionData();
-  if (!missionData || !missionData.hospital) return `${moduleTop(moduleHeader("Géodécision", "Carte en direct", "Aucune intervention active avec ressource et hôpital cible."))}<section class="module-card"><p>La carte apparaîtra après une affectation complète.</p></section>`;
+  if (!missionData) return `${moduleTop(moduleHeader("Géodécision", "Carte en direct", "Aucune intervention active avec ressource affectée."))}<section class="module-card"><p>La carte apparaîtra après l’affectation d’une unité.</p></section>`;
   const { mission, hospital } = missionData;
   return `
     ${moduleTop(moduleHeader("Géodécision en temps réel", "Carte en direct", "Position GPS de l'incident, ambulance affectée, trafic, itinéraire restant et hôpitaux proches.",
@@ -1000,7 +999,7 @@ function renderMapPage() {
       <article class="module-card map-module-card map-module-card--large">${liveMapMarkup()}</article>
       <aside class="map-side-panel">
         <article class="module-card"><header><div><small>HÔPITAUX PROCHES</small><h2>Orientation proposée</h2></div></header>
-          <div class="nearby-list">${hospitals.slice(0, 3).map((item) => `<button data-action="hospital-details" data-id="${item.id}" class="${item.id === hospital.id ? "is-selected" : ""}"><span><strong>${item.name}</strong><small>${item.beds} places · ${item.occupancy}% occupé</small></span><em>${item.distance} km<br>${item.eta} min</em></button>`).join("")}</div>
+          <div class="nearby-list">${hospitals.slice(0, 3).map((item) => `<button data-action="hospital-details" data-id="${item.id}" class="${item.id === hospital?.id ? "is-selected" : ""}"><span><strong>${item.name}</strong><small>${item.beds} places · ${item.occupancy}% occupé</small></span><em>${item.distance} km<br>${item.eta} min</em></button>`).join("")||'<p>Aucun établissement déclaré.</p>'}</div>
         </article>
         ${demoMode ? `<article class="module-card"><header><div><small>TRAFIC · DÉMONSTRATION</small><h2>Axes simulés</h2></div></header>
           <div class="traffic-mini">${trafficSegments.map((item) => `<span><i class="traffic-${item.level.toLowerCase()}"></i><b>${item.name}</b><em>${item.speed} km/h</em></span>`).join("")}</div>
