@@ -4,7 +4,7 @@ import {
   Dimensions, ActivityIndicator, TextInput, FlatList,
   Keyboard, Platform,
 } from 'react-native';
-import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from '../components/PlatformMap';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../api/supabase';
