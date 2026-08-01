@@ -30,6 +30,15 @@ export interface VehicleInfo {
 
 // Profil complet
 export interface ProfileData {
+  accountType:     'citizen' | 'zem_driver';
+  zemApplication?: {
+    identityDocument: string;
+    licenseNumber: string;
+    motorcycleMake: string;
+    motorcycleModel?: string;
+    plate: string;
+    workZone: string;
+  };
   // Étape 0 — type
   profileType:     ProfileType;
 
@@ -64,6 +73,7 @@ export interface ProfileData {
 
 // Valeurs par défaut mises à jour
 export const emptyProfile: ProfileData = {  
+  accountType:       'citizen',
   profileType:       'adult',
   firstName:         '',
   lastName:          '',

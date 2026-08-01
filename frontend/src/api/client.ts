@@ -7,6 +7,12 @@ export const api = axios.create({
   timeout: 10000
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('lotisec_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 export function authHeaders() {
   const token = localStorage.getItem('lotisec_token');
   return token ? { Authorization: `Bearer ${token}` } : {};

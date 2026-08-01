@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { query } from '../database';
 import { broadcast } from '../utils/wsManager';
+import { AuthRequest, requireAuth, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ const createSchema = z.object({
   vehicle_type: z.string().optional().default('moto')
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req:AuthRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
@@ -53,6 +54,11 @@ router.post('/', async (req, res) => {
   );
 
   const a = saved.rows[0];
+  const canonical=await query<any>(`INSERT INTO incidents(reporter_id,organization_id,source,type,severity,latitude,longitude,address,vehicle_type,description,priority_score,qr_token,client_event_id)
+    VALUES($1,$2,'mobile','Alerte d’urgence','high',$3,$4,$5,$6,'Alerte historique convertie vers le flux canonique',62,$7,$8)
+    ON CONFLICT(client_event_id) DO UPDATE SET updated_at=NOW() RETURNING *`,[req.userId,req.organizationId,data.latitude,data.longitude,data.adresse||'Position GPS',data.vehicle_type||'moto',data.qr_token||null,`legacy-alert:${id}`]);
+  await query(`INSERT INTO incident_events(incident_id,actor_id,type,to_status,data) VALUES($1,$2,'legacy_alert_imported','new',$3)`,[canonical.rows[0].id,req.userId,{legacy_alert_id:id}]);
+  await query(`INSERT INTO operational_notifications(recipient_roles,type,title,message,entity_type,entity_id) VALUES($1,'incident.created','Nouvelle alerte','Alerte historique convertie','incident',$2)`,[['admin','supervisor','dispatcher'],canonical.rows[0].id]);
   const message = {
     type: 'NOUVELLE_ALERTE',
     id: String(a.id),
@@ -71,10 +77,10 @@ router.post('/', async (req, res) => {
   };
 
   broadcast(message);
-  return res.json({ success: true, alerte_id: String(a.id) });
+  return res.json({ success: true, alerte_id: String(a.id), incident_id:canonical.rows[0].id });
 });
 
-router.get('/', async (_req, res) => {
+router.get('/', requireAuth, requirePermission('incidents:read'), async (_req, res) => {
   const rows = await query<any>(
     `SELECT id, prenom, nom, groupe_sanguin, electrophorese, latitude, longitude,
             adresse, vehicle_type, statut, timestamp
@@ -96,7 +102,7 @@ router.get('/', async (_req, res) => {
   return res.json(result);
 });
 
-router.put('/:alerteId/prendre-en-charge', async (req, res) => {
+router.put('/:alerteId/prendre-en-charge', requireAuth, requirePermission('incidents:manage'), async (req, res) => {
   const alerteId = req.params.alerteId;
   const updated = await query(
     'UPDATE alerte_events SET statut = $1 WHERE id = $2',
@@ -108,10 +114,11 @@ router.put('/:alerteId/prendre-en-charge', async (req, res) => {
   }
 
   broadcast({ type: 'ALERTE_MISE_A_JOUR', id: alerteId, statut: 'en_cours' });
+  await query(`UPDATE incidents SET status='validated',updated_at=NOW() WHERE client_event_id=$1 AND status='new'`,[`legacy-alert:${alerteId}`]);
   return res.json({ success: true });
 });
 
-router.put('/:alerteId/resoudre', async (req, res) => {
+router.put('/:alerteId/resoudre', requireAuth, requirePermission('incidents:manage'), async (req, res) => {
   const alerteId = req.params.alerteId;
   const updated = await query(
     'UPDATE alerte_events SET statut = $1, resolved_at = NOW() WHERE id = $2',
@@ -123,6 +130,7 @@ router.put('/:alerteId/resoudre', async (req, res) => {
   }
 
   broadcast({ type: 'ALERTE_RESOLUE', id: alerteId, statut: 'resolue' });
+  await query(`UPDATE incidents SET status='completed',updated_at=NOW() WHERE client_event_id=$1`,[`legacy-alert:${alerteId}`]);
   return res.json({ success: true });
 });
 

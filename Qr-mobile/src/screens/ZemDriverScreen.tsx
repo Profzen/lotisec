@@ -114,14 +114,8 @@ export default function ZemDriverScreen({ navigation }: any) {
     if (!supabase) return;
     try {
       // Mettre à jour Supabase
-      const { data, error } = await supabase
-        .from('rides')
-        .update({ status: 'accepted' })
-        .eq('id', ride.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const response = await api(`/zem/rides/${ride.id}/status`, 'PATCH', { status: 'accepted' });
+      const data = response.ride;
       setActiveRide(data);
       
       // Se mettre hors ligne pour ne pas recevoir d'autres courses
@@ -149,10 +143,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   const declineRide = async (rideId: string) => {
     if (!supabase) return;
     try {
-      await supabase
-        .from('rides')
-        .update({ status: 'declined' }) // Le client devra relancer une recherche
-        .eq('id', rideId);
+      await api(`/zem/rides/${rideId}/status`, 'PATCH', { status: 'declined' });
     } catch (err) {
       console.error(err);
     }
@@ -161,10 +152,7 @@ export default function ZemDriverScreen({ navigation }: any) {
   const completeRide = async () => {
     if (!activeRide || !supabase) return;
     try {
-      await supabase
-        .from('rides')
-        .update({ status: 'completed' })
-        .eq('id', activeRide.id);
+      await api(`/zem/rides/${activeRide.id}/status`, 'PATCH', { status: 'completed' });
       
       Alert.alert("Terminé", `Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
       setActiveRide(null);

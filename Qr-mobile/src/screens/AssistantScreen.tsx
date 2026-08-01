@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 
@@ -136,17 +136,17 @@ export default function AssistantScreen({ navigation }: any) {
       const tempPath = FileSystem.cacheDirectory + 'temp_tts.mp3';
       
       // On utilise FileSystem pour récupérer l'audio stream depuis l'API (Hack temporaire pour expo)
-      const downloadRes = await FileSystem.downloadAsync(
-        `${AI_API_URL}/tts`, 
-        tempPath,
-        {
-           headers: { 'Content-Type': 'application/json' },
-           httpMethod: 'POST',
-           body: JSON.stringify({ text })
-        }
-      );
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const base64 = dataUrl.split(',')[1];
+      await FileSystem.writeAsStringAsync(tempPath, base64, { encoding: FileSystem.EncodingType.Base64 });
 
-      const { sound } = await Audio.Sound.createAsync({ uri: downloadRes.uri });
+      const { sound } = await Audio.Sound.createAsync({ uri: tempPath });
       setSound(sound);
       await sound.playAsync();
     } catch (e) {

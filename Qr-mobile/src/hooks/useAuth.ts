@@ -9,12 +9,12 @@ export const useAuth = () => {
   /**
    * Inscription simplifiée : Téléphone + Mot de passe uniquement
    */
-  const register = async (phone: string, password: string, email?: string) => {
+  const register = async (phone: string, password: string, accountType: 'citizen' | 'zem_driver' = 'citizen', zemApplication?: any) => {
     try {
       setLoading(true);
       setError(null);
       
-      const data = await registerUser(phone, password);
+      const data = await registerUser(phone, password, accountType, zemApplication);
       
       // On récupère le token peu importe le nom donné par l'API (token ou access_token)
       const tokenValue = data.token || data.access_token;

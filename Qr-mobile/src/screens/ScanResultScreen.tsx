@@ -1,50 +1,27 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, ScrollView, Linking,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
-
-const API_URL = "https://lotisec-backend.vercel.app";
+import { api } from '../api/config';
 
 export default function ScanResultScreen({ route, navigation }: any) {
   const { profileId } = route.params;
 
-  const [accessCode,   setAccessCode]   = useState('');
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying,    setVerifying]    = useState(false);
 
   const handleUnlock = async () => {
-    if (accessCode.trim().length < 4) {
-      Alert.alert("Erreur", "Le code d'accréditation est trop court.");
-      return;
-    }
-
     setVerifying(true);
     try {
-      const response = await fetch(`${API_URL}/scan/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: profileId,
-          pin: accessCode.trim().toUpperCase(),
-          authority_type: 'emergency_unit',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setUnlockedData(data);
-      } else {
-        Alert.alert("Accès Refusé", data.detail || "Code invalide **");
-        setAccessCode('');
-      }
-    } catch (e) {
-      Alert.alert("Erreur", "Liaison au serveur 118 interrompue.");
+      const data = await api('/scan/verify', 'POST', { token:profileId,pin:'',authority_type:'emergency_unit' });
+      setUnlockedData(data);
+    } catch (e: any) {
+      Alert.alert("Accès refusé", e?.message || "Un compte professionnel autorisé est requis.");
     } finally {
       setVerifying(false);
     }
@@ -67,19 +44,8 @@ export default function ScanResultScreen({ route, navigation }: any) {
         <View style={styles.lockBox}>
           <Text style={styles.lockTitle}><FontAwesome name="shield" size={24} /> Accès Médical Sécurisé</Text>
           <Text style={styles.lockSubtitle}>
-            Saisissez votre code d'unité pour accéder aux données vitales complètes.{'\n'}
-            Ex : QARO387963 · KAMA985463 · GEN909555
+            Connectez-vous avec un compte professionnel autorisé pour accéder aux données vitales complètes.
           </Text>
-
-          <TextInput
-            style={styles.input}
-            value={accessCode}
-            onChangeText={t => setAccessCode(t.toUpperCase())}
-            placeholder="CODE ACCÈS"
-            placeholderTextColor="#94a3b8"
-            autoCapitalize="characters"
-            maxLength={12}
-          />
 
           <TouchableOpacity
             style={[styles.btn, verifying && styles.btnDisabled]}
@@ -88,7 +54,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
           >
             {verifying
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>Déverrouiller</Text>
+              : <Text style={styles.btnText}>Ouvrir la fiche sécurisée</Text>
             }
           </TouchableOpacity>
         </View>

@@ -103,7 +103,7 @@ export default function Step1Identity({ navigation, route }: Props) {
     const fullPhone = selectedCountry.dialCode + cleanPhone(phone);
     
     try {
-      const result = await register(fullPhone, password);
+      const result = await register(fullPhone, password, profile.accountType, profile.zemApplication);
       const token = result?.token || result?.access_token;
       if (token) {
         await AsyncStorage.setItem('token', token);

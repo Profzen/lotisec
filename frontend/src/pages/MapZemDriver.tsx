@@ -121,16 +121,9 @@ export function MapZemDriver() {
   };
 
   const acceptRide = async (ride: any) => {
-    if (!supabase) return;
     try {
-      const { data, error } = await supabase!
-        .from('rides')
-        .update({ status: 'accepted' })
-        .eq('id', ride.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const { data: response } = await api.patch(`/zem/rides/${ride.id}/status`, { status: 'accepted' });
+      const data = response.ride;
       setActiveRide(data);
       
       setIsOnline(false);
@@ -148,18 +141,17 @@ export function MapZemDriver() {
   };
 
   const declineRide = async (rideId: string) => {
-    if (!supabase) return;
     try {
-      await supabase!.from('rides').update({ status: 'declined' }).eq('id', rideId);
+      await api.patch(`/zem/rides/${rideId}/status`, { status: 'declined' });
     } catch (err) {
       console.error(err);
     }
   };
 
   const completeRide = async () => {
-    if (!activeRide || !supabase) return;
+    if (!activeRide) return;
     try {
-      await supabase!.from('rides').update({ status: 'completed' }).eq('id', activeRide.id);
+      await api.patch(`/zem/rides/${activeRide.id}/status`, { status: 'completed' });
       toast.success(`Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
       setActiveRide(null);
       setRouteData(null);

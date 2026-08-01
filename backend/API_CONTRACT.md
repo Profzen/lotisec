@@ -15,9 +15,12 @@ Toutes les requêtes modifiant des données ou accédant à des informations sen
   ```json
   {
     "phone": "+22890000000",
-    "password": "motdepassesecurise"
+    "password": "motdepassesecurise",
+    "account_type": "citizen"
   }
   ```
+
+Pour un conducteur, utiliser `account_type: "zem_driver"` et ajouter `zem_application` avec `identity_document`, `license_number`, `motorcycle_make`, `motorcycle_model`, `plate` et `work_zone`. Le compte reste citoyen et la demande reste `pending` jusqu’à approbation.
 - **Réponse (201 Created) :**
   ```json
   {
@@ -194,3 +197,44 @@ Toutes les requêtes modifiant des données ou accédant à des informations sen
 ---
 
 *Fin du contrat API.*
+# API opérationnelle v1 — ajout 2026-07-31
+
+Toutes les routes ci-dessous utilisent `Authorization: Bearer <JWT>`. Le JWT contient les rôles, permissions et l'organisation active. Les mutations sont contrôlées par RBAC et par transitions d'état.
+
+| Méthode | Route | Permission/portée |
+|---|---|---|
+| GET | `/auth/me` | session courante |
+| POST | `/auth/realtime-token` | session courante, si Realtime configuré |
+| POST | `/api/v1/incidents` | utilisateur authentifié |
+| GET | `/api/v1/incidents` | `incidents:read` |
+| PATCH | `/api/v1/incidents/:id/status` | `incidents:manage` |
+| GET | `/api/v1/incidents/:id/timeline` | `incidents:read` |
+| POST | `/api/v1/incidents/:id/assignments` | `interventions:manage` |
+| GET | `/api/v1/interventions` | supervision ou missions de l'organisation |
+| PATCH | `/api/v1/interventions/:id/status` | gestionnaire ou intervenant affecté |
+| GET | `/api/v1/resources` | ressources globales ou de l'organisation |
+| PATCH | `/api/v1/resources/:id/location` | intervenant/gestionnaire autorisé |
+| GET | `/api/v1/facilities` | utilisateur authentifié |
+| PUT | `/api/v1/facilities/:id/capacities` | `facilities:manage`, même organisation |
+| POST | `/api/v1/interventions/:id/admissions` | équipe/gestionnaire de l'intervention |
+| GET | `/api/v1/admissions` | supervision ou hôpital courant |
+| PATCH | `/api/v1/admissions/:id/status` | hôpital ciblé uniquement |
+| GET/PATCH | `/api/v1/zem/applications` | `zem:approve` |
+| POST | `/api/v1/admin/users` | `admin:manage` |
+| POST/DELETE | `/api/v1/admin/users/:id/roles` | `admin:manage` |
+| POST | `/api/v1/organizations` | `admin:manage` |
+| PATCH | `/zem/rides/:id/status` | passager ou Zem associé |
+
+États incidents : `new → validated → assigned → en_route → on_scene → patient_loaded → to_hospital → arrived_hospital → completed`, avec branches `rejected` et `cancelled` contrôlées.
+
+États interventions : `assigned → accepted → en_route → on_scene → patient_loaded → hospital_requested → to_hospital → arrived_hospital → completed`.
+# Extensions institutionnelles 2026
+
+Toutes les routes ci-dessous exigent `Authorization: Bearer <jwt>` et appliquent les permissions/session d’organisation.
+
+- `GET /api/v1/notifications` retourne uniquement les notifications visant l’utilisateur, ses rôles ou son organisation.
+- `PATCH /api/v1/notifications/:id/read` enregistre une lecture propre à l’utilisateur.
+- `GET /api/v1/audit` exige `admin:manage`.
+- `GET /api/v1/organizations/:id/members` exige `organization:members` dans l’organisation active, ou admin.
+- `POST /api/v1/organizations/:id/agents` crée un agent hospitalier avec un mot de passe temporaire de 12 caractères minimum.
+- `DELETE /api/v1/organizations/:id/members/:userId` désactive l’appartenance et retire ses rôles institutionnels sans supprimer l’utilisateur.

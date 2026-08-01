@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, authHeaders } from '../api/client';
 import QRCode from 'react-qr-code';
 import { User, Car, ChevronRight, Phone, Flame, Lock, Eye, CheckCircle2, ShieldAlert, ArrowRight, X, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -61,15 +61,15 @@ export function Home() {
         const longitude = position.coords.longitude;
         try {
           // Attempt API calls without blocking WA
-          api.post('/accidents', {
-            latitude, longitude, user_id: user?.id, qr_token: user?.qr_token, vehicle_type: 'moto'
-          }).catch(e => console.error(e));
-          api.post('/alertes', {
-            latitude, longitude, user_id: user?.id, qr_token: user?.qr_token, 
-            prenom: 'Utilisateur', nom: 'LOTISEC Web', groupe_sanguin: '?', adresse: 'Position GPS web'
-          }).catch(e => console.error(e));
+          await api.post('/api/v1/incidents', {
+            source: 'web', type: 'SOS citoyen', severity: 'critical', latitude, longitude,
+            accuracy: position.coords.accuracy || 0, address: 'Position GPS web', victims: 1,
+            vehicles: 0, description: 'SOS déclenché depuis le portail citoyen', qr_token: user?.qr_token,
+            client_event_id: `web-${user?.id || 'anonymous'}-${Date.now()}`
+          }, { headers: authHeaders() });
 
           setSosActif(true);
+          toast.success('SOS transmis au centre de supervision LOTISEC.');
           const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
           const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\nBonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n📍 Voici ma position actuelle : ${mapsUrl}`;
           const phone = CONTACTS[1].phone.replace(/[^\d+]/g, "");

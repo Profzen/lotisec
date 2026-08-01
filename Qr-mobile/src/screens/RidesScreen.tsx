@@ -20,10 +20,10 @@ export default function RidesScreen({ navigation }: any) {
       if (!raw) return;
       const user = JSON.parse(raw);
       
-      const res = await api.get(`/zem/history/${user.id}`);
-      if (res.data.rides) {
-        setRides(res.data.rides);
-        const currentActive = res.data.rides.find((r: any) => ['requested', 'accepted', 'in_progress'].includes(r.status));
+      const res = await api(`/zem/history/${user.id}`, 'GET');
+      if (res.rides) {
+        setRides(res.rides);
+        const currentActive = res.rides.find((r: any) => ['requested', 'accepted', 'in_progress'].includes(r.status));
         setActiveRide(currentActive || null);
         if (currentActive) {
           fetchZemLoc(currentActive.zem_id);
@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
   btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   emptyState: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingBottom: 50 },
   emptyTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 15, marginBottom: 5 },
+  emptySub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 },
   historyTitle: { fontSize: 16, fontWeight: 'bold', color: colors.textSecondary, marginBottom: 15, textTransform: 'uppercase', letterSpacing: 1 },
   historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 15, borderRadius: 12, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   historyIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 15 },

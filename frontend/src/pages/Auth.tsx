@@ -88,13 +88,25 @@ export function Register() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [accountType, setAccountType] = useState<'citizen' | 'zem_driver'>('citizen');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [identityDocument, setIdentityDocument] = useState('');
+  const [motorcycleMake, setMotorcycleMake] = useState('');
+  const [plate, setPlate] = useState('');
+  const [workZone, setWorkZone] = useState('Lomé');
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.post('/auth/register', { phone, password });
+      const { data } = await api.post('/auth/register', {
+        phone, password, account_type: accountType,
+        ...(accountType === 'zem_driver' ? { zem_application: {
+          identity_document: identityDocument, license_number: licenseNumber, motorcycle_make: motorcycleMake,
+          plate, work_zone: workZone
+        }} : {})
+      });
       localStorage.setItem('lotisec_token', data.token);
       localStorage.setItem('lotisec_user', JSON.stringify(data.user));
       navigate('/home');
@@ -120,9 +132,26 @@ export function Register() {
         
         <div>
           <label>Mot de passe</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 6 caractères" required minLength={6} />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 8 caractères" required minLength={8} />
         </div>
         
+        <div>
+          <label>Type de compte</label>
+          <div className="flex gap-4">
+            <button type="button" className={`btn ${accountType === 'citizen' ? 'primary' : 'ghost'}`} onClick={() => setAccountType('citizen')}>Utilisateur</button>
+            <button type="button" className={`btn ${accountType === 'zem_driver' ? 'primary' : 'ghost'}`} onClick={() => setAccountType('zem_driver')}>Conducteur Zem</button>
+          </div>
+          {accountType === 'zem_driver' && <small className="text-secondary">Le mode conducteur sera activé après validation par LOTISEC.</small>}
+        </div>
+
+        {accountType === 'zem_driver' && <>
+          <div><label>Pièce d’identité</label><input value={identityDocument} onChange={(e) => setIdentityDocument(e.target.value)} required /></div>
+          <div><label>Numéro de permis</label><input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} required /></div>
+          <div><label>Marque de la moto</label><input value={motorcycleMake} onChange={(e) => setMotorcycleMake(e.target.value)} required /></div>
+          <div><label>Immatriculation</label><input value={plate} onChange={(e) => setPlate(e.target.value)} required /></div>
+          <div><label>Zone d’activité</label><input value={workZone} onChange={(e) => setWorkZone(e.target.value)} required /></div>
+        </>}
+
         {error && <div style={{ color: 'var(--color-danger)', fontSize: '0.875rem', padding: '0.5rem', backgroundColor: 'rgba(210, 16, 52, 0.1)', borderRadius: 'var(--radius-md)' }}>{error}</div>}
         
         <button className="btn primary mt-4" disabled={loading}>

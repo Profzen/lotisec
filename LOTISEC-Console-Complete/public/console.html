@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#071827">
+    <link rel="manifest" href="console-manifest.webmanifest">
+    <meta
+      name="description"
+      content="Console opérationnelle LOTISEC pour la réception en temps réel des signalements mobiles."
+    >
+    <title>LOTISEC — Centre de réception des signalements</title>
+    <link rel="icon" href="assets/logo-lotisec.png" type="image/png">
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    >
+    <link rel="stylesheet" href="console.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Aller au contenu</a>
+
+    <aside class="sidebar" data-sidebar>
+      <a class="console-brand" href="console.html" aria-label="LOTISEC, revenir à la console opérationnelle">
+        <span class="console-brand__mark" aria-hidden="true">
+          <img src="assets/logo-lotisec.png" alt="">
+        </span>
+        <span>
+          <strong>LOTISEC</strong>
+          <small>Centre de coordination</small>
+        </span>
+      </a>
+
+      <div class="operator-card">
+        <span class="operator-avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
+        </span>
+        <span>
+          <small>Opérateur connecté</small>
+          <strong>Opérateur LS1</strong>
+          <em><i></i> En ligne</em>
+        </span>
+      </div>
+
+      <nav class="side-nav" aria-label="Navigation de la console">
+        <small class="nav-section-label">Opérations</small>
+        <a href="#dashboard" data-module="Tableau de bord">
+          <span aria-hidden="true">⌂</span> Tableau de bord
+        </a>
+        <a class="is-active" href="#incidents" data-module="Incidents">
+          <span aria-hidden="true">!</span> Incidents
+          <b data-nav-incident-count>0</b>
+        </a>
+        <a href="#ambulances" data-module="Ambulances">
+          <span aria-hidden="true">✚</span> Ambulances
+        </a>
+        <a href="#hopitaux" data-module="Hôpitaux">
+          <span aria-hidden="true">H</span> Hôpitaux
+        </a>
+        <a href="#carte" data-module="Carte en direct">
+          <span aria-hidden="true">⌖</span> Carte en direct
+        </a>
+        <a href="#trafic" data-module="Trafic en temps réel">
+          <span aria-hidden="true">≋</span> Trafic en temps réel
+        </a>
+        <a href="#interventions" data-module="Interventions">
+          <span aria-hidden="true">↗</span> Interventions
+        </a>
+        <small class="nav-section-label">Pilotage</small>
+        <a href="#statistiques" data-module="Statistiques">
+          <span aria-hidden="true">▥</span> Statistiques
+        </a>
+        <a href="#fog" data-module="Fog Computing">
+          <span aria-hidden="true">◫</span> Fog Computing
+        </a>
+        <a href="#notifications" data-module="Notifications">
+          <span aria-hidden="true">♢</span> Notifications
+          <b>3</b>
+        </a>
+        <a href="#parametres" data-module="Paramètres">
+          <span aria-hidden="true">⚙</span> Paramètres
+        </a>
+        <a href="#utilisateurs" data-module="Utilisateurs">
+          <span aria-hidden="true">U</span> Utilisateurs & rôles
+        </a>
+        <a href="#audit" data-module="Audit">
+          <span aria-hidden="true">A</span> Journal d’audit
+        </a>
+        <a href="#zem" data-module="Accréditations Zem">
+          <span aria-hidden="true">Z</span> Accréditations Zem
+        </a>
+      </nav>
+
+      <button class="emergency-button" type="button" data-emergency>
+        <span aria-hidden="true">☎</span>
+        <span><small>Appel d'urgence</small><strong>118 / 8880 / 8200</strong></span>
+      </button>
+    </aside>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="menu-toggle" type="button" data-menu-toggle aria-label="Ouvrir le menu">☰</button>
+        <div class="topbar-title">
+          <span>Opérations</span>
+          <strong data-topbar-title>Centre de réception des signalements</strong>
+        </div>
+        <div class="topbar-actions">
+          <div class="connection-pill" title="Canal de synchronisation temps réel">
+            <i></i>
+            <span><strong data-connection-mode>API EN ATTENTE</strong><small data-last-sync>Connexion en cours</small></span>
+          </div>
+          <time data-clock>--:--:--</time>
+          <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Passer au mode clair" title="Changer de thème">☀</button>
+          <button class="icon-button" type="button" aria-label="Notifications" data-open-notifications>
+            ♢<b data-notification-count>3</b>
+          </button>
+        </div>
+      </header>
+
+      <main id="main-content">
+        <div data-page="incidents">
+        <section class="page-heading" id="incidents">
+          <div>
+            <span class="eyebrow"><i></i> Réception multicanale</span>
+            <h1>Signalements d'incidents</h1>
+            <p>
+              Les alertes envoyées par l'application mobile arrivent ici en temps réel.
+              L'opérateur les vérifie avant de déclencher une intervention.
+            </p>
+          </div>
+          <div class="heading-actions">
+            <button class="button button-secondary" type="button" data-open-mobile>
+              <span aria-hidden="true">▣</span> Simuler depuis le mobile
+            </button>
+            <button class="button button-primary" type="button" data-open-manual>
+              <span aria-hidden="true">＋</span> Créer un incident
+            </button>
+          </div>
+        </section>
+
+        <section class="sync-flow" aria-label="Chaîne de synchronisation du signalement">
+          <div class="flow-node">
+            <span class="flow-icon flow-icon--mobile" aria-hidden="true">▯</span>
+            <span><small>Source</small><strong>Application mobile</strong></span>
+          </div>
+          <div class="flow-link"><i></i><span>WebSocket chiffré</span></div>
+          <div class="flow-node">
+            <span class="flow-icon flow-icon--fog" aria-hidden="true">F</span>
+            <span><small>Traitement local</small><strong>FOG-LOMÉ-01 · 24 ms</strong></span>
+          </div>
+          <div class="flow-link"><i></i><span>Priorisation</span></div>
+          <div class="flow-node">
+            <span class="flow-icon flow-icon--console" aria-hidden="true">✓</span>
+            <span><small>Destination</small><strong>Console opérateur</strong></span>
+          </div>
+          <div class="flow-health"><i></i> Flux actif</div>
+        </section>
+
+        <section class="metric-grid" aria-label="Indicateurs des signalements">
+          <article class="metric-card metric-card--red">
+            <span class="metric-icon">!</span>
+            <div><small>Nouveaux à traiter</small><strong data-metric-new>0</strong><em>Reçus et non validés</em></div>
+          </article>
+          <article class="metric-card metric-card--blue">
+            <span class="metric-icon">▯</span>
+            <div><small>Depuis l'application</small><strong data-metric-mobile>0</strong><em>Canal mobile aujourd'hui</em></div>
+          </article>
+          <article class="metric-card metric-card--orange">
+            <span class="metric-icon">◷</span>
+            <div><small>Délai de réception moyen</small><strong><span data-metric-latency>42</span> ms</strong><em>Mobile → console</em></div>
+          </article>
+          <article class="metric-card metric-card--green">
+            <span class="metric-icon">✓</span>
+            <div><small>Signalements validés</small><strong data-metric-validated>0</strong><em>Prêts pour intervention</em></div>
+          </article>
+        </section>
+
+        <section class="workspace-grid">
+          <div class="incident-panel">
+            <div class="panel-head">
+              <div>
+                <span class="live-title"><i></i> FILE EN TEMPS RÉEL</span>
+                <h2>Signalements reçus</h2>
+              </div>
+              <div class="panel-tools">
+                <label class="search-box">
+                  <span aria-hidden="true">⌕</span>
+                  <span class="sr-only">Rechercher un signalement</span>
+                  <input type="search" placeholder="ID, lieu, type…" data-search>
+                </label>
+                <button class="pause-button" type="button" data-pause-feed>
+                  <span>Ⅱ</span> Mettre en pause
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-row" role="group" aria-label="Filtrer les signalements">
+              <button class="is-active" type="button" data-filter="all">Tous <b data-filter-all>0</b></button>
+              <button type="button" data-filter="mobile">Application mobile <b data-filter-mobile>0</b></button>
+              <button type="button" data-filter="manual">Création manuelle <b data-filter-manual>0</b></button>
+              <button type="button" data-filter="simulation">Simulations <b data-filter-simulation>0</b></button>
+            </div>
+
+            <div class="incoming-banner" data-incoming-banner hidden>
+              <span class="incoming-wave" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span><strong>Nouveau signalement mobile reçu</strong><small data-incoming-copy>Synchronisation en cours…</small></span>
+              <button type="button" data-open-latest>Ouvrir</button>
+            </div>
+
+            <div class="incident-list" data-incident-list aria-live="polite"></div>
+            <div class="empty-state" data-empty-state hidden>
+              <span>⌕</span>
+              <strong>Aucun signalement trouvé</strong>
+              <p>Modifiez les filtres ou simulez une nouvelle alerte mobile.</p>
+            </div>
+          </div>
+
+          <aside class="context-panel">
+            <div class="map-card">
+              <div class="map-head">
+                <div>
+                  <span>LOCALISATION DU SIGNALEMENT</span>
+                  <strong data-map-title>Sélectionnez un incident</strong>
+                </div>
+                <button type="button" data-open-maps>Ouvrir la carte ↗</button>
+              </div>
+              <div class="live-map">
+                <iframe
+                  title="Carte de la localisation sélectionnée"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  data-live-map
+                ></iframe>
+                <div class="map-scan" aria-hidden="true"></div>
+                <div class="map-status"><i></i> Position GPS reçue en direct</div>
+              </div>
+              <div class="coordinate-row">
+                <span><small>Latitude</small><strong data-map-lat>—</strong></span>
+                <span><small>Longitude</small><strong data-map-lng>—</strong></span>
+                <span><small>Précision GPS</small><strong data-map-accuracy>—</strong></span>
+              </div>
+            </div>
+
+            <div class="fog-card">
+              <div class="fog-card__head">
+                <span class="fog-mark">F</span>
+                <div><small>Traitement Fog Computing</small><strong>FOG-LOMÉ-01</strong></div>
+                <em><i></i> Actif</em>
+              </div>
+              <div class="fog-steps">
+                <span class="is-complete"><i>✓</i> Réception</span>
+                <span class="is-complete"><i>✓</i> Contrôle GPS</span>
+                <span class="is-complete"><i>✓</i> Détection doublon</span>
+                <span class="is-active"><i>4</i> Priorisation</span>
+              </div>
+              <div class="fog-result">
+                <span><small>Score proposé</small><strong data-fog-score>—</strong></span>
+                <span><small>Latence locale</small><strong data-fog-latency>—</strong></span>
+                <span><small>Synchronisation Cloud</small><strong class="success">À jour</strong></span>
+              </div>
+            </div>
+          </aside>
+        </section>
+        </div>
+        <div class="dynamic-page" data-page="dynamic" data-dynamic-page hidden></div>
+      </main>
+    </div>
+
+    <dialog class="drawer" data-detail-drawer>
+      <button class="drawer-close" type="button" data-close-detail aria-label="Fermer">×</button>
+      <div data-detail-content></div>
+    </dialog>
+
+    <dialog class="modal" data-manual-modal>
+      <button class="modal-close" type="button" data-close-manual aria-label="Fermer">×</button>
+      <div class="modal-heading">
+        <span class="modal-icon">＋</span>
+        <div><small>Canal opérateur</small><h2>Créer manuellement un incident</h2></div>
+      </div>
+      <p class="modal-intro">
+        À utiliser lorsqu'un signalement arrive par téléphone ou par un service partenaire.
+        L'adresse reste facultative si la position GPS est renseignée.
+      </p>
+      <form class="incident-form" data-manual-form>
+        <div class="field-grid">
+          <label>
+            <span>Type d'incident *</span>
+            <select name="type" required>
+              <option value="Accident de la route">Accident de la route</option>
+              <option value="Malaise sur la voie publique">Malaise sur la voie publique</option>
+              <option value="Incendie de véhicule">Incendie de véhicule</option>
+              <option value="Collision multiple">Collision multiple</option>
+            </select>
+          </label>
+          <label>
+            <span>Niveau estimé *</span>
+            <select name="severity" required>
+              <option value="critical">Critique</option>
+              <option value="high">Élevé</option>
+              <option value="medium">Moyen</option>
+              <option value="low">Faible</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>Lieu ou adresse <em>Facultatif si coordonnées GPS</em></span>
+          <input name="place" placeholder="Ex. Agoè, près du grand marché">
+        </label>
+        <div class="field-grid field-grid--three">
+          <label><span>Latitude *</span><input name="lat" type="number" step="any" value="6.1725" required></label>
+          <label><span>Longitude *</span><input name="lng" type="number" step="any" value="1.2314" required></label>
+          <button class="location-button" type="button" data-use-location>⌖ Utiliser ma position</button>
+        </div>
+        <div class="field-grid">
+          <label><span>Nombre de victimes *</span><input name="victims" type="number" min="0" max="99" value="1" required></label>
+          <label><span>Véhicules impliqués *</span><input name="vehicles" type="number" min="0" max="30" value="1" required></label>
+        </div>
+        <div class="check-grid">
+          <label><input type="checkbox" name="roadBlocked"> Axe partiellement bloqué</label>
+          <label><input type="checkbox" name="trapped"> Victime potentiellement coincée</label>
+          <label><input type="checkbox" name="fire"> Présence de feu ou fumée</label>
+          <label><input type="checkbox" name="hazard"> Matière dangereuse suspectée</label>
+        </div>
+        <label>
+          <span>Observations</span>
+          <textarea name="description" rows="3" placeholder="Éléments utiles pour les secours…"></textarea>
+        </label>
+        <button class="button button-primary button-full" type="submit">Créer et transmettre au Fog</button>
+      </form>
+    </dialog>
+
+    <dialog class="modal mobile-modal" data-mobile-modal>
+      <button class="modal-close" type="button" data-close-mobile aria-label="Fermer">×</button>
+      <div class="mobile-demo-grid">
+        <div class="phone-frame" aria-hidden="true">
+          <div class="phone-speaker"></div>
+          <div class="phone-status"><span>9:41</span><span>● ● ▰</span></div>
+          <div class="phone-app">
+            <span class="phone-logo">LOTISEC</span>
+            <div class="phone-alert">SOS</div>
+            <strong>Signaler un accident</strong>
+            <p>Votre position et les informations saisies seront transmises au centre de coordination.</p>
+            <div class="phone-gps"><i></i><span><strong>Position GPS détectée</strong><small>Précision : 8 mètres</small></span></div>
+            <div class="phone-field"></div><div class="phone-field short"></div>
+            <span class="phone-submit">ENVOYER LE SIGNALEMENT</span>
+          </div>
+        </div>
+        <div>
+          <div class="modal-heading">
+            <span class="modal-icon modal-icon--mobile">▯</span>
+            <div><small>Simulation application usager</small><h2>Envoyer un signalement mobile</h2></div>
+          </div>
+          <p class="modal-intro">
+            L'usager appuie sur SOS : le téléphone récupère automatiquement sa position, puis lui demande
+            les informations utiles. Aucun champ de coordonnées GPS n'est saisi manuellement.
+          </p>
+          <form class="incident-form" data-mobile-form>
+            <div class="field-grid">
+              <label>
+                <span>Type d'incident *</span>
+                <select name="type" required>
+                  <option value="Accident de la route">Accident de la route</option>
+                  <option value="Collision multiple">Collision multiple</option>
+                  <option value="Renversement de moto">Renversement de moto</option>
+                  <option value="Piéton percuté">Piéton percuté</option>
+                </select>
+              </label>
+              <label>
+                <span>Gravité déclarée *</span>
+                <select name="severity" required>
+                  <option value="critical">Très urgente</option>
+                  <option value="high" selected>Urgente</option>
+                  <option value="medium">Modérée</option>
+                </select>
+              </label>
+            </div>
+            <label><span>Lieu ou repère</span><input name="place" value="Agoè, près du marché" placeholder="Facultatif"></label>
+            <div class="mobile-location-lock">
+              <span class="mobile-location-lock__icon" aria-hidden="true">⌖</span>
+              <span>
+                <strong>Position obtenue automatiquement par le téléphone</strong>
+                <small data-mobile-location-label>6.202700, 1.198400 · précision ± 8 m</small>
+              </span>
+              <button type="button" data-refresh-mobile-gps>Actualiser le GPS</button>
+            </div>
+            <input type="hidden" name="lat" value="6.2027">
+            <input type="hidden" name="lng" value="1.1984">
+            <input type="hidden" name="accuracy" value="8">
+            <div class="field-grid field-grid--three">
+              <label><span>Victimes *</span><input name="victims" type="number" min="0" max="99" value="2" required></label>
+              <label><span>Véhicules *</span><input name="vehicles" type="number" min="0" max="30" value="2" required></label>
+              <label><span>Photos</span><input name="photos" type="number" min="0" max="5" value="1"></label>
+            </div>
+            <div class="check-grid">
+              <label><input type="checkbox" name="roadBlocked" checked> Circulation perturbée</label>
+              <label><input type="checkbox" name="trapped"> Personne coincée</label>
+              <label><input type="checkbox" name="fire"> Feu ou fumée</label>
+              <label><input type="checkbox" name="conscious" checked> Victime consciente</label>
+            </div>
+            <label><span>Description courte</span><textarea name="description" rows="2">Collision entre une voiture et une moto.</textarea></label>
+            <button class="button button-primary button-full" type="submit">
+              Envoyer depuis l'application mobile
+            </button>
+          </form>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="emergency-modal" data-emergency-modal>
+      <button class="modal-close" type="button" data-close-emergency aria-label="Fermer">×</button>
+      <span class="emergency-modal__icon">☎</span>
+      <small>APPEL D'URGENCE</small>
+      <h2>Quel service souhaitez-vous contacter ?</h2>
+      <div class="emergency-list">
+        <a href="tel:118"><span>118</span><strong>Sapeurs-pompiers</strong><em>Appeler ↗</em></a>
+        <a href="tel:8880"><span>8880</span><strong>Secours Abalo</strong><em>Appeler ↗</em></a>
+        <a href="tel:8200"><span>8200</span><strong>Togo Assistance</strong><em>Appeler ↗</em></a>
+      </div>
+    </dialog>
+
+    <div class="toast-stack" data-toast-stack aria-live="polite"></div>
+
+    <template id="incident-template">
+      <article class="incident-row">
+        <button class="incident-main" type="button">
+          <span class="severity-dot"></span>
+          <span class="incident-summary">
+            <span class="incident-meta">
+              <b class="source-badge"></b>
+              <time></time>
+              <em class="fresh-badge" hidden>NOUVEAU</em>
+            </span>
+            <strong class="incident-type"></strong>
+            <small class="incident-place"></small>
+          </span>
+          <span class="incident-data">
+            <span><small>Victimes</small><strong class="victim-count"></strong></span>
+            <span><small>Véhicules</small><strong class="vehicle-count"></strong></span>
+            <span><small>GPS</small><strong class="gps-accuracy"></strong></span>
+          </span>
+          <span class="priority-block">
+            <small>Score Fog</small>
+            <strong class="priority-score"></strong>
+            <em class="status-badge"></em>
+          </span>
+          <span class="row-arrow">›</span>
+        </button>
+      </article>
+    </template>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="console.js"></script>
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/console-sw.js');</script>
+  </body>
+</html>

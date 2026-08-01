@@ -1,0 +1,11 @@
+{
+  "name": "LOTISEC Console institutionnelle",
+  "short_name": "LOTISEC Pro",
+  "start_url": "/console",
+  "display": "standalone",
+  "background_color": "#071827",
+  "theme_color": "#071827",
+  "icons": [
+    { "src": "/assets/logo-lotisec.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -213,10 +213,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const cancelRide = async () => {
     if (!activeRide || !supabase) return;
     try {
-      await supabase
-        .from('rides')
-        .update({ status: 'canceled' })
-        .eq('id', activeRide.id);
+      await api(`/zem/rides/${activeRide.id}/status`, 'PATCH', { status: 'canceled' });
       setActiveRide(null);
       setZemLocation(null);
       setDestination(null);

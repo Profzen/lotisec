@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import { requireAuth, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -60,7 +61,7 @@ router.post('/', async (req, res) => {
   return res.json(saved.rows[0]);
 });
 
-router.get('/geojson', async (req, res) => {
+router.get('/geojson', requireAuth, requirePermission('incidents:read'), async (req, res) => {
   const days = Number(req.query.days || 30);
   const rows = await query<any>(
     `SELECT *
@@ -94,7 +95,7 @@ router.get('/geojson', async (req, res) => {
   return res.json({ type: 'FeatureCollection', features });
 });
 
-router.get('/heatmap', async (req, res) => {
+router.get('/heatmap', requireAuth, requirePermission('incidents:read'), async (req, res) => {
   const days = Number(req.query.days || 90);
   const rows = await query<any>(
     `SELECT latitude, longitude, severity
@@ -114,7 +115,7 @@ router.get('/heatmap', async (req, res) => {
   return res.json({ points, total: points.length });
 });
 
-router.get('/hotspots', async (_req, res) => {
+router.get('/hotspots', requireAuth, requirePermission('incidents:read'), async (_req, res) => {
   const rows = await query<any>(
     `SELECT
       ROUND(latitude::numeric, 2) AS lat,
@@ -136,7 +137,7 @@ router.get('/hotspots', async (_req, res) => {
   return res.json(rows.rows);
 });
 
-router.get('/stats', async (req, res) => {
+router.get('/stats', requireAuth, requirePermission('reports:read'), async (req, res) => {
   const days = Number(req.query.days || 30);
 
   const total = await query<{ total: string }>(
@@ -171,7 +172,7 @@ router.get('/stats', async (req, res) => {
   });
 });
 
-router.put('/:accidentId', async (req, res) => {
+router.put('/:accidentId', requireAuth, requirePermission('incidents:manage'), async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });

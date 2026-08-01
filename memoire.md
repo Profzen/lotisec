@@ -2,7 +2,7 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
-Statut de référence: **2026-06-12**.
+Statut de référence: **2026-07-31**. Les sections antérieures sont conservées comme historique; la mise à jour opérationnelle finale et `docs/OPERATIONAL_PLATFORM.md` font foi en cas de contradiction.
 
 ## 1. Contexte produit et périmètre
 - Produit: LOTISEC (Anciennement SafeLife). Mission: localisation, transmission, identification, sécurité, cartographie.
@@ -29,9 +29,10 @@ Statut de référence: **2026-06-12**.
 - Temps réel mobile: **Supabase Realtime** (contournement des limitations WebSocket Vercel Serverless).
 - Cartographie mobile: **react-native-maps** + tuiles OpenStreetMap (gratuit, sans clé Google Maps).
 - Routage/tarification: **OSRM** (API publique `router.project-osrm.org`).
-- Déploiement en 2 projets Vercel séparés:
+- Déploiement en 3 projets Vercel séparés:
   - projet frontend (root `frontend/`)
   - projet backend (root `backend/`)
+  - projet console institutionnelle (root `LOTISEC-Console-Complete/`)
 - Builds mobile via **EAS Build** (profil `preview` → APK Android).
 
 ## 4. État d'avancement par composant
@@ -40,7 +41,7 @@ Statut de référence: **2026-06-12**.
 
 **Réalisé ✅:**
 - Socle API en place (Express + TypeScript).
-- Connexion Supabase PostgreSQL opérationnelle en production (pooler IPv4, SSL).
+- Connexion Supabase PostgreSQL prévue via pooler IPv4 et SSL. Au 2026-07-31, la `DATABASE_URL` locale est obsolète (`ENOTFOUND`) et `/health` du backend Vercel répond 500 : la production n’est pas considérée opérationnelle tant que la recette n’est pas rejouée.
 - 10 routeurs implémentés:
   - `/auth` (register/login — bcrypt + JWT)
   - `/pro` (login pro — codes institutionnels)
@@ -383,3 +384,12 @@ Règle Variables d'Environnement:
 - Ne JAMAIS compter sur le fichier `.env` pour les builds EAS — il est exclu par `.gitignore`.
 - Toutes les variables `EXPO_PUBLIC_*` nécessaires au runtime doivent être présentes dans `eas.json` > `build` > `<profil>` > `env`.
 - Les secrets backend doivent être dans les settings Vercel, jamais dans le code.
+# Mise à jour opérationnelle — 2026-07-31
+
+`LOTISEC-Console-Complete/` est intégré comme troisième application institutionnelle. Le prototype a été raccordé au backend Node central et ne doit plus utiliser Cloudflare D1 comme source métier.
+
+Fondations ajoutées : RBAC multi-rôles et multi-organisations, accréditation Zem, incidents canoniques web/mobile, interventions, ressources terrain, capacités et admissions hospitalières, audit, configuration Vercel et migration Supabase additive. Les SOS web et mobile utilisent désormais `POST /api/v1/incidents`; WhatsApp reste complémentaire.
+
+Références : `docs/OPERATIONAL_PLATFORM.md`, `docs/DEPLOY_CONSOLE_VERCEL.md` et `backend/migrations/20260731_operational_platform.sql`.
+
+La console inclut désormais notifications persistantes avec accusé de lecture, audit administrateur, gestion des agents hospitaliers, capacités isolées par établissement, affichage des responders/accidents historiques, et indication explicite du mode `SUPABASE REALTIME ACTIF` ou du repli `POLLING API AUTHENTIFIÉ`.

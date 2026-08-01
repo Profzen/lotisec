@@ -13,6 +13,7 @@ import ProfilePanel from './ProfilePanel';
 import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
+import { api } from '../api/config';
 
 import * as Location from 'expo-location';
 import * as Print from 'expo-print';
@@ -108,9 +109,11 @@ export default function HomeScreen({ navigation }: Props) {
       try {
         const storedToken = await AsyncStorage.getItem('qrToken');
         const storedProfile = await AsyncStorage.getItem('profile');
+        const storedUser = await AsyncStorage.getItem('user');
         if (storedProfile) {
         const parsedProfile = JSON.parse(storedProfile);
-        setProfile(parsedProfile);
+        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+        setProfile({ ...parsedProfile, is_zem:Boolean(parsedUser.is_zem || parsedUser.roles?.includes('zem_driver')) });
         
         // On adapte ici : si l'API a renvoyé le token dans l'objet profil
         if (parsedProfile.qr_token) {
@@ -165,6 +168,17 @@ export default function HomeScreen({ navigation }: Props) {
         return;
       }
       let location = await Location.getCurrentPositionAsync({});
+      const token = await AsyncStorage.getItem('token');
+      const storedUser = await AsyncStorage.getItem('user');
+      const currentUser = storedUser ? JSON.parse(storedUser) : null;
+      await api('/api/v1/incidents', 'POST', {
+        source: 'mobile', type: 'SOS citoyen', severity: 'critical',
+        latitude: location.coords.latitude, longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy || 0, address: 'Position GPS mobile', victims: 1,
+        vehicles: 0, description: 'SOS déclenché depuis l’application mobile',
+        qr_token: currentUser?.qr_token,
+        client_event_id: `mobile-${currentUser?.id || 'unknown'}-${Date.now()}`
+      }, token || undefined);
       const mapsUrl = `https://www.google.com/maps?q=${location.coords.latitude},${location.coords.longitude}`;
       const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\n` +
                       `Bonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n` +

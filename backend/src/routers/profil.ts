@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../database';
-import { AuthRequest, requireAuth } from '../middleware/auth';
+import { AuthRequest, optionalAuth, requireAuth } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -162,7 +162,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-router.get('/scan/:token', async (req, res) => {
+router.get('/scan/:token', optionalAuth, async (req: AuthRequest, res) => {
   const token = req.params.token;
 
   const result = await query<any>(
@@ -184,6 +184,7 @@ router.get('/scan/:token', async (req, res) => {
     [profile.id]
   );
 
+  const professional = req.roles?.some((role) => ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
   return res.json({
     id: profile.id,
     qr_token: profile.qr_token,
@@ -194,14 +195,15 @@ router.get('/scan/:token', async (req, res) => {
       gender: profile.gender,
       nationality: profile.nationality
     },
-    medical: {
+    medical: professional ? {
       blood_type: profile.blood_type,
       allergies: profile.allergies,
       conditions: profile.conditions,
       medications: profile.medications,
       disabilities: profile.disabilities
-    },
-    emergency_contacts: contacts.rows
+    } : undefined,
+    emergency_contacts: professional ? contacts.rows : [],
+    access_level: professional ? 'professional' : 'public'
   });
 });
 

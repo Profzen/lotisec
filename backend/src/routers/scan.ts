@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import { AuthRequest, optionalAuth, requireAuth, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
 const verifySchema = z.object({
   token: z.string().min(3),
-  pin: z.string().min(2),
+  pin: z.string().optional().default(''),
   authority_type: z.string().optional().default('emergency_unit')
 });
 
@@ -26,7 +27,7 @@ const MASTER_CODES: Record<string, string> = {
   MEDC3737: 'Corps Medical'
 };
 
-router.post('/verify', async (req, res) => {
+router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
   const parsed = verifySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
@@ -44,9 +45,14 @@ router.post('/verify', async (req, res) => {
   }
 
   const profile = profileResult.rows[0];
-  let authorityName = MASTER_CODES[cleanPin] || null;
+  const professionalRole = req.roles?.find((role) => ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
+  let authorityName = professionalRole ? professionalRole : null;
 
-  if (!authorityName) {
+  if (!authorityName && process.env.NODE_ENV !== 'production' && process.env.ENABLE_LEGACY_SCAN_CODES === 'true') {
+    authorityName = MASTER_CODES[cleanPin] || null;
+  }
+
+  if (!authorityName && process.env.NODE_ENV !== 'production') {
     const userPin = String(profile.access_code || '1234').trim().toUpperCase();
     if (cleanPin === userPin) {
       authorityName = 'Acces Prive';
@@ -61,6 +67,10 @@ router.post('/verify', async (req, res) => {
     'SELECT name, phone, relation FROM emergency_contacts WHERE profile_id = $1',
     [profile.id]
   );
+  if (req.userId) {
+    await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_profile.read','profile',$3,$4)`,
+      [req.userId,req.organizationId,profile.id,{authority:authorityName}]);
+  }
 
   return res.json({
     status: 'success',
@@ -116,7 +126,7 @@ router.post('/', async (req, res) => {
   return res.json({ status: 'success' });
 });
 
-router.get('/historique', async (_req, res) => {
+router.get('/historique', requireAuth, requirePermission('reports:read'), async (_req, res) => {
   const scans = await query<any>(
     `SELECT s.id, s.latitude, s.longitude, s.created_at, p.qr_token, p.first_name, p.last_name
      FROM scans s

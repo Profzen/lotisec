@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { PRO_USERS } from '../utils/proUsers';
+import { jwtSecret } from '../security/jwt';
 
 const router = Router();
 
@@ -12,6 +13,9 @@ const loginSchema = z.object({
 });
 
 router.post('/login', (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_LEGACY_PRO_LOGIN !== 'true') {
+    return res.status(410).json({ detail: 'Connexion institutionnelle historique désactivée. Utilisez /auth/login.' });
+  }
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
@@ -29,10 +33,9 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ detail: 'Mot de passe incorrect' });
   }
 
-  const secret = process.env.JWT_SECRET || 'lotisec_secret_2026';
   const token = jwt.sign(
     { sub: code, nom: user.nom, role: user.role },
-    secret,
+    jwtSecret(),
     { expiresIn: '12h' }
   );
 

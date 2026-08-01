@@ -2,10 +2,21 @@ import { api } from './config';
 
 export const registerUser = async (
   phone: string,
-  password: string
+  password: string,
+  accountType: 'citizen' | 'zem_driver' = 'citizen',
+  zemApplication?: { identityDocument: string; licenseNumber: string; motorcycleMake: string; motorcycleModel?: string; plate: string; workZone: string }
 ) => {
-  // On envoie uniquement phone et password au backend
-  return await api('/auth/register', 'POST', { phone, password });
+  return await api('/auth/register', 'POST', {
+    phone, password, account_type: accountType,
+    ...(zemApplication ? { zem_application: {
+      identity_document: zemApplication.identityDocument,
+      license_number: zemApplication.licenseNumber,
+      motorcycle_make: zemApplication.motorcycleMake,
+      motorcycle_model: zemApplication.motorcycleModel,
+      plate: zemApplication.plate,
+      work_zone: zemApplication.workZone
+    }} : {})
+  });
 };
 
 export const loginUser = async (phone: string, password: string) => {

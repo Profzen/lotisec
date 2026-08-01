@@ -12,13 +12,21 @@ import geodecisionRouter from './routers/geodecision';
 import roadReportsRouter from './routers/roadReports';
 import respondersRouter from './routers/responders';
 import zemRouter from './routers/zem';
+import operationsRouter from './routers/operations';
 import { pool } from './database';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+const corsFallback = process.env.NODE_ENV === 'production'
+  ? 'https://lotisec-frontend.vercel.app,https://lotisec-console.vercel.app'
+  : '*';
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || corsFallback).split(',').map((value) => value.trim());
+app.use(cors({ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error('Origin not allowed by CORS'));
+}, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/', (_req, res) => {
@@ -52,6 +60,7 @@ app.use('/geo', geodecisionRouter);
 app.use('/road-reports', roadReportsRouter);
 app.use('/responders', respondersRouter);
 app.use('/zem', zemRouter);
+app.use('/api/v1', operationsRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   // Keep backend errors explicit in JSON to simplify frontend diagnosis.

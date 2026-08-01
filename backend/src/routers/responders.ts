@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../database';
+import { requireAuth, requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -11,12 +12,12 @@ const updateSchema = z.object({
   score: z.number().optional()
 });
 
-router.get('/', async (_req, res) => {
+router.get('/', requireAuth, requirePermission('resources:read'), async (_req, res) => {
   const rows = await query<any>('SELECT * FROM responders ORDER BY updated_at DESC LIMIT 200');
   return res.json(rows.rows);
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, requirePermission('interventions:manage'), async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });

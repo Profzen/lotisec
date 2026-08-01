@@ -1,10 +1,12 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const fallbackApiUrl = 'https://lotisec-backend.vercel.app';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || fallbackApiUrl).replace(/\/$/, '');
 
 export const api = async (
   endpoint: string,
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
   body?: object,
   token?: string
 ) => {
@@ -12,8 +14,9 @@ export const api = async (
     'Content-Type': 'application/json',
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const effectiveToken = token || await AsyncStorage.getItem('token');
+  if (effectiveToken) {
+    headers['Authorization'] = `Bearer ${effectiveToken}`;
   }
 
   const finalUrl: string = `${API_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;

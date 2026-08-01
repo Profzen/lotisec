@@ -8,32 +8,27 @@ export function ScanResult() {
   const { token } = useParams();
   const navigate = useNavigate();
 
-  const [accessCode, setAccessCode] = useState('');
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying, setVerifying] = useState(false);
+  const professionalSession = Boolean(localStorage.getItem('lotisec_token'));
 
   const handleUnlock = async () => {
-    if (accessCode.trim().length < 4) {
-      toast.error("Le code d'accréditation est trop court.");
-      return;
-    }
+    if (!professionalSession) return navigate('/login');
 
     setVerifying(true);
     try {
-      // Pour une vraie application, cela appellerait le backend
       const response = await api.post('/scan/verify', {
         token: token,
-        pin: accessCode.trim().toUpperCase(),
+        pin: '',
         authority_type: 'emergency_unit',
       });
       setUnlockedData(response.data);
     } catch (e: any) {
       if (e.response && e.response.status === 403) {
-        toast.error("Accès Refusé. Code invalide.");
+        toast.error("Accès refusé : rôle professionnel requis.");
       } else {
         toast.error("Erreur de liaison au serveur 118.");
       }
-      setAccessCode('');
     } finally {
       setVerifying(false);
     }
@@ -54,20 +49,10 @@ export function ScanResult() {
           </div>
 
           <div className="lotisec-card" style={{ padding: '2rem', textAlign: 'center' }}>
-            <h3 style={{ marginBottom: '1rem' }}>🔐 Accès professionnel</h3>
+            <h3 style={{ marginBottom: '1rem' }}>🔐 Accès professionnel authentifié</h3>
             <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.5rem' }}>
-              Saisissez votre code d'unité pour accéder aux données vitales complètes.<br />
-              Ex : QARO387963 · KAMA985463
+              Connectez-vous avec un compte institutionnel autorisé pour accéder aux données vitales.
             </p>
-
-            <input 
-              type="text" 
-              placeholder="CODE ACCÈS" 
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-              maxLength={12}
-              style={{ textAlign: 'center', letterSpacing: '3px', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '1.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
-            />
 
             <button 
               className="btn primary" 
@@ -75,7 +60,7 @@ export function ScanResult() {
               disabled={verifying}
               style={{ width: '100%' }}
             >
-              {verifying ? 'Vérification...' : 'Déverrouiller'}
+              {verifying ? 'Vérification...' : professionalSession ? 'Ouvrir la fiche' : 'Se connecter'}
             </button>
           </div>
         </div>

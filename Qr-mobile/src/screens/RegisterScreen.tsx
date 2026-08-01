@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity,
+  View, Text, TouchableOpacity, TextInput,
   StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,14 +31,25 @@ const profileTypes = [
 
 export default function RegisterScreen({ navigation }: Props) {
   const [selected, setSelected] = useState<ProfileType | null>(null);
+  const [accountType, setAccountType] = useState<'citizen' | 'zem_driver'>('citizen');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [identityDocument, setIdentityDocument] = useState('');
+  const [motorcycleMake, setMotorcycleMake] = useState('');
+  const [plate, setPlate] = useState('');
+  const [workZone, setWorkZone] = useState('Lomé');
 
   const handleContinue = () => {
     if (!selected) {
       Alert.alert('Erreur', 'Veuillez choisir un type de profil');
       return;
     }
+    if (accountType === 'zem_driver' && (!identityDocument || !licenseNumber || !motorcycleMake || !plate || !workZone)) {
+      Alert.alert('Informations requises', 'Renseignez le permis, la moto, l’immatriculation et la zone d’activité.');
+      return;
+    }
     navigation.navigate('Step1', {
-      profile: { ...emptyProfile, profileType: selected },
+      profile: { ...emptyProfile, profileType: selected, accountType,
+        ...(accountType === 'zem_driver' ? { zemApplication: { identityDocument, licenseNumber, motorcycleMake, plate, workZone } } : {}) },
     });
   };
 
@@ -53,6 +64,19 @@ export default function RegisterScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>
           Choisissez votre type de profil pour commencer
         </Text>
+
+        <View style={styles.optionRow}>
+          <TouchableOpacity style={[styles.optionBtn, accountType === 'citizen' && styles.cardSelected]} onPress={() => setAccountType('citizen')}><Text style={styles.cardTitle}>Utilisateur</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.optionBtn, accountType === 'zem_driver' && styles.cardSelected]} onPress={() => setAccountType('zem_driver')}><Text style={styles.cardTitle}>Conducteur Zem</Text></TouchableOpacity>
+        </View>
+        {accountType === 'zem_driver' && <View style={styles.zemFields}>
+          <Text style={styles.cardDesc}>Votre compte conducteur sera activé après validation LOTISEC.</Text>
+          <TextInput style={styles.input} placeholder="Pièce d’identité" value={identityDocument} onChangeText={setIdentityDocument} />
+          <TextInput style={styles.input} placeholder="Numéro de permis" value={licenseNumber} onChangeText={setLicenseNumber} />
+          <TextInput style={styles.input} placeholder="Marque de la moto" value={motorcycleMake} onChangeText={setMotorcycleMake} />
+          <TextInput style={styles.input} placeholder="Immatriculation" value={plate} onChangeText={setPlate} />
+          <TextInput style={styles.input} placeholder="Zone d’activité" value={workZone} onChangeText={setWorkZone} />
+        </View>}
 
         <View style={styles.cards}>
           {profileTypes.map((item) => (
@@ -103,6 +127,10 @@ const styles = StyleSheet.create({
   title:             { fontSize: fontSizes.xxl, fontFamily: fonts.bold, color: colors.text },
   subtitle:          { fontSize: fontSizes.md, fontFamily: fonts.regular, color: colors.textSecondary },
   cards:             { gap: 12 },
+  optionRow:         { flexDirection: 'row', gap: 10 },
+  optionBtn:         { flex: 1, borderWidth: 2, borderColor: colors.border, borderRadius: 12, padding: 12, alignItems: 'center' },
+  zemFields:         { gap: 8 },
+  input:             { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
   card:              { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 2, borderColor: colors.border, padding: 20, alignItems: 'center', position: 'relative' },
   cardSelected:      { borderColor: colors.primary, backgroundColor: '#F0F9F4' },
   cardIcon:          { fontSize: 40, marginBottom: 10 },
