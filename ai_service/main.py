@@ -36,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DEEPINFRA_API_KEY = "ivaDF0RR9kyf3RG14aZgkAb5y3i3MrtA"
+DEEPINFRA_API_KEY = os.environ.get("DEEPINFRA_API_KEY", "")
 MODEL = "meta-llama/Llama-3.3-70B-Instruct"
 
 BASE_SYSTEM_PROMPT = """

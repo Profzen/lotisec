@@ -405,3 +405,14 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Recette réelle réussie : cinq connexions, deux demandes de service, deux notifications ciblées, deux affectations, visibilité professionnelle, deux mises à jour GPS et refus console citoyen.
 - Déploiement `ec00fdd` vérifié sur `https://lotisec-delta.vercel.app/console` : la carte suit désormais l’unité vers l’incident avant toute sélection hospitalière.
 - Recette Vercel réussie : `requested_service=ambulance` accepté par le backend de production et notification ciblée reçue par le compte ambulancier.
+
+### 2026-08-01 — Migration de l’IA Python/Railway vers Node.js/Vercel
+
+- Les routes de l’assistant sont désormais intégrées au backend Express : `/ai/chat`, `/ai/transcribe`, `/ai/tts` et `/ai/health`.
+- Les clients mobile et web utilisent `EXPO_PUBLIC_API_URL` / `VITE_API_URL` et ne contiennent plus l’URL Railway en dur.
+- Le RAG n’utilise plus FAISS ni un modèle chargé en mémoire. Les embeddings DeepInfra sont stockés durablement dans Supabase PostgreSQL avec `pgvector` (`ai_documents`, `ai_document_chunks`, `match_ai_chunks`).
+- Les usages mobile/web sont observables ensemble dans `ai_request_logs` avec canal, opération, latence, succès et nombre de fragments RAG utilisés.
+- La migration `backend/migrations/20260801_ai_rag.sql` a été appliquée à Supabase le 2026-08-01.
+- L’indexation se fait avec `cd backend && npm run rag:index`; elle lit `default_code.pdf`, calcule son checksum, reconstruit les fragments et remplace l’index dans une transaction.
+- Le microservice `ai_service` et Railway deviennent retirables après validation de `/ai/health` avec `rag_ready=true` et recette chat/audio sur la production Vercel.
+- Secret requis uniquement côté backend Vercel : `DEEPINFRA_API_KEY`. La clé historiquement exposée doit être révoquée et remplacée avant la recette finale.

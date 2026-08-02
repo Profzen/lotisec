@@ -2,14 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Mic, Square, Volume2, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { API_URL } from '../api/client';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
 };
 
-// Production AI Service on Railway
-const AI_API_URL = 'https://agile-trust-production-c862.up.railway.app';
+const AI_API_URL = `${API_URL}/ai`;
 
 export function Assistant() {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ export function Assistant() {
     try {
       const response = await fetch(`${AI_API_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-LOTISEC-Channel': 'web' },
         body: JSON.stringify({ question: text, history: messages.slice(-5) })
       });
       
@@ -105,7 +105,8 @@ export function Assistant() {
       
       const response = await fetch(`${AI_API_URL}/transcribe`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: { 'X-LOTISEC-Channel': 'web' }
       });
       
       if (!response.ok) throw new Error('Erreur Transcription');
@@ -127,7 +128,7 @@ export function Assistant() {
     try {
       const response = await fetch(`${AI_API_URL}/tts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-LOTISEC-Channel': 'web' },
         body: JSON.stringify({ text })
       });
       if (!response.ok) throw new Error('TTS Error');

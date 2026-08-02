@@ -9,14 +9,14 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
+import { API_URL } from '../api/config';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
 };
 
-// Production AI Service on Railway
-const AI_API_URL = 'https://agile-trust-production-c862.up.railway.app';
+const AI_API_URL = `${API_URL}/ai`;
 
 export default function AssistantScreen({ navigation }: any) {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -46,7 +46,7 @@ export default function AssistantScreen({ navigation }: any) {
     try {
       const response = await fetch(`${AI_API_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-LOTISEC-Channel': 'mobile' },
         body: JSON.stringify({ question: text, history: messages.slice(-5) })
       });
 
@@ -105,9 +105,7 @@ export default function AssistantScreen({ navigation }: any) {
       const response = await fetch(`${AI_API_URL}/transcribe`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'X-LOTISEC-Channel': 'mobile' },
       });
 
       if (!response.ok) throw new Error('Erreur transcription');
@@ -126,7 +124,7 @@ export default function AssistantScreen({ navigation }: any) {
     try {
       const response = await fetch(`${AI_API_URL}/tts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-LOTISEC-Channel': 'mobile' },
         body: JSON.stringify({ text })
       });
       
