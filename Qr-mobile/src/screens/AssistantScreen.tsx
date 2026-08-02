@@ -9,14 +9,18 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
-import { API_URL } from '../api/config';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
 };
 
-const AI_API_URL = `${API_URL}/ai`;
+// Railway reste le fournisseur actif temporaire. La variable permettra de
+// rebasculer vers `${EXPO_PUBLIC_API_URL}/ai` sans modifier l'écran.
+const AI_API_URL = (
+  process.env.EXPO_PUBLIC_AI_API_URL ||
+  'https://agile-trust-production-c862.up.railway.app'
+).replace(/\/$/, '');
 
 export default function AssistantScreen({ navigation }: any) {
   const [messages, setMessages] = useState<ChatMessage[]>([

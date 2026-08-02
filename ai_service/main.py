@@ -131,8 +131,14 @@ async def startup_event():
     with ThreadPoolExecutor() as pool:
         embedding_model = await loop.run_in_executor(pool, load_embedding_model)
         
-        pdf_path = os.path.join(os.getcwd(), "default_code.pdf")
-        if os.path.exists(pdf_path):
+        pdf_candidates = [
+            os.environ.get("RAG_PDF_PATH", ""),
+            os.path.join(os.getcwd(), "default_code.pdf"),
+            os.path.abspath(os.path.join(os.getcwd(), "..", "default_code.pdf")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "default_code.pdf")),
+        ]
+        pdf_path = next((path for path in pdf_candidates if path and os.path.isfile(path)), None)
+        if pdf_path:
             print(f"Loading default PDF: {pdf_path}")
             text = extract_text_from_pdf(pdf_path)
             if text:
@@ -140,7 +146,7 @@ async def startup_event():
                 pdf_index, _ = build_faiss_index(pdf_chunks, embedding_model)
                 print(f"Loaded {len(pdf_chunks)} chunks into FAISS index.")
         else:
-            print(f"No default PDF found at {pdf_path}. RAG will be disabled until a PDF is provided.")
+            print(f"No default PDF found. Checked: {pdf_candidates}. RAG will remain disabled.")
 
 def search_relevant_chunks(query: str, chunks: List[str], index: faiss.IndexFlatL2, model, top_k: int = 3) -> List[str]:
     query_embedding = model.encode([query])
@@ -156,6 +162,16 @@ class ChatRequest(BaseModel):
     question: str
     history: List[ChatMessage] = []
 
+def build_extract_response(context_doc: Optional[str]) -> str:
+    if not context_doc:
+        return ("Le service génératif est temporairement indisponible. En cas d'accident, "
+                "sécurisez la zone, protégez les victimes et alertez immédiatement les secours.")
+    clean_context = " ".join(context_doc.replace("---", " ").split())
+    excerpt = clean_context[:700]
+    if len(clean_context) > 700:
+        excerpt = excerpt.rsplit(" ", 1)[0] + "…"
+    return excerpt
+
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest):
     context_doc = None
@@ -168,6 +184,11 @@ def chat_endpoint(req: ChatRequest):
         augmented_system = BASE_SYSTEM_PROMPT + f"\n\nCONTEXTE DU DOCUMENT (utilise ces informations en priorité):\n{context_doc}\n\nRéponds en t'appuyant sur ce contexte si la question s'y rapporte. Si l'information n'est pas dans le contexte, réponds avec tes connaissances générales du code de la route."
     else:
         augmented_system = BASE_SYSTEM_PROMPT
+
+    # Mode gratuit de continuité: la recherche FAISS reste opérationnelle même
+    # sans fournisseur LLM. Une clé valide réactive automatiquement la génération.
+    if not DEEPINFRA_API_KEY:
+        return {"response": build_extract_response(context_doc), "mode": "rag_extractive"}
 
     url = "https://api.deepinfra.com/v1/openai/chat/completions"
     headers = {
@@ -193,7 +214,8 @@ def chat_endpoint(req: ChatRequest):
         reply = response.json()["choices"][0]["message"]["content"].strip()
         return {"response": reply}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur technique: {str(e)}")
+        print(f"DeepInfra unavailable, using extractive fallback: {e}")
+        return {"response": build_extract_response(context_doc), "mode": "rag_extractive"}
 
 @app.post("/transcribe")
 async def transcribe_endpoint(file: UploadFile = File(...)):

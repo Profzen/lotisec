@@ -416,3 +416,11 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - L’indexation se fait avec `cd backend && npm run rag:index`; elle lit `default_code.pdf`, calcule son checksum, reconstruit les fragments et remplace l’index dans une transaction.
 - Le microservice `ai_service` et Railway deviennent retirables après validation de `/ai/health` avec `rag_ready=true` et recette chat/audio sur la production Vercel.
 - Secret requis uniquement côté backend Vercel : `DEEPINFRA_API_KEY`. La clé historiquement exposée doit être révoquée et remplacée avant la recette finale.
+
+### 2026-08-02 — Mode IA temporaire Railway
+
+- L’implémentation Node/Supabase sous `/ai/*` reste conservée en veille : schéma, routes, scripts et journalisation ne sont pas supprimés.
+- Faute de crédit disponible sur le nouveau compte DeepInfra, le web et le mobile utilisent temporairement le microservice Python Railway historique.
+- URL configurable côté web avec `VITE_AI_API_URL` et côté Expo avec `EXPO_PUBLIC_AI_API_URL`; valeur temporaire : `https://agile-trust-production-c862.up.railway.app`.
+- Le chargeur Python recherche maintenant `default_code.pdf` dans le dossier courant, à la racine parente du monorepo ou via `RAG_PDF_PATH`, afin de fonctionner avec Railway Root Directory `/ai_service`.
+- Retour futur vers Node : renseigner l’URL `https://lotisec-backend.vercel.app/ai` dans les deux variables clientes après migration vers Groq et recette complète, sans modifier les écrans.

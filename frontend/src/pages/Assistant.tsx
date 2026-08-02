@@ -2,14 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Mic, Square, Volume2, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { API_URL } from '../api/client';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
 };
 
-const AI_API_URL = `${API_URL}/ai`;
+// Railway reste le fournisseur actif temporaire. VITE_AI_API_URL permet une
+// future bascule vers le backend Node sans nouvelle livraison du frontend.
+const AI_API_URL = (
+  import.meta.env.VITE_AI_API_URL ||
+  'https://agile-trust-production-c862.up.railway.app'
+).replace(/\/$/, '');
 
 export function Assistant() {
   const navigate = useNavigate();
