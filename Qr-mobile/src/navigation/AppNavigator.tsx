@@ -21,11 +21,12 @@ import Step5Review     from '../screens/register/Step5Review';
 import HomeScreen      from '../screens/HomeScreen';
 import HopitauxScreen from '../screens/HopitauxScreen';
 import ConseilsScreen  from '../screens/ConseilsScreen';
-import QRCodeScreen from '../screens/QRCodeScreen';
 import ZemPassengerScreen from '../screens/ZemPassengerScreen';
 import ZemDriverScreen from '../screens/ZemDriverScreen';
 import RidesScreen from '../screens/RidesScreen';
 import AssistantScreen from '../screens/AssistantScreen';
+import RideDetailScreen from '../screens/RideDetailScreen';
+import RideChatScreen from '../screens/RideChatScreen';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
 export type RootStackParamList = {
@@ -42,6 +43,8 @@ export type RootStackParamList = {
   ZemPassenger: undefined;
   ZemDriver: undefined;
   Assistant: undefined;
+  RideDetail: {rideId:string};
+  RideChat: {rideId:string};
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -97,12 +100,12 @@ function TabNavigator() {
         }} 
       />
       <Tab.Screen 
-        name="QRCode" 
-        component={QRCodeScreen} 
+        name="AssistantTab" 
+        component={AssistantScreen} 
         options={{
-          tabBarLabel: 'Mon QR',
+          tabBarLabel: 'Assistant',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "qr-code" : "qr-code-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -142,6 +145,8 @@ export default function AppNavigator() {
         <Stack.Screen name="ZemPassenger" component={ZemPassengerScreen} />
         <Stack.Screen name="ZemDriver"    component={ZemDriverScreen} />
         <Stack.Screen name="Assistant"    component={AssistantScreen} />
+        <Stack.Screen name="RideDetail" component={RideDetailScreen}/>
+        <Stack.Screen name="RideChat" component={RideChatScreen}/>
 
         {/* Une fois connecté, on charge le TabNavigator. 
           Les écrans Hôpitaux, Conseils et QRCode sont déjà dedans !

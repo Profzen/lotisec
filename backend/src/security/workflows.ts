@@ -12,8 +12,12 @@ export const INTERVENTION_TRANSITIONS:Record<string,string[]> = {
 };
 
 export const RIDE_TRANSITIONS:Record<string,string[]> = {
-  requested:['accepted','declined','canceled'], accepted:['in_progress','completed','canceled'],
-  in_progress:['completed','canceled'], declined:[], completed:[], canceled:[]
+  requested:['accepted','canceled'],
+  searching:['offered','expired','canceled'], offered:['accepted','offered','expired','canceled'],
+  accepted:['driver_en_route','canceled'], driver_en_route:['driver_arrived','canceled'],
+  driver_arrived:['ready_to_start','no_show','canceled'], ready_to_start:['in_progress','canceled'],
+  in_progress:['driver_completed','canceled'], driver_completed:['completed','disputed'],
+  completed:[], canceled:[], expired:[], no_show:[], disputed:[]
 };
 
 export function canTransition(map:Record<string,string[]>, from:string, to:string) {

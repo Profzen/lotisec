@@ -69,6 +69,20 @@ function signRealtimeToken(userId: string, session: Awaited<ReturnType<typeof se
   return jwt.sign({ sub:userId, role:'authenticated', app_user_id:userId, organization_id:session.organizationId, roles:session.roles }, process.env.SUPABASE_JWT_SECRET, { expiresIn:'1h' });
 }
 
+async function ensureProfile(userId: string) {
+  const existing = await query<any>('SELECT id,qr_token,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1',[userId]);
+  if (existing.rows[0]?.qr_token) return existing.rows[0];
+  const qrToken=uuidv4().slice(0,8).toUpperCase();
+  if(existing.rows[0]){
+    const repaired=await query<any>('UPDATE profiles SET qr_token=$1 WHERE id=$2 RETURNING id,qr_token,first_name,last_name',[qrToken,existing.rows[0].id]);
+    return repaired.rows[0];
+  }
+  const created=await query<any>(`INSERT INTO profiles(id,user_id,qr_token,profile_type,first_name,last_name,birth_date,gender,nationality,blood_type,access_code,has_vehicle)
+    VALUES($1,$2,$3,'CITIZEN','Utilisateur','LOTISEC','01/01/2000','NC','Togo','NC',$4,false)
+    RETURNING id,qr_token,first_name,last_name`,[uuidv4(),userId,qrToken,uuidv4().slice(0,8)]);
+  return created.rows[0];
+}
+
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -173,6 +187,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ detail: 'Numero ou mot de passe incorrect.' });
   }
 
+  const profile=await ensureProfile(user.id);
   const session = await sessionFor(user.id);
   return res.json({
     status: 'success',
@@ -181,7 +196,7 @@ router.post('/login', async (req, res) => {
     user: {
       id: user.id,
       phone: user.phone,
-      qr_token: user.qr_token,
+      qr_token: profile.qr_token,
       ...session,
       is_zem:session.roles.includes('zem_driver')
     }
@@ -189,6 +204,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/me', requireAuth, async (req: AuthRequest, res) => {
+  await ensureProfile(req.userId as string);
   const result = await query<any>(
     `SELECT u.id, u.phone, p.qr_token, p.first_name, p.last_name
      FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 LIMIT 1`,

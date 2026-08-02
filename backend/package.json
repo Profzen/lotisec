@@ -11,6 +11,7 @@
     "create:acceptance-users": "node create-acceptance-users.js",
     "migrate:operations": "node run-operational-migration.js",
     "migrate:ai": "node run-ai-migration.js",
+    "migrate:mobile-zem": "node run-mobile-zem-migration.js",
     "rag:index": "node scripts/index-rag.js",
     "verify:schema": "node verify-operational-schema.js",
     "inspect:operations": "node inspect-operational-state.js",

@@ -9,7 +9,9 @@ const router = Router();
 const verifySchema = z.object({
   token: z.string().min(3),
   pin: z.string().optional().default(''),
-  authority_type: z.string().optional().default('emergency_unit')
+  authority_type: z.string().optional().default('emergency_unit'),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional()
 });
 
 const scanSchema = z.object({
@@ -71,6 +73,11 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
     await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_profile.read','profile',$3,$4)`,
       [req.userId,req.organizationId,profile.id,{authority:authorityName}]);
   }
+  await query(`INSERT INTO scan_access_events(profile_id,actor_id,actor_role,organization_id,authority,access_level,latitude,longitude,success)
+    VALUES($1,$2,$3,$4,$5,'medical_emergency',$6,$7,true)`,[
+      profile.id,req.userId||null,professionalRole||null,req.organizationId||null,authorityName,
+      parsed.data.latitude??null,parsed.data.longitude??null
+    ]);
 
   return res.json({
     status: 'success',
@@ -136,6 +143,18 @@ router.get('/historique', requireAuth, requirePermission('reports:read'), async 
   );
 
   return res.json({ scans: scans.rows });
+});
+
+router.get('/me', requireAuth, async (req: AuthRequest, res) => {
+  const page=Math.max(1,Number(req.query.page)||1);
+  const pageSize=Math.min(50,Math.max(1,Number(req.query.page_size)||20));
+  const profile=await query<any>('SELECT id FROM profiles WHERE user_id=$1 LIMIT 1',[req.userId]);
+  if(!profile.rows[0]) return res.json({items:[],page,page_size:pageSize,total:0});
+  const count=await query<{total:string}>('SELECT COUNT(*)::text total FROM scan_access_events WHERE profile_id=$1',[profile.rows[0].id]);
+  const items=await query<any>(`SELECT id,authority,actor_role,access_level,latitude,longitude,success,created_at
+    FROM scan_access_events WHERE profile_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    [profile.rows[0].id,pageSize,(page-1)*pageSize]);
+  return res.json({items:items.rows,page,page_size:pageSize,total:Number(count.rows[0]?.total||0)});
 });
 
 export default router;

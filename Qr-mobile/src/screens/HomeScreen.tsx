@@ -14,6 +14,7 @@ import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome } from '@expo/vector-icons';
 import { api } from '../api/config';
+import { hydrateSession } from '../services/session';
 
 import * as Location from 'expo-location';
 import * as Print from 'expo-print';
@@ -27,7 +28,8 @@ interface ScanHistorique {
   id: string;
   date: string;
   lieu?: string;
-  niveau: 'public' | 'professionnel';
+  niveau: string;
+  authority?: string;
 }
 
 // --- COMPOSANTS INTERNES ---
@@ -75,12 +77,6 @@ const CONTACTS = [
   },
 ];
 
-const DEMO_SCANS: ScanHistorique[] = [
-  { id: '1', date: "Aujourd'hui · 10h32", lieu: 'Université de Lomé', niveau: 'professionnel' },
-  { id: '2', date: '17 Avr · 09h15', lieu: 'Lomé, Bè', niveau: 'professionnel' },
-  { id: '3', date: '10 Avr · 17h40', lieu: 'Lomé, Tokoin', niveau: 'public' },
-];
-
 export default function HomeScreen({ navigation }: Props) {
   const [sosActif, setSosActif] = useState(false);
   const [alerteEnvoyee, setAlerteEnvoyee] = useState(false);
@@ -88,7 +84,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [isDark, setIsDark] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [scans, setScans] = useState<ScanHistorique[]>(DEMO_SCANS);
+  const [scans, setScans] = useState<ScanHistorique[]>([]);
+  const [qrState,setQrState]=useState<'loading'|'ready'|'missing'|'error'>('loading');
   const [showScans, setShowScans] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
 
@@ -114,21 +111,14 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const storedToken = await AsyncStorage.getItem('qrToken');
-        const storedProfile = await AsyncStorage.getItem('profile');
-        const storedUser = await AsyncStorage.getItem('user');
-        if (storedProfile) {
-        const parsedProfile = JSON.parse(storedProfile);
-        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
-        setProfile({ ...parsedProfile, is_zem:Boolean(parsedUser.is_zem || parsedUser.roles?.includes('zem_driver')) });
-        
-        // On adapte ici : si l'API a renvoyé le token dans l'objet profil
-        if (parsedProfile.qr_token) {
-          setQrToken(parsedProfile.qr_token);
-        }
-      }
+        const session=await hydrateSession();
+        if(!session){setQrState('error');return;}
+        setProfile(session.user);setQrToken(session.user.qr_token||null);setQrState(session.user.qr_token?'ready':'missing');
+        const history=await api('/scans/me?page_size=10','GET',undefined,session.token);
+        setScans((history.items||[]).map((item:any)=>({id:item.id,date:new Date(item.created_at).toLocaleString(),niveau:item.access_level||'professionnel',authority:item.authority,lieu:item.latitude!=null?`${Number(item.latitude).toFixed(3)}, ${Number(item.longitude).toFixed(3)}`:undefined})));
       } catch (e) {
         console.log('Erreur chargement données:', e);
+        setQrState('error');
       }
     };
     loadData();
@@ -383,11 +373,11 @@ export default function HomeScreen({ navigation }: Props) {
 
         <TouchableOpacity style={[styles.card, styles.qrCard, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]} onPress={() => setQrModalVisible(true)}>
           <View style={[styles.qrPreview, { borderColor: colors.primary, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }]}>
-            {qrToken ? (
+            {qrState==='ready'&&qrToken ? (
               <QRCode value={`https://qr-web-dbap.vercel.app/scan/${qrToken}`} size={34} color={colors.primary} />
-            ) : (
+            ) : qrState==='loading' ? (
               <ActivityIndicator size="small" color={colors.primary} />
-            )}
+            ):<FontAwesome name="exclamation-circle" size={24} color={colors.warning}/>} 
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.qrTitle, { color: th.text }]}>Mon QR code</Text>
@@ -403,7 +393,7 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
           {showScans && (
             <View style={styles.scanList}>
-              {scans.map((scan, i) => (
+              {scans.length===0?<Text style={[styles.scanDate,{color:th.text3}]}>Aucune consultation enregistrée.</Text>:scans.map((scan, i) => (
                 <View key={scan.id} style={[styles.scanRow, { borderBottomColor: th.divider }, i === scans.length - 1 && { borderBottomWidth: 0 }]}>
                    <View style={styles.scanIcon}><Text>{scan.niveau === 'professionnel' ? '🔐' : '👁️'}</Text></View>
                    <Text style={[styles.scanDate, { color: th.text, flex: 1 }]}>{scan.date}</Text>
@@ -427,14 +417,20 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={[styles.modalContent, { backgroundColor: th.cardBg }]}>
             <Text style={[styles.modalTitle, { color: th.text }]}>Mon Code QR</Text>
             <View style={styles.qrContainer}>
-               {qrToken ? (
+               {qrState === 'ready' && qrToken ? (
                  <QRCode value={`https://qr-web-dbap.vercel.app/scan/${qrToken}`} size={220} />
-               ) : (
+               ) : qrState === 'loading' ? (
                  <ActivityIndicator size="large" color={colors.primary} />
+               ) : (
+                 <View style={{alignItems:'center',gap:10,padding:20}}>
+                   <FontAwesome name="exclamation-circle" size={34} color={colors.danger}/>
+                   <Text style={{color:th.text2,textAlign:'center'}}>Le code QR n’est pas encore disponible. Fermez puis rouvrez cet écran après avoir vérifié votre connexion.</Text>
+                 </View>
                )}
             </View>
-            <TouchableOpacity style={styles.pdfBtn} onPress={generatePDF}>
-              <Text style={styles.pdfBtnText}>📄 Télécharger la fiche PDF</Text>
+            <TouchableOpacity style={styles.pdfBtn} onPress={generatePDF} disabled={!qrToken}>
+              <FontAwesome name="file-pdf-o" size={17} color={colors.white}/>
+              <Text style={styles.pdfBtnText}>Télécharger la fiche PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setQrModalVisible(false)} style={{ marginTop: 20 }}>
               <Text style={{ color: th.text2 }}>Fermer</Text>

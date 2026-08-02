@@ -16,7 +16,7 @@ export default function RidesScreen({ navigation }: any) {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const raw = await AsyncStorage.getItem('lotisec_user');
+      const raw = await AsyncStorage.getItem('user');
       if (!raw) return;
       const user = JSON.parse(raw);
       
@@ -102,8 +102,8 @@ export default function RidesScreen({ navigation }: any) {
                     {activeRide.status === 'accepted' && "Le conducteur est en route !"}
                     {activeRide.status === 'in_progress' && "Trajet en cours vers la destination !"}
                   </Text>
-                  <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('ZemPassenger')}>
-                    <Text style={styles.btnText}>Ouvrir la Carte</Text>
+                  <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate('RideDetail',{rideId:activeRide.id})}>
+                    <Text style={styles.btnText}>Ouvrir le suivi</Text>
                   </TouchableOpacity>
                 </View>
               </View>
