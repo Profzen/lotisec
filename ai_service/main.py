@@ -138,6 +138,21 @@ async def startup_event():
             os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "default_code.pdf")),
         ]
         pdf_path = next((path for path in pdf_candidates if path and os.path.isfile(path)), None)
+        if not pdf_path:
+            pdf_url = os.environ.get(
+                "RAG_PDF_URL",
+                "https://raw.githubusercontent.com/Profzen/lotisec/main/default_code.pdf",
+            )
+            try:
+                response = requests.get(pdf_url, timeout=45)
+                response.raise_for_status()
+                downloaded_path = os.path.join(tempfile.gettempdir(), "lotisec_default_code.pdf")
+                with open(downloaded_path, "wb") as downloaded_pdf:
+                    downloaded_pdf.write(response.content)
+                pdf_path = downloaded_path
+                print(f"Downloaded default RAG PDF to {downloaded_path}")
+            except Exception as download_error:
+                print(f"Unable to download RAG PDF from {pdf_url}: {download_error}")
         if pdf_path:
             print(f"Loading default PDF: {pdf_path}")
             text = extract_text_from_pdf(pdf_path)
