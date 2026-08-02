@@ -58,7 +58,7 @@ export default function LoginScreen({ navigation }: Props) {
               <Text style={styles.label}>Numéro de téléphone</Text>
               <View style={styles.phoneInputRow}>
                 <View style={styles.countryPrefix}>
-                  <Text style={styles.prefixText}>🇹🇬 +228</Text>
+                  <Text style={styles.prefixText}>TG +228</Text>
                 </View>
                 <TextInput
                   style={styles.flexInput}

@@ -15,6 +15,7 @@ import { fonts, fontSizes } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
 import { getRoute, RouteData } from '../utils/osrm';
 import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -199,7 +200,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
       if (res.ride) {
         setActiveRide(res.ride);
-        Alert.alert("Recherche", "Recherche de Zem en cours...");
+        navigation.navigate('RideDetail', { rideId: res.ride.id });
       } else {
         Alert.alert("Erreur", "Aucun Zem disponible.");
       }
@@ -213,7 +214,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const cancelRide = async () => {
     if (!activeRide || !supabase) return;
     try {
-      await api(`/zem/rides/${activeRide.id}/status`, 'PATCH', { status: 'canceled' });
+      await api(`/zem/rides/${activeRide.id}/action`, 'POST', { action: 'cancel' });
       setActiveRide(null);
       setZemLocation(null);
       setDestination(null);
@@ -247,7 +248,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         {!activeRide && (
           <View style={styles.searchContainer}>
             <View style={styles.searchBar}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Où allez-vous ? Rechercher une adresse..."
@@ -283,7 +284,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
                       style={styles.resultItem}
                       onPress={() => selectSearchResult(item)}
                     >
-                      <Text style={styles.resultIcon}>📍</Text>
+                      <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.resultIcon} />
                       <View style={styles.resultText}>
                         <Text style={styles.resultName} numberOfLines={1}>
                           {getShortName(item)}
@@ -384,7 +385,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
           <>
             <Text style={styles.instruction}>
               {destination
-                ? `📍 ${destinationName || 'Destination sélectionnée'}`
+                ? destinationName || 'Destination sélectionnée'
                 : "Recherchez une adresse ou appuyez sur la carte"
               }
             </Text>

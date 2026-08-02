@@ -11,28 +11,28 @@ export const SUPPORTED_COUNTRIES: Country[] = [
     label: 'Togo', 
     value: 'Togolaise', 
     dialCode: '+228', 
-    flag: '🇹🇬', 
+    flag: 'TG', 
     format: '90 00 00 00' 
   },
   { 
     label: 'Bénin', 
     value: 'Béninoise', 
     dialCode: '+229', 
-    flag: '🇧🇯', 
+    flag: 'BJ', 
     format: '60 00 00 00' 
   },
   { 
     label: 'Burkina Faso', 
     value: 'Burkinabè', 
     dialCode: '+226', 
-    flag: '🇧🇫', 
+    flag: 'BF', 
     format: '70 00 00 00' 
   },
   { 
     label: 'Côte d’Ivoire', 
     value: 'Ivoirienne', 
     dialCode: '+225', 
-    flag: '🇨🇮', 
+    flag: 'CI', 
     format: '07 00 00 00' 
   }
 ];

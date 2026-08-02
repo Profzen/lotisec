@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api/config';
 import { supabase } from '../api/supabase';
+import { registerPushToken } from './notifications';
 
 export type LotisecSession={token:string;realtimeToken?:string|null;user:any};
 const KEYS={token:'token',user:'user',profile:'profile',qr:'qrToken',realtime:'realtimeToken'} as const;
@@ -11,6 +12,7 @@ export async function persistSession(data:any):Promise<LotisecSession>{
   const pairs:[string,string][]=[[KEYS.token,token],[KEYS.user,JSON.stringify(user)],['lotisec_user',JSON.stringify(user)],[KEYS.profile,JSON.stringify(user)]];
   if(realtimeToken)pairs.push([KEYS.realtime,realtimeToken]);if(user.qr_token)pairs.push([KEYS.qr,user.qr_token]);
   await AsyncStorage.multiSet(pairs);if(realtimeToken&&supabase)await supabase.realtime.setAuth(realtimeToken);
+  void registerPushToken(token).catch(()=>{});
   return {token,realtimeToken,user};
 }
 

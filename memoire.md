@@ -538,3 +538,17 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Les participants suivent la bonne carte, discutent pendant la course et reprennent après reconnexion.
 - Départ/fin respectent les confirmations ; aucune transition interdite n’est forçable.
 - Tests backend/frontend/mobile, export Expo Web et recette production passent avant l’APK.
+
+### Journal d’exécution — 2026-08-02 (jalons 1 et 2)
+
+- Commit `278a487` publié : migration additive Zem/scans/chat, session mobile centralisée, autoréparation profil/QR, historique personnel des scans, détail de course et chat initial.
+- `Qr-mobile/src` ne contient plus d’emoji servant d’icône ou de libellé (contrôle `rg` sans résultat) ; remplacement par Expo Vector Icons et indicatifs pays textuels.
+- L’onglet inférieur QR est remplacé par Assistant. Le QR reste sur l’accueil avec états `loading | ready | missing/error`, partage et PDF.
+- Le conducteur utilise maintenant les offres privées `/zem/offers/current` et `/zem/offers/:id/respond`; sa position est publiée au backend, qui journalise la position liée à la course active.
+- Le passage au candidat suivant est déclenché après refus et également lors de la détection d’une offre expirée. L’acceptation est verrouillée en transaction.
+- L’écran Trajets comprend tous les états canoniques, les non-lus et ouvre le détail. Le chat est paginé, idempotent par UUID client, doté d’accusés de lecture, Realtime et lecture seule après clôture.
+- Notifications : enregistrement natif du jeton Expo par appareil et push backend pour offre, acceptation, changement d’état et message. Expo Web ignore proprement l’enregistrement natif.
+- Annuaire médical : schéma de provenance ajouté, importeur OpenStreetMap Togo créé, API filtrable avec distance PostGIS et ETA routière OSRM, provenance/date affichées sur mobile. Les données ne seront qualifiées de production qu’après exécution contrôlée de la migration et de l’import.
+- Vérifications locales actuelles : TypeScript mobile réussi, build backend réussi, 18/18 tests backend réussis.
+- Migration `20260802_mobile_zem_complete.sql` non encore appliquée en production : l’exécution automatisée a été refusée par la garde de sécurité car elle modifie RLS et convertit les anciens statuts. Aucun contournement effectué.
+- Rollback applicatif avant migration : redéployer `511968b`. Rollback données : restaurer le snapshot Supabase pris avant migration ; ne pas supprimer manuellement les tables d’audit.

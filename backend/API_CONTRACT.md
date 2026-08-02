@@ -242,3 +242,30 @@ Toutes les routes ci-dessous exigent `Authorization: Bearer <jwt>` et appliquent
 ### Demande directe d’un service
 
 `POST /api/v1/incidents` accepte `requested_service: "fire" | "ambulance" | "samu" | "police"`. Le backend crée l’incident canonique, notifie la supervision et cible aussi la première organisation active du type demandé. L’appel téléphonique reste complémentaire; la trace LOTISEC est créée avant son ouverture.
+
+## Cycle Zem sécurisé (2026-08-02)
+
+Toutes ces routes exigent `Authorization: Bearer <token LOTISEC>`. L’identité vient exclusivement du jeton ; les identifiants utilisateur envoyés par le client sont ignorés.
+
+- `POST /zem/request` — origine, destination, distance et prix ; crée une recherche et l’offre au Zem éligible le plus proche dans 5 km.
+- `POST /zem/location` — conducteur autorisé `zem:drive`; publie disponibilité et position, puis archive la position si une course est active.
+- `GET /zem/offers/current` — offres privées non expirées du conducteur ; fait avancer les offres arrivées à expiration.
+- `POST /zem/offers/:offerId/respond` — `{ "decision": "accept|decline" }` (ou compatibilité `{ "accept": boolean }`), réponse transactionnelle.
+- `GET /zem/history?page=&page_size=` — historique participant paginé avec `unread_messages`.
+- `GET /zem/rides/:rideId` — détail réservé au passager et au Zem ; réévalue une éventuelle expiration.
+- `POST /zem/rides/:rideId/action` — `driver_en_route`, `driver_arrived`, `passenger_ready`, `start`, `driver_completed`, `confirm_complete`, `cancel`, `no_show`, `dispute`; rôle et état contrôlés au serveur.
+- `GET|POST /zem/rides/:rideId/messages` — chat participant paginé, UUID client idempotent, lecture seule hors cycle actif.
+- `PATCH /zem/rides/:rideId/messages/read` — accusé de lecture des messages reçus.
+- `GET /zem/rides/:rideId/positions/latest` — dernière position réservée aux participants.
+- `POST /zem/push-token` — enregistre un jeton Expo natif valide.
+
+## Scans personnels
+
+- `GET /scans/me?page=&page_size=` retourne uniquement les consultations réussies du profil appartenant au citoyen connecté.
+- `/scan/verify` journalise acteur, rôle, organisation, autorité, niveau révélé, date et position facultative.
+
+## Établissements médicaux
+
+- `GET /geo/hopital-proche?lat=&lng=&type=tous|hopital|clinique|dispensaire|cs&q=&urgences=true|false&rayon_km=`.
+- Réponse : identité, coordonnées, distance PostGIS, `eta_seconds` OSRM si disponible, source, identifiant source, date de vérification, services et horaires.
+- `npm run import:facilities` synchronise les objets hospital/clinic/health_centre d’OpenStreetMap pour le Togo par `(source, source_id)` sans inventer de coordonnées.

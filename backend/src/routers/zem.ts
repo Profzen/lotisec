@@ -37,6 +37,22 @@ async function nextOffer(client:any,ride:any,excluded:string[]=[]){
   return offer;
 }
 
+async function advanceExpiredOffer(rideId:string){
+  if(!pool)return;
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const ride=(await client.query<any>('SELECT * FROM rides WHERE id=$1 FOR UPDATE',[rideId])).rows[0];
+    if(!ride||ride.status!=='offered'){await client.query('ROLLBACK');return;}
+    const expired=(await client.query<any>(`UPDATE ride_offers SET status='expired',responded_at=now() WHERE ride_id=$1 AND status='offered' AND expires_at<=now() RETURNING id`,[rideId])).rows;
+    if(!expired.length){await client.query('ROLLBACK');return;}
+    const excluded=(await client.query<{zem_id:string}>('SELECT zem_id FROM ride_offers WHERE ride_id=$1',[rideId])).rows.map((row:any)=>row.zem_id);
+    const offer=await nextOffer(client,{...ride,status:'offered'},excluded);
+    await client.query('COMMIT');
+    if(offer)void notifyUsers([offer.zem_id],'Nouvelle course LOTISEC',`${Number(ride.distance_km).toFixed(1)} km · ${ride.price_fcfa} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:offer.id});
+  }catch(error){await client.query('ROLLBACK');console.error('offer advance failed',error);}finally{client.release();}
+}
+
 router.post('/request',requireAuth,async(req:AuthRequest,res)=>{
   const {originLat,originLng,destLat,destLng,distanceKm,priceFcfa}=req.body;
   if(![originLat,originLng,destLat,destLng,distanceKm,priceFcfa].every(Number.isFinite))return res.status(400).json({detail:'Coordonnées, distance et prix valides requis'});
@@ -68,13 +84,16 @@ router.post('/location',requireAuth,requirePermission('zem:drive'),async(req:Aut
 });
 
 router.get('/offers/current',requireAuth,requirePermission('zem:drive'),async(req:AuthRequest,res)=>{
+  const stale=await query<{ride_id:string}>(`SELECT DISTINCT ride_id FROM ride_offers WHERE zem_id=$1 AND status='offered' AND expires_at<=now()`,[req.userId]);
+  for(const row of stale.rows)await advanceExpiredOffer(row.ride_id);
   const offers=await query<any>(`SELECT ro.*,r.origin_lat,r.origin_lng,r.dest_lat,r.dest_lng,r.distance_km,r.price_fcfa,r.passenger_id
     FROM ride_offers ro JOIN rides r ON r.id=ro.ride_id WHERE ro.zem_id=$1 AND ro.status='offered' AND ro.expires_at>now() ORDER BY ro.offered_at DESC`,[req.userId]);
   return res.json({offers:offers.rows});
 });
 
 router.post('/offers/:offerId/respond',requireAuth,requirePermission('zem:drive'),async(req:AuthRequest,res)=>{
-  const accept=req.body?.decision==='accept'; if(!accept&&req.body?.decision!=='decline')return res.status(400).json({detail:'Décision invalide'});
+  const decision=req.body?.decision||(req.body?.accept===true?'accept':req.body?.accept===false?'decline':'');
+  const accept=decision==='accept'; if(!accept&&decision!=='decline')return res.status(400).json({detail:'Décision invalide'});
   if(!pool)return res.status(503).json({detail:'Base indisponible'}); const client=await pool.connect();
   try{
     await client.query('BEGIN');
@@ -104,18 +123,19 @@ router.post('/offers/:offerId/respond',requireAuth,requirePermission('zem:drive'
 
 router.get('/history',requireAuth,async(req:AuthRequest,res)=>{
   const page=Math.max(1,Number(req.query.page)||1),size=Math.min(50,Math.max(1,Number(req.query.page_size)||20));
-  const rows=await query<any>('SELECT * FROM rides WHERE passenger_id=$1 OR zem_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',[req.userId,size,(page-1)*size]);
+  const rows=await query<any>(`SELECT r.*,(SELECT COUNT(*)::int FROM ride_messages m WHERE m.ride_id=r.id AND m.sender_id<>$1 AND m.read_at IS NULL) unread_messages FROM rides r WHERE passenger_id=$1 OR zem_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,[req.userId,size,(page-1)*size]);
   return res.json({rides:rows.rows,page,page_size:size});
 });
 router.get('/history/:ignored',requireAuth,async(req:AuthRequest,res)=>{
   const rows=await query<any>('SELECT * FROM rides WHERE passenger_id=$1 OR zem_id=$1 ORDER BY created_at DESC LIMIT 100',[req.userId]);return res.json({rides:rows.rows});
 });
-router.get('/rides/:rideId',requireAuth,async(req:AuthRequest,res)=>{const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});return res.json({ride});});
+router.get('/rides/:rideId',requireAuth,async(req:AuthRequest,res)=>{let ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});if(ride.status==='offered'){await advanceExpiredOffer(ride.id);ride=await participant(req.params.rideId,req.userId as string);}return res.json({ride});});
 
 router.post('/rides/:rideId/action',requireAuth,async(req:AuthRequest,res)=>{
   const ride=await participant(req.params.rideId,req.userId as string); if(!ride)return res.status(404).json({detail:'Course introuvable'});
   const driver=ride.zem_id===req.userId,passenger=ride.passenger_id===req.userId,action=String(req.body?.action||'');
-  const rules:any={driver_en_route:[driver,'accepted','driver_en_route','driver_en_route_at'],driver_arrived:[driver,'driver_en_route','driver_arrived','driver_arrived_at'],passenger_ready:[passenger,'driver_arrived','ready_to_start','passenger_ready_at'],start:[driver,'ready_to_start','in_progress','started_at'],driver_completed:[driver,'in_progress','driver_completed','driver_completed_at'],confirm_complete:[passenger,'driver_completed','completed','passenger_completed_at'],cancel:[passenger,ride.status,'canceled','canceled_at'],no_show:[driver,'driver_arrived','no_show','canceled_at'],dispute:[passenger||driver,'driver_completed','disputed',null]};
+  const cancelable=['searching','offered','accepted','driver_en_route','driver_arrived','ready_to_start','in_progress'];
+  const rules:any={driver_en_route:[driver,'accepted','driver_en_route','driver_en_route_at'],driver_arrived:[driver,'driver_en_route','driver_arrived','driver_arrived_at'],passenger_ready:[passenger,'driver_arrived','ready_to_start','passenger_ready_at'],start:[driver,'ready_to_start','in_progress','started_at'],driver_completed:[driver,'in_progress','driver_completed','driver_completed_at'],confirm_complete:[passenger,'driver_completed','completed','passenger_completed_at'],cancel:[(passenger||driver)&&cancelable.includes(ride.status),ride.status,'canceled','canceled_at'],no_show:[driver,'driver_arrived','no_show','canceled_at'],dispute:[passenger||driver,'driver_completed','disputed',null]};
   const rule=rules[action]; if(!rule||!rule[0])return res.status(403).json({detail:'Action interdite'}); if(ride.status!==rule[1])return res.status(409).json({detail:`Action ${action} impossible depuis ${ride.status}`});
   const timestamp=rule[3]?`,${rule[3]}=now()`:''; const completion=rule[2]==='completed'?',completed_at=now()':'';
   const updated=await query<any>(`UPDATE rides SET status=$1,updated_at=now(),version=version+1${timestamp}${completion} WHERE id=$2 AND version=$3 RETURNING *`,[rule[2],ride.id,ride.version]);
@@ -129,7 +149,7 @@ router.get('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
   const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});
   const before=req.query.before?new Date(String(req.query.before)):null;
   const rows=await query<any>(`SELECT id,ride_id,sender_id,body,client_message_id,created_at,read_at FROM ride_messages WHERE ride_id=$1 AND ($2::timestamptz IS NULL OR created_at<$2) ORDER BY created_at DESC LIMIT 50`,[ride.id,before]);
-  return res.json({messages:rows.rows.reverse()});
+  return res.json({messages:rows.rows.reverse(),has_more:rows.rows.length===50,chat_open:CHAT_OPEN.includes(ride.status),ride_status:ride.status});
 });
 router.post('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
   const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});if(!CHAT_OPEN.includes(ride.status))return res.status(409).json({detail:'Conversation en lecture seule'});
@@ -139,6 +159,6 @@ router.post('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
 });
 router.patch('/rides/:rideId/messages/read',requireAuth,async(req:AuthRequest,res)=>{const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});await query('UPDATE ride_messages SET read_at=now() WHERE ride_id=$1 AND sender_id<>$2 AND read_at IS NULL',[ride.id,req.userId]);return res.json({ok:true});});
 router.get('/rides/:rideId/positions/latest',requireAuth,async(req:AuthRequest,res)=>{const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});const row=await query<any>('SELECT * FROM ride_positions WHERE ride_id=$1 ORDER BY created_at DESC LIMIT 1',[ride.id]);return res.json({position:row.rows[0]||null});});
-router.post('/push-token',requireAuth,async(req:AuthRequest,res)=>{const token=String(req.body?.token||'');if(!/^ExponentPushToken|^ExpoPushToken/.test(token))return res.status(400).json({detail:'Jeton Expo invalide'});await query(`INSERT INTO device_push_tokens(user_id,expo_push_token,platform) VALUES($1,$2,$3) ON CONFLICT(expo_push_token) DO UPDATE SET user_id=EXCLUDED.user_id,platform=EXCLUDED.platform,active=true,updated_at=now()`,[req.userId,token,String(req.body?.platform||'unknown')]);return res.json({ok:true});});
+router.post('/push-token',requireAuth,async(req:AuthRequest,res)=>{const token=String(req.body?.token||'');if(!/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/.test(token))return res.status(400).json({detail:'Jeton Expo invalide'});await query(`INSERT INTO device_push_tokens(user_id,expo_push_token,platform) VALUES($1,$2,$3) ON CONFLICT(expo_push_token) DO UPDATE SET user_id=EXCLUDED.user_id,platform=EXCLUDED.platform,active=true,updated_at=now()`,[req.userId,token,String(req.body?.platform||'unknown')]);return res.json({ok:true});});
 
 export default router;

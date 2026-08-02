@@ -40,23 +40,37 @@ router.get('/hotspots', async (_req, res) => {
 router.get('/hopital-proche', async (req, res) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
+  const type = String(req.query.type || 'tous');
+  const search = String(req.query.q || '').trim();
+  const emergencies = String(req.query.urgences || '') === 'true';
+  const maxDistance = Math.min(250, Math.max(1, Number(req.query.rayon_km || 100)));
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ detail: 'lat et lng sont requis' });
   }
 
   const rows = await query<any>(
-    `SELECT id, name, type, address, phone, urgences, latitude, longitude,
+    `SELECT id, name, type, address, phone, urgences, latitude, longitude,source,source_id,last_verified_at,verified,services,opening_hours,emergency_level,
             ROUND(ST_Distance(
               location::geography,
               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
             )::numeric / 1000, 2) AS distance_km
      FROM medical_facilities
+     WHERE active=true
+       AND ($3='tous' OR type=$3)
+       AND ($4='' OR name ILIKE '%'||$4||'%' OR address ILIKE '%'||$4||'%')
+       AND ($5=false OR urgences=true)
+       AND ST_DWithin(location::geography,ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,$6*1000)
      ORDER BY distance_km
      LIMIT 50`,
-    [lng, lat]
+    [lng, lat,type,search,emergencies,maxDistance]
   );
-
+  if(!rows.rows.length)return res.json([]);
+  try{
+    const coordinates=[[lng,lat],...rows.rows.map((row:any)=>[row.longitude,row.latitude])].map(pair=>pair.join(',')).join(';');
+    const response=await fetch(`https://router.project-osrm.org/table/v1/driving/${coordinates}?sources=0&annotations=duration`,{signal:AbortSignal.timeout(4500),headers:{'User-Agent':'LOTISEC/1.0 (medical directory)'}});
+    if(response.ok){const matrix:any=await response.json();rows.rows.forEach((row:any,index:number)=>{const seconds=matrix.durations?.[0]?.[index+1];row.eta_seconds=Number.isFinite(seconds)?Math.round(seconds):null;});}
+  }catch{/* La distance PostGIS reste disponible si OSRM est temporairement indisponible. */}
   return res.json(rows.rows);
 });
 

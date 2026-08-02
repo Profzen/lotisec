@@ -125,7 +125,7 @@ export default function Step2Contacts({ navigation, route }: Props) {
                 </Text>
                 <View style={styles.phoneInputRow}>
                   <View style={styles.countryPrefix}>
-                    <Text style={styles.prefixText}>🇹🇬 +228</Text>
+                    <Text style={styles.prefixText}>TG +228</Text>
                   </View>
                   <TextInput
                     style={styles.flexInput}
@@ -184,7 +184,7 @@ export default function Step2Contacts({ navigation, route }: Props) {
                 <Text style={styles.label}>Téléphone parent/tuteur *</Text>
                 <View style={styles.phoneInputRow}>
                   <View style={styles.countryPrefix}>
-                    <Text style={styles.prefixText}>🇹🇬 +228</Text>
+                    <Text style={styles.prefixText}>TG +228</Text>
                   </View>
                   <TextInput
                     style={styles.flexInput}

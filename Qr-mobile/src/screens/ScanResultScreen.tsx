@@ -73,7 +73,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
         <Ionicons name="medical" size={50} color="#e11d48" />
         <Text style={styles.headerTitle}>Données vitales</Text>
         <View style={styles.authorityBadge}>
-          <Text style={styles.authorityText}>✅ {audit?.authority || 'Professionnel'}</Text>
+          <View style={{flexDirection:'row',alignItems:'center',gap:6}}><Ionicons name="shield-checkmark" size={16} color={colors.success}/><Text style={styles.authorityText}>{audit?.authority || 'Professionnel'}</Text></View>
         </View>
       </View>
 
@@ -153,7 +153,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
       {/* Véhicule */}
       {vehicle?.has_vehicle && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>🚗 VÉHICULE</Text>
+          <View style={{flexDirection:'row',alignItems:'center',gap:7}}><Ionicons name="car-outline" size={18} color={colors.primary}/><Text style={styles.sectionLabel}>VÉHICULE</Text></View>
           {vehicle.type && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Type</Text>

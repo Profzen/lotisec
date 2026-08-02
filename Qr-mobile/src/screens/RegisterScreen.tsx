@@ -92,7 +92,7 @@ export default function RegisterScreen({ navigation }: Props) {
               <Text style={styles.cardDesc}>{item.desc}</Text>
               {selected === item.type && (
                 <View style={styles.checkBadge}>
-                  <Text style={styles.checkText}>✓</Text>
+                  <Ionicons name="checkmark" size={16} color={colors.white} />
                 </View>
               )}
             </TouchableOpacity>

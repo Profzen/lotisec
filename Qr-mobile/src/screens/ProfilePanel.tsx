@@ -7,6 +7,7 @@ import {
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ProfilePanelProps {
   isDark:          boolean;
@@ -301,7 +302,7 @@ export default function ProfilePanel({
           onPress={handleLogout}
           activeOpacity={0.8}
         >
-          <Text style={{ fontSize: 16 }}>🚪</Text>
+          <Ionicons name="log-out-outline" size={20} color={colors.danger} />
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
 

@@ -28,7 +28,7 @@ type Conseil = {
 
 const CONSEILS: Conseil[] = [
   {
-    id: '1', icon: '🚨', titre: 'Accident de la route',
+    id: '1', icon: 'warning-outline', titre: 'Accident de la route',
     categorie: 'Urgence', couleur: '#D21034', couleurBg: '#FEF0F0',
     imageUrl: 'https://images.unsplash.com/photo-1584515933487-779824d29309?w=800&q=80',
     imageCredit: 'Secours routier · Unsplash',
@@ -44,7 +44,7 @@ const CONSEILS: Conseil[] = [
     important: 'Ne donnez jamais à boire à une personne accidentée',
   },
   {
-    id: '2', icon: '❤️', titre: 'Réanimation cardio-pulmonaire (RCP)',
+    id: '2', icon: 'heart-outline', titre: 'Réanimation cardio-pulmonaire (RCP)',
     categorie: 'Premiers secours', couleur: '#D21034', couleurBg: '#FEF0F0',
     imageUrl: 'https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=800&q=80',
     imageCredit: 'Premiers secours · Unsplash',
@@ -60,7 +60,7 @@ const CONSEILS: Conseil[] = [
     important: 'Commencez dès que possible — chaque minute compte !',
   },
   {
-    id: '3', icon: '🩸', titre: 'Arrêter un saignement',
+    id: '3', icon: 'medical-outline', titre: 'Arrêter un saignement',
     categorie: 'Premiers secours', couleur: '#D21034', couleurBg: '#FEF0F0',
     imageUrl: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80',
     imageCredit: 'Soins médicaux · Unsplash',
@@ -75,7 +75,7 @@ const CONSEILS: Conseil[] = [
     ],
   },
   {
-    id: '4', icon: '🏍️', titre: 'Sécurité à moto',
+    id: '4', icon: 'bicycle-outline', titre: 'Sécurité à moto',
     categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
     imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80',
     imageCredit: 'Sécurité moto · Unsplash',
@@ -91,7 +91,7 @@ const CONSEILS: Conseil[] = [
     important: 'Le casque sauve des vies — portez-le à chaque trajet',
   },
   {
-    id: '5', icon: '🚦', titre: 'Respect du code de la route',
+    id: '5', icon: 'trail-sign-outline', titre: 'Respect du code de la route',
     categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
     imageUrl: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80',
     imageCredit: 'Code de la route · Unsplash',
@@ -107,7 +107,7 @@ const CONSEILS: Conseil[] = [
     important: 'Un feu rouge grillé peut coûter une vie',
   },
   {
-    id: '6', icon: '🌧️', titre: 'Conduite par temps de pluie',
+    id: '6', icon: 'rainy-outline', titre: 'Conduite par temps de pluie',
     categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
     imageUrl: 'https://images.unsplash.com/photo-1519692933481-e162a57d6721?w=800&q=80',
     imageCredit: 'Conduite pluie · Unsplash',
@@ -122,7 +122,7 @@ const CONSEILS: Conseil[] = [
     ],
   },
   {
-    id: '7', icon: '🔥', titre: 'Incendie de véhicule',
+    id: '7', icon: 'flame-outline', titre: 'Incendie de véhicule',
     categorie: 'Urgence', couleur: '#FF6B00', couleurBg: '#FFF4EC',
     imageUrl: 'https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=800&q=80',
     imageCredit: 'Incendie · Unsplash',
@@ -138,7 +138,7 @@ const CONSEILS: Conseil[] = [
     important: 'Ne retournez jamais chercher vos affaires dans un véhicule en feu',
   },
   {
-    id: '8', icon: '👶', titre: 'Sécurité des enfants en voiture',
+    id: '8', icon: 'people-outline', titre: 'Sécurité des enfants en voiture',
     categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
     imageUrl: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&q=80',
     imageCredit: 'Sécurité enfants · Unsplash',
@@ -153,7 +153,7 @@ const CONSEILS: Conseil[] = [
     ],
   },
   {
-    id: '9', icon: '😵', titre: 'Victime inconsciente',
+    id: '9', icon: 'body-outline', titre: 'Victime inconsciente',
     categorie: 'Premiers secours', couleur: '#D21034', couleurBg: '#FEF0F0',
     imageUrl: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=800&q=80',
     imageCredit: 'Secours médicaux · Unsplash',
@@ -172,7 +172,7 @@ const CONSEILS: Conseil[] = [
 
 const CATEGORIES = ['Tout', 'Urgence', 'Premiers secours', 'Prévention'];
 const CATEGORIE_ICONS: Record<string, string> = {
-  'Tout': '📋', 'Urgence': '🚨', 'Premiers secours': '🏥', 'Prévention': '🛡️',
+  'Tout': 'list-outline', 'Urgence': 'warning-outline', 'Premiers secours': 'medkit-outline', 'Prévention': 'shield-checkmark-outline',
 };
 
 export default function ConseilsScreen() {
@@ -209,7 +209,7 @@ export default function ConseilsScreen() {
           {/* Header carte */}
           <View style={styles.conseilHeader}>
             <View style={[styles.conseilIconWrap, { backgroundColor: conseil.couleurBg }]}>
-              <Text style={styles.conseilIcon}>{conseil.icon}</Text>
+              <Ionicons name={conseil.icon as any} size={28} color={conseil.couleur} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.conseilTitre}>{conseil.titre}</Text>
@@ -240,7 +240,7 @@ export default function ConseilsScreen() {
               <View style={styles.imageContainer}>
                 {!imagesChargees[conseil.id] && (
                   <View style={[styles.imagePlaceholder, { backgroundColor: conseil.couleurBg }]}>
-                    <Text style={{ fontSize: 40 }}>{conseil.icon}</Text>
+                    <Ionicons name={conseil.icon as any} size={40} color={conseil.couleur} />
                     <Text style={[styles.imagePlaceholderText, { color: conseil.couleur }]}>
                       Chargement...
                     </Text>
@@ -257,7 +257,7 @@ export default function ConseilsScreen() {
                 />
                 <View style={[styles.imageOverlay, { backgroundColor: conseil.couleur + '40' }]} />
                 <View style={styles.imageBadge}>
-                  <Text style={{ fontSize: 14 }}>{conseil.icon}</Text>
+                  <Ionicons name={conseil.icon as any} size={15} color={conseil.couleur} />
                   <Text style={styles.imageBadgeText}>{conseil.titre}</Text>
                 </View>
                 <Text style={styles.imageCredit}>{conseil.imageCredit}</Text>
@@ -283,7 +283,7 @@ export default function ConseilsScreen() {
                   borderColor: conseil.couleur,
                 }]}>
                   <View style={[styles.importantIcon, { backgroundColor: conseil.couleur }]}>
-                    <Text style={{ fontSize: 14, color: '#fff' }}>⚠</Text>
+                    <Ionicons name="warning" size={15} color="#fff" />
                   </View>
                   <Text style={[styles.importantText, { color: conseil.couleur }]}>
                     {conseil.important}
@@ -335,9 +335,9 @@ export default function ConseilsScreen() {
         </Text>
         <View style={styles.urgenceRow}>
           {[
-            { label: 'Pompiers', num: '118', icon: '🚒', bg: '#D21034' },
-            { label: 'SAMU',    num: '15',  icon: '🚑', bg: '#1565C0' },
-            { label: 'Police',  num: '117', icon: '🚔', bg: '#4A4A4A' },
+            { label: 'Pompiers', num: '118', icon: 'flame-outline', bg: '#D21034' },
+            { label: 'SAMU',    num: '15',  icon: 'medkit-outline', bg: '#1565C0' },
+            { label: 'Police',  num: '117', icon: 'shield-outline', bg: '#4A4A4A' },
           ].map(item => (
             <TouchableOpacity
               key={item.num}
@@ -345,7 +345,7 @@ export default function ConseilsScreen() {
               onPress={() => Linking.openURL(`tel:${item.num}`)}
               activeOpacity={0.82}
             >
-              <Text style={{ fontSize: 20, marginBottom: 2 }}>{item.icon}</Text>
+              <Ionicons name={item.icon as any} size={21} color="#fff" style={{marginBottom:2}} />
               <Text style={styles.urgenceNum}>{item.num}</Text>
               <Text style={styles.urgenceLabel}>{item.label}</Text>
             </TouchableOpacity>
@@ -408,7 +408,7 @@ export default function ConseilsScreen() {
                 onPress={() => setCategorieActive(cat)}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 14 }}>{CATEGORIE_ICONS[cat]}</Text>
+                <Ionicons name={CATEGORIE_ICONS[cat] as any} size={15} color={categorieActive === cat ? '#fff' : colors.textSecondary} />
                 <Text style={[styles.filtreText, actif && styles.filtreTextActive]}>
                   {cat}
                 </Text>

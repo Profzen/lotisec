@@ -10,6 +10,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { colors } from '../../theme/colors';
 import { fontSizes, fonts } from '../../theme/typography';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { createProfil } from '../../api/profil';
 
 type Props = {
@@ -158,7 +159,7 @@ export default function Step5Review({ navigation, route }: Props) {
           activeOpacity={0.8}
         >
           <View style={[styles.checkbox, confirmed && styles.checkboxChecked]}>
-            {confirmed && <Text style={styles.checkmark}>✓</Text>}
+            {confirmed && <Ionicons name="checkmark" size={17} color={colors.white} />}
           </View>
           <Text style={styles.checkLabel}>
             Je confirme que toutes mes informations sont correctes.

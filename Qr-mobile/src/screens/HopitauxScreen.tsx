@@ -25,6 +25,10 @@ interface Hopital {
   latitude:  number;
   longitude: number;
   urgences:  boolean;
+  source: string;
+  source_id?: string;
+  last_verified_at?: string;
+  eta_seconds?: number | null;
 }
 
 type TypeEtablissement = 'hopital' | 'clinique' | 'dispensaire' | 'cs';
@@ -32,19 +36,19 @@ type TypeEtablissement = 'hopital' | 'clinique' | 'dispensaire' | 'cs';
 const TYPE_CONFIG: Record<TypeEtablissement, {
   label: string; icon: string; color: string; bg: string;
 }> = {
-  hopital:     { label: 'Hôpital',         icon: '🏥', color: '#1565C0', bg: '#E3F2FD' },
-  clinique:    { label: 'Clinique',         icon: '🏪', color: '#2E7D32', bg: '#E8F5E9' },
-  dispensaire: { label: 'Dispensaire',      icon: '💊', color: '#6A1B9A', bg: '#F3E5F5' },
-  cs:          { label: 'Centre de santé',  icon: '➕', color: '#E65100', bg: '#FBE9E7' },
+  hopital:     { label: 'Hôpital',         icon: 'business-outline', color: '#1565C0', bg: '#E3F2FD' },
+  clinique:    { label: 'Clinique',         icon: 'medkit-outline', color: '#2E7D32', bg: '#E8F5E9' },
+  dispensaire: { label: 'Dispensaire',      icon: 'medical-outline', color: '#6A1B9A', bg: '#F3E5F5' },
+  cs:          { label: 'Centre de santé',  icon: 'fitness-outline', color: '#E65100', bg: '#FBE9E7' },
 };
 
 const FILTRES = [
-  { key: 'tous',        label: 'Tous',             icon: '📋' },
-  { key: 'hopital',     label: 'Hôpitaux',         icon: '🏥' },
-  { key: 'clinique',    label: 'Cliniques',         icon: '🏪' },
-  { key: 'dispensaire', label: 'Dispensaires',      icon: '💊' },
-  { key: 'cs',          label: 'Centres de santé',  icon: '➕' },
-  { key: 'urgences',    label: 'Urgences 24h',      icon: '🚨' },
+  { key: 'tous',        label: 'Tous',             icon: 'list-outline' },
+  { key: 'hopital',     label: 'Hôpitaux',         icon: 'business-outline' },
+  { key: 'clinique',    label: 'Cliniques',         icon: 'medkit-outline' },
+  { key: 'dispensaire', label: 'Dispensaires',      icon: 'medical-outline' },
+  { key: 'cs',          label: 'Centres de santé',  icon: 'fitness-outline' },
+  { key: 'urgences',    label: 'Urgences 24h',      icon: 'warning-outline' },
 ];
 
 const estimerMinutes = (km: number): number =>
@@ -87,7 +91,7 @@ export default function HospitauxScreen({ navigation }: any) {
       const liste: Hopital[] = data.map((h: any) => ({
         ...h,
         distance: Number(h.distance_km),
-        minutes: estimerMinutes(Number(h.distance_km))
+        minutes: h.eta_seconds != null && Number.isFinite(Number(h.eta_seconds)) ? Math.max(1,Math.round(Number(h.eta_seconds)/60)) : estimerMinutes(Number(h.distance_km))
       }));
       setHopitaux(liste);
     } catch (err) {
@@ -156,7 +160,7 @@ export default function HospitauxScreen({ navigation }: any) {
         {/* Header */}
         <View style={styles.cardHeader}>
           <View style={[styles.typeIcon, { backgroundColor: config.bg }]}>
-            <Text style={{ fontSize: 22 }}>{config.icon}</Text>
+            <Ionicons name={config.icon as any} size={23} color={config.color} />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <View style={styles.cardTitleRow}>
@@ -181,11 +185,12 @@ export default function HospitauxScreen({ navigation }: any) {
 
         {/* Adresse */}
         <View style={styles.addressRow}>
-          <Text style={styles.addressIcon}>📍</Text>
+          <Ionicons name="location-outline" size={15} color={colors.textSecondary} />
           <Text style={styles.address} numberOfLines={1}>
             {item.address}
           </Text>
         </View>
+        <Text style={styles.sourceText}>Source : {item.source || 'non renseignée'}{item.last_verified_at ? ` · mise à jour ${new Date(item.last_verified_at).toLocaleDateString()}` : ''}</Text>
 
         {/* Distance + temps */}
         <View style={styles.distanceRow}>
@@ -226,7 +231,7 @@ export default function HospitauxScreen({ navigation }: any) {
             onPress={() => ouvrirItineraire(item)}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 14 }}>🗺️</Text>
+            <Ionicons name="navigate-outline" size={16} color={colors.white} />
             <Text style={styles.actionMapsText}>Itinéraire</Text>
           </TouchableOpacity>
         </View>
@@ -279,7 +284,7 @@ export default function HospitauxScreen({ navigation }: any) {
         <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
         {renderHeader()}
         <View style={styles.centerState}>
-          <Text style={{ fontSize: 48 }}>📍</Text>
+          <Ionicons name="location-outline" size={48} color={colors.textLight} />
           <Text style={styles.centerText}>{erreur}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={chargerPosition}>
             <Text style={styles.retryText}>Réessayer</Text>
@@ -314,7 +319,7 @@ export default function HospitauxScreen({ navigation }: any) {
                 onPress={() => setFiltreActif(f.key)}
                 activeOpacity={0.75}
               >
-                <Text style={styles.filtreIcon}>{f.icon}</Text>
+                <Ionicons name={f.icon as any} size={17} color={filtreActif === f.key ? colors.white : colors.textSecondary} />
                 <Text style={[styles.filtreText, actif && styles.filtreTextActif]}>
                   {f.label}
                 </Text>
@@ -348,7 +353,7 @@ export default function HospitauxScreen({ navigation }: any) {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48 }}>🏥</Text>
+            <Ionicons name="business-outline" size={48} color={colors.textLight} />
             <Text style={styles.emptyTitle}>Aucun résultat</Text>
             <Text style={styles.emptySub}>
               Essayez un autre filtre ou terme de recherche
@@ -547,6 +552,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flex: 1,
   },
+  sourceText:{fontSize:10,color:colors.textLight,marginBottom:9},
 
   // Distance
   distanceRow: {

@@ -49,11 +49,11 @@ const CONTACTS = [
     service: 'fire' as const,
     avatarBg: '#fab41cc5',
     avatarColor: '#FF6B6B',
-    initial: '🚒',
+    initial: 'fire-extinguisher',
   },
   {
     id: 'ambulance', name: 'Service ambulancier', phone: '8200', isPompiers: false,
-    service: 'ambulance' as const, avatarBg: '#EAF2FF', avatarColor: '#1565D8', initial: '🚑',
+    service: 'ambulance' as const, avatarBg: '#EAF2FF', avatarColor: '#1565D8', initial: 'ambulance',
   },
   {
     id: '1',
@@ -63,7 +63,7 @@ const CONTACTS = [
     service: null,
     avatarBg: '#fa1c1cc5',
     avatarColor: colors.primary,
-    initial: '👨🏽‍🦱',
+    initial: 'user',
   },
   {
     id: '2',
@@ -73,7 +73,7 @@ const CONTACTS = [
     service: null,
     avatarBg: '#fab41cc5',
     avatarColor: colors.primary,
-    initial: '👨🏽‍🦱',
+    initial: 'user',
   },
 ];
 
@@ -177,7 +177,7 @@ export default function HomeScreen({ navigation }: Props) {
         client_event_id: `mobile-${currentUser?.id || 'unknown'}-${Date.now()}`
       }, token || undefined);
       const mapsUrl = `https://www.google.com/maps?q=${location.coords.latitude},${location.coords.longitude}`;
-      const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\n` +
+      const message = `*URGENCE SOS - LOTISEC*\n\n` +
                       `Bonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n` +
                       `📍 Voici ma position actuelle : ${mapsUrl}`;
 
@@ -221,7 +221,7 @@ export default function HomeScreen({ navigation }: Props) {
         { text: 'Annuler', style: 'destructive', onPress: () => { setSosActif(false); setAlerteEnvoyee(false); }},
       ]);
     } else {
-      Alert.alert('🚨 SOS IMMÉDIAT', 'Votre position sera envoyée au centre LOTISEC. WhatsApp restera une action complémentaire.', [
+      Alert.alert('SOS IMMÉDIAT', 'Votre position sera envoyée au centre LOTISEC. WhatsApp restera une action complémentaire.', [
         { text: 'Annuler', style: 'cancel' },
         { text: 'CONFIRMER', style: 'destructive', onPress: envoyerSOS },
       ]);
@@ -293,7 +293,7 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: colors.danger, borderWidth: 1 }]}>
              <Text style={[styles.cardTitle, { color: colors.danger }]}>ACTIONS RECOMMANDÉES</Text>
              <TouchableOpacity style={styles.alertRow} onPress={() => Linking.openURL('https://www.google.com/maps/search/hopital')}>
-                <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>🏥</Text></View>
+                <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="hospital-o" size={19} color={colors.white}/></View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.alertTitle, { color: colors.primary }]}>Hôpital le plus proche</Text>
                   <Text style={[styles.alertSub, { color: th.text3 }]}>Afficher l'itinéraire GPS</Text>
@@ -307,7 +307,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={[styles.cardTitle, { color: th.text2 }]}>CENTRE DE SÉCURITÉ</Text>
           
           <TouchableOpacity style={[styles.alertRow, { backgroundColor: colors.primaryLight }]} onPress={() => navigation.navigate('Assistant' as any)}>
-            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>💬</Text></View>
+            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="comments-o" size={19} color={colors.white}/></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: colors.primary }]}>Assistant IA 118</Text>
               <Text style={[styles.alertSub, { color: colors.primary, opacity: 0.7 }]}>Questions sur le code de la route</Text>
@@ -316,7 +316,7 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.alertRow} onPress={handleSOS}>
-            <View style={[styles.alertIcon, { backgroundColor: colors.danger }]}><Text>🚨</Text></View>
+            <View style={[styles.alertIcon, { backgroundColor: colors.danger }]}><FontAwesome name="exclamation-triangle" size={18} color={colors.white}/></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: isDark ? '#FF6B6B' : colors.danger }]}>Alerter mes contacts</Text>
               <Text style={[styles.alertSub, { color: isDark ? '#FF6B6B' : colors.danger, opacity: 0.6 }]}>WhatsApp + Position GPS</Text>
@@ -328,7 +328,7 @@ export default function HomeScreen({ navigation }: Props) {
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: th.text2 }]}>DÉPLACEMENT & ZEM</Text>
           <TouchableOpacity style={styles.alertRow} onPress={() => navigation.navigate('ZemPassenger' as any)}>
-            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><Text>🛵</Text></View>
+            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="motorcycle" size={19} color={colors.white}/></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: th.text }]}>Commander un Zem</Text>
               <Text style={[styles.alertSub, { color: th.text3 }]}>Trouvez un conducteur à proximité</Text>
@@ -338,7 +338,7 @@ export default function HomeScreen({ navigation }: Props) {
 
           {profile?.is_zem && (
             <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)' }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
-              <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><Text>🛣️</Text></View>
+              <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><FontAwesome name="road" size={19} color={colors.white}/></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: colors.success }]}>Mode Conducteur</Text>
                 <Text style={[styles.alertSub, { color: colors.success, opacity: 0.7 }]}>Recevoir des courses</Text>
@@ -353,7 +353,7 @@ export default function HomeScreen({ navigation }: Props) {
           {CONTACTS.map((c, i) => (
             <View key={c.id} style={[styles.contactRow, { borderBottomColor: th.divider }, i === CONTACTS.length - 1 && { borderBottomWidth: 0 }]}>
               <View style={[styles.avatar, { backgroundColor: isDark && !c.isPompiers ? th.avatarBg : c.avatarBg }]}>
-                <Text style={[styles.avatarText, { color: isDark && !c.isPompiers ? th.avatarColor : c.avatarColor }]}>{c.initial}</Text>
+                <FontAwesome name={c.initial as any} size={17} color={isDark && !c.isPompiers ? th.avatarColor : c.avatarColor}/>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.contactName, { color: th.text }]}>{c.name}</Text>
@@ -500,6 +500,6 @@ const styles = StyleSheet.create({
   modalContent: { width: '85%', borderRadius: 25, padding: 25, alignItems: 'center' },
   modalTitle: { fontSize: 18, fontFamily: fonts.bold, marginBottom: 20 },
   qrContainer: { padding: 15, backgroundColor: '#fff', borderRadius: 20 },
-  pdfBtn: { backgroundColor: colors.primary, width: '100%', padding: 16, borderRadius: 15, marginTop: 25, alignItems: 'center' },
+  pdfBtn: { backgroundColor: colors.primary, width: '100%', padding: 16, borderRadius: 15, marginTop: 25, alignItems: 'center', justifyContent:'center', flexDirection:'row', gap:8 },
   pdfBtnText: { color: '#fff', fontWeight: 'bold' },
 });

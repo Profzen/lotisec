@@ -45,6 +45,7 @@
       "favicon": "./assets/logo-118.png"
     },
     "plugins": [
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
