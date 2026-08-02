@@ -13,6 +13,8 @@ import speech_recognition as sr
 from gtts import gTTS
 import tempfile
 import hashlib
+import re
+import unicodedata
 import pdfplumber
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -169,6 +171,19 @@ def search_relevant_chunks(query: str, chunks: List[str], index: faiss.IndexFlat
     relevant = [chunks[idx] for idx in indices[0] if idx != -1]
     return relevant
 
+def search_lexical_chunks(question: str, chunks: List[str], top_k: int = 3) -> List[str]:
+    stop_words = {"avec", "dans", "dois", "faire", "pour", "quel", "quelle", "route", "sont", "suis", "tout", "tous", "une", "vous"}
+    normalized_question = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode()
+    terms = {term for term in re.findall(r"[a-z0-9]+", normalized_question) if len(term) >= 4 and term not in stop_words}
+    ranked = []
+    for position, chunk in enumerate(chunks):
+        normalized_chunk = unicodedata.normalize("NFKD", chunk.lower()).encode("ascii", "ignore").decode()
+        score = sum(normalized_chunk.count(term) for term in terms)
+        if score:
+            ranked.append((score, -position, chunk))
+    ranked.sort(reverse=True)
+    return [item[2] for item in ranked[:top_k]]
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -191,7 +206,9 @@ def build_extract_response(context_doc: Optional[str]) -> str:
 def chat_endpoint(req: ChatRequest):
     context_doc = None
     if pdf_index is not None and pdf_chunks and embedding_model:
-        relevant_chunks = search_relevant_chunks(req.question, pdf_chunks, pdf_index, embedding_model, top_k=3)
+        relevant_chunks = search_lexical_chunks(req.question, pdf_chunks, top_k=3)
+        if not relevant_chunks:
+            relevant_chunks = search_relevant_chunks(req.question, pdf_chunks, pdf_index, embedding_model, top_k=3)
         if relevant_chunks:
             context_doc = "\n\n---\n".join(relevant_chunks)
             
