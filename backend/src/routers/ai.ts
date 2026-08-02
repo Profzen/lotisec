@@ -5,6 +5,7 @@ import { aiModels, answerQuestion, synthesizeSpeech, transcribeAudio } from '../
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+const nodeAiEnabled = process.env.ENABLE_NODE_AI === 'true';
 
 async function logRequest(operation: 'chat' | 'transcribe' | 'tts', started: number, success: boolean, ragChunks = 0, error?: string, channel = 'unknown') {
   try {
@@ -24,7 +25,12 @@ router.get('/health', async (_req, res) => {
     const result = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM ai_document_chunks');
     chunks = Number(result.rows[0]?.count || 0);
   } catch {}
-  res.json({ ok: true, provider_configured: Boolean(process.env.DEEPINFRA_API_KEY), rag_ready: chunks > 0, chunks, models: aiModels });
+  res.json({ ok: true, enabled: nodeAiEnabled, provider_configured: Boolean(process.env.DEEPINFRA_API_KEY), rag_ready: chunks > 0, chunks, models: aiModels });
+});
+
+router.use((_req, res, next) => {
+  if (nodeAiEnabled) return next();
+  return res.status(503).json({ detail: 'Assistant Node en veille; fournisseur Railway temporairement actif' });
 });
 
 router.post('/chat', async (req, res) => {

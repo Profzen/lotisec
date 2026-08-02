@@ -420,6 +420,7 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 ### 2026-08-02 — Mode IA temporaire Railway
 
 - L’implémentation Node/Supabase sous `/ai/*` reste conservée en veille : schéma, routes, scripts et journalisation ne sont pas supprimés.
+- Elle est désactivée par défaut; sa réactivation exige `ENABLE_NODE_AI=true` dans le backend Vercel.
 - Faute de crédit disponible sur le nouveau compte DeepInfra, le web et le mobile utilisent temporairement le microservice Python Railway historique.
 - URL configurable côté web avec `VITE_AI_API_URL` et côté Expo avec `EXPO_PUBLIC_AI_API_URL`; valeur temporaire : `https://agile-trust-production-c862.up.railway.app`.
 - Le chargeur Python recherche maintenant `default_code.pdf` dans le dossier courant, à la racine parente du monorepo ou via `RAG_PDF_PATH`, afin de fonctionner avec Railway Root Directory `/ai_service`.
