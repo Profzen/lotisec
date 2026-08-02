@@ -25,7 +25,8 @@ const corsFallback = process.env.NODE_ENV === 'production'
   : '*';
 const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || corsFallback).split(',').map((value) => value.trim());
 app.use(cors({ origin: (origin, callback) => {
-  if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
+  const isLocalDevelopment = Boolean(origin && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
+  if (!origin || isLocalDevelopment || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
   return callback(new Error('Origin not allowed by CORS'));
 }, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
