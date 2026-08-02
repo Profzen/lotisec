@@ -10,6 +10,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { colors } from '../../theme/colors';
 import { fontSizes, fonts } from '../../theme/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Step3'>;
@@ -109,7 +110,7 @@ export default function Step3Medical({ navigation, route }: Props) {
             {/* Note confidentialité */}
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                🔒 Ces informations sont accessibles uniquement aux professionnels de santé autorisés avec un code institutionnel.
+                <Ionicons name="lock-closed-outline" size={15} color={colors.primary}/> Ces informations sont accessibles uniquement aux professionnels de santé autorisés avec un code institutionnel.
               </Text>
             </View>
 

@@ -14,7 +14,9 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS cancellation_reason text;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_code text;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
 
-UPDATE rides SET status='offered' WHERE status='requested';
+-- Les demandes de l'ancien prototype n'ont ni offre ni délai fiable : on les clôture
+-- explicitement au lieu de fabriquer une offre orpheline.
+UPDATE rides SET status='expired', updated_at=now() WHERE status='requested';
 
 CREATE TABLE IF NOT EXISTS ride_offers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

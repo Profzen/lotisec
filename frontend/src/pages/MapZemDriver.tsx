@@ -37,6 +37,8 @@ export function MapZemDriver() {
   const [activeRide, setActiveRide] = useState<any>(null);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentOffer,setCurrentOffer]=useState<any>(null);
+  const loadOffer=async()=>{try{const {data}=await api.get('/zem/offers/current');setCurrentOffer(data.offers?.[0]||null);}catch{/* reprise au prochain passage */}};
 
   // Mettre à jour la localisation côté API
   const updateZemLocation = async (lat: number, lng: number, online: boolean) => {
@@ -89,17 +91,15 @@ export function MapZemDriver() {
     };
   }, [isOnline, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Écoute des courses via Supabase
+  useEffect(()=>{loadOffer();const timer=window.setInterval(loadOffer,7000);return()=>window.clearInterval(timer);},[]);
+
+  // Écoute privée des offres via Supabase
   useEffect(() => {
     if (!supabase || !user) return;
 
     const channel = supabase
-      .channel('public:rides:driver')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: `zem_id=eq.${user.id}` }, payload => {
-        if (payload.new.status === 'requested') {
-          handleNewRideRequest(payload.new);
-        }
-      })
+      .channel('private:ride-offers:driver')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ride_offers', filter: `zem_id=eq.${user.id}` }, loadOffer)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `zem_id=eq.${user.id}` }, payload => {
         if (payload.new.status === 'canceled' && activeRide?.id === payload.new.id) {
           toast("La course a été annulée par le client.", { icon: 'ℹ️' });
@@ -112,19 +112,12 @@ export function MapZemDriver() {
     return () => { supabase!.removeChannel(channel); };
   }, [user, activeRide]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleNewRideRequest = (ride: any) => {
-    if (window.confirm(`🚀 Nouvelle course !\nDistance: ${ride.distance_km} km\nGains: ${ride.price_fcfa} FCFA\nAccepter la course ?`)) {
-      acceptRide(ride);
-    } else {
-      declineRide(ride.id);
-    }
-  };
-
-  const acceptRide = async (ride: any) => {
+  const acceptRide = async (offer: any) => {
     try {
-      const { data: response } = await api.patch(`/zem/rides/${ride.id}/status`, { status: 'accepted' });
+      const { data: response } = await api.post(`/zem/offers/${offer.id}/respond`, { decision: 'accept' });
       const data = response.ride;
       setActiveRide(data);
+      setCurrentOffer(null);
       
       setIsOnline(false);
       if (location) updateZemLocation(location.lat, location.lng, false);
@@ -140,27 +133,17 @@ export function MapZemDriver() {
     }
   };
 
-  const declineRide = async (rideId: string) => {
+  const declineRide = async (offerId: string) => {
     try {
-      await api.patch(`/zem/rides/${rideId}/status`, { status: 'declined' });
+      await api.post(`/zem/offers/${offerId}/respond`, { decision: 'decline' });
+      setCurrentOffer(null);await loadOffer();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const completeRide = async () => {
-    if (!activeRide) return;
-    try {
-      await api.patch(`/zem/rides/${activeRide.id}/status`, { status: 'completed' });
-      toast.success(`Course terminée. Vous avez gagné ${activeRide.price_fcfa} FCFA.`);
-      setActiveRide(null);
-      setRouteData(null);
-      setIsOnline(true);
-      if (location) updateZemLocation(location.lat, location.lng, true);
-    } catch (err) {
-      toast.error("Impossible de clôturer la course.");
-    }
-  };
+  const nextAction:Record<string,{label:string,action:string}>={accepted:{label:"Commencer l'approche",action:'driver_en_route'},driver_en_route:{label:'Je suis arrivé',action:'driver_arrived'},ready_to_start:{label:'Démarrer le trajet',action:'start'},in_progress:{label:'Arrivé à destination',action:'driver_completed'}};
+  const advance=async()=>{const next=nextAction[activeRide?.status];if(!next)return;try{const {data}=await api.post(`/zem/rides/${activeRide.id}/action`,{action:next.action});setActiveRide(data.ride);}catch{toast.error('Cette action n’est pas disponible.');}};
 
   const toggleOnline = () => {
     const newStatus = !isOnline;
@@ -235,7 +218,7 @@ export function MapZemDriver() {
 
       {/* Panneau inférieur */}
       <div className="bottom-sheet">
-        {!activeRide ? (
+        {currentOffer ? <div><h3>Nouvelle proposition</h3><p>{currentOffer.distance_km} km · {currentOffer.price_fcfa} FCFA</p><div style={{display:'flex',gap:'0.75rem'}}><button className="btn" style={{background:'var(--color-danger)',color:'white'}} onClick={()=>declineRide(currentOffer.id)}>Refuser</button><button className="btn" style={{background:'var(--color-success)',color:'white'}} onClick={()=>acceptRide(currentOffer)}>Accepter</button></div></div> : !activeRide ? (
           <>
             <div style={{ textAlign: 'center', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: isOnline ? 'var(--color-success)' : 'var(--color-danger)' }} />
@@ -244,7 +227,7 @@ export function MapZemDriver() {
             
             {/* Warning that web geolocation is fragile */}
             <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textAlign: 'center', marginBottom: '1rem' }}>
-              ⚠️ Sur le web, gardez cette page ouverte pour que votre position soit envoyée aux passagers.
+              Sur le web, gardez cette page ouverte pour que votre position soit envoyée aux passagers.
             </div>
 
             <button 
@@ -261,9 +244,7 @@ export function MapZemDriver() {
             <p className="mb-4 text-success" style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
               Gain estimé : {activeRide.price_fcfa} FCFA
             </p>
-            <button className="btn primary" onClick={completeRide}>
-              Terminer la course
-            </button>
+            {nextAction[activeRide.status]?<button className="btn primary" onClick={advance}>{nextAction[activeRide.status].label}</button>:<p>En attente de l’action du passager.</p>}
           </div>
         )}
       </div>

@@ -11,6 +11,7 @@ import { QrCode } from './pages/QrCode';
 import { ScanResult } from './pages/ScanResult';
 import { Rides } from './pages/Rides';
 import { Assistant } from './pages/Assistant';
+import {RideDetail} from './pages/RideDetail';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,7 @@ export default function App() {
       
       {/* Mode Conducteur Zem */}
       <Route path="/driver" element={<Protected><MapZemDriver /></Protected>} />
+      <Route path="/trajets/:rideId" element={<Protected><RideDetail /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

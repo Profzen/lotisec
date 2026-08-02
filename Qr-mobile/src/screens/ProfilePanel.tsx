@@ -88,14 +88,14 @@ export default function ProfilePanel({
   // ── Menu items ─────────────────────────────────────────────
   const menuItems = [
     {
-      icon: '👤',
+      icon: 'person-outline',
       iconBg: isDark ? '#1B3A2D' : '#E8F5E9',
       label: 'Mon profil',
       sub:   'Modifier mes informations',
       onPress: () => onClose(), // TODO : naviguer vers l'écran profil
     },
     {
-      icon: '🔑',
+      icon: 'key-outline',
       iconBg: isDark ? '#2A1F3D' : '#F3E5F5',
       label: 'Changer le mot de passe',
       sub:   'Sécurité du compte',
@@ -103,7 +103,7 @@ export default function ProfilePanel({
       isExpanded: activeSection === 'password',
     },
     {
-      icon: '🔔',
+      icon: 'notifications-outline',
       iconBg: isDark ? '#1A1F3D' : '#E8EAF6',
       label: 'Notifications',
       sub:   'SMS, WhatsApp, alertes',
@@ -111,14 +111,14 @@ export default function ProfilePanel({
       isExpanded: activeSection === 'notifications',
     },
     {
-      icon: '🌍',
+      icon: 'language-outline',
       iconBg: isDark ? '#2C2A00' : '#FFFDE7',
       label: 'Langue',
       sub:   'Français',
       onPress: () => {},
     },
     {
-      icon: '🔒',
+      icon: 'shield-checkmark-outline',
       iconBg: isDark ? '#3A1A1A' : '#FBE8EC',
       label: 'Codes professionnels',
       sub:   'Gérer les accès institutionnels',
@@ -153,7 +153,7 @@ export default function ProfilePanel({
         {/* Infos utilisateur */}
         <View style={styles.userRow}>
           <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>👨🏾‍🦱</Text>
+            <Ionicons name="person" size={25} color={colors.primaryDark}/>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.userName}>BOTRE-LARE Abdou</Text>
@@ -186,7 +186,7 @@ export default function ProfilePanel({
                 activeOpacity={0.7}
               >
                 <View style={[styles.menuIcon, { backgroundColor: item.iconBg }]}>
-                  <Text style={{ fontSize: 15 }}>{item.icon}</Text>
+                  <Ionicons name={item.icon as any} size={18} color={colors.primary}/>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuLabel, { color: th.text }]}>{item.label}</Text>
@@ -279,7 +279,7 @@ export default function ProfilePanel({
         <View style={[styles.section, { backgroundColor: th.card, borderColor: th.border }]}>
           <View style={[styles.menuRow, { borderBottomWidth: 0 }]}>
             <View style={[styles.menuIcon, { backgroundColor: isDark ? '#1A1A1A' : '#212121' }]}>
-              <Text style={{ fontSize: 15 }}>🌙</Text>
+              <Ionicons name="moon-outline" size={18} color={colors.primary}/>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.menuLabel, { color: th.text }]}>Thème sombre</Text>

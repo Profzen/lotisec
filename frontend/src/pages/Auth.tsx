@@ -2,6 +2,7 @@ import React, { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Shield, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { configureRealtime } from '../api/session';
 
 export function Landing() {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export function Login() {
       const { data } = await api.post('/auth/login', { phone, password });
       localStorage.setItem('lotisec_token', data.token);
       localStorage.setItem('lotisec_user', JSON.stringify(data.user));
+      await configureRealtime();
       navigate('/home');
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Échec de connexion. Vérifiez vos identifiants.');
@@ -109,6 +111,7 @@ export function Register() {
       });
       localStorage.setItem('lotisec_token', data.token);
       localStorage.setItem('lotisec_user', JSON.stringify(data.user));
+      await configureRealtime();
       navigate('/home');
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Échec d\'inscription. Numéro déjà utilisé ?');

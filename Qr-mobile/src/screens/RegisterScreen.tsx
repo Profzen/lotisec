@@ -19,13 +19,13 @@ type Props = {
 const profileTypes = [
   {
     type: 'adult' as ProfileType,
-    icon: '👤',
+    icon: 'person-outline',
     title: 'Adulte',
     desc: 'Conducteur, piéton, tout usager majeur',
   },
   {
     type: 'student' as ProfileType,
-    icon: '🎒',
+    icon: 'school-outline',
     title: 'Élève',
     desc: 'Enfant scolarisé, mineur',
   },
@@ -85,7 +85,7 @@ export default function RegisterScreen({ navigation }: Props) {
               onPress={() => setSelected(item.type)}
               activeOpacity={0.85}
             >
-              <Text style={styles.cardIcon}>{item.icon}</Text>
+              <Ionicons name={item.icon as any} size={30} color={selected === item.type ? colors.white : colors.primary}/>
               <Text style={[styles.cardTitle, selected === item.type && styles.cardTitleSelected]}>
                 {item.title}
               </Text>

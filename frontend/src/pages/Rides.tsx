@@ -5,8 +5,10 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import { Car, Navigation, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {useNavigate} from 'react-router-dom';
 
 export function Rides() {
+  const navigate=useNavigate();
   const user = useMemo(() => {
     const raw = localStorage.getItem('lotisec_user');
     return raw ? JSON.parse(raw) : null;
@@ -21,13 +23,13 @@ export function Rides() {
     if (!user) return;
     try {
       setLoading(true);
-      const res = await api.get(`/zem/history/${user.id}`);
+      const res = await api.get('/zem/history?page=1&page_size=50');
       if (res.data.rides) {
         setRides(res.data.rides);
-        const currentActive = res.data.rides.find((r: any) => ['requested', 'accepted', 'in_progress'].includes(r.status));
+        const currentActive = res.data.rides.find((r: any) => ['searching','offered','accepted','driver_en_route','driver_arrived','ready_to_start','in_progress','driver_completed'].includes(r.status));
         setActiveRide(currentActive || null);
         if (currentActive) {
-          fetchZemLocation(currentActive.zem_id);
+          fetchZemLocation(currentActive.id);
         }
       }
     } catch (err) {
@@ -37,12 +39,8 @@ export function Rides() {
     }
   };
 
-  const fetchZemLocation = async (zemId: string) => {
-    if (!supabase) return;
-    const { data } = await supabase.from('zem_locations').select('*').eq('zem_id', zemId).single();
-    if (data) {
-      setZemLocation({ lat: data.latitude, lng: data.longitude });
-    }
+  const fetchZemLocation = async (rideId: string) => {
+    try{const {data}=await api.get(`/zem/rides/${rideId}/positions/latest`);if(data.position)setZemLocation({lat:data.position.latitude,lng:data.position.longitude});}catch{/* Realtime ou prochain rafraîchissement. */}
   };
 
   useEffect(() => {
@@ -59,7 +57,7 @@ export function Rides() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRide.id}` }, payload => {
         setActiveRide(payload.new);
         setRides(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
-        if (['completed', 'canceled', 'declined'].includes(payload.new.status)) {
+        if (['completed', 'canceled', 'expired','no_show','disputed'].includes(payload.new.status)) {
           if (payload.new.status === 'completed') toast.success("Votre course est terminée !");
           setActiveRide(null);
           setZemLocation(null);
@@ -102,7 +100,7 @@ export function Rides() {
         {activeRide && (
           <div className="lotisec-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: '2rem', border: '2px solid var(--color-primary)' }}>
             <div style={{ padding: '1rem', backgroundColor: 'var(--color-primary)', color: 'white' }}>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Course en cours</div>
               <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>{activeRide.price_fcfa} FCFA • {activeRide.distance_km} km</div>
             </div>
 
@@ -121,9 +119,10 @@ export function Rides() {
             </div>
 
             <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--color-primary)', fontWeight: 'bold' }}>
-              {activeRide.status === 'requested' && "Recherche d'un conducteur..."}
-              {activeRide.status === 'accepted' && "Le conducteur est en route vers vous !"}
+              {['searching','offered'].includes(activeRide.status) && "Recherche d'un conducteur..."}
+              {['accepted','driver_en_route','driver_arrived','ready_to_start'].includes(activeRide.status) && "Le conducteur arrive vers vous."}
               {activeRide.status === 'in_progress' && "Trajet en cours vers la destination !"}
+              <button className="btn primary mt-4" onClick={()=>navigate(`/trajets/${activeRide.id}`)}>Ouvrir le suivi et le chat</button>
             </div>
           </div>
         )}

@@ -163,7 +163,7 @@ export default function AssistantScreen({ navigation }: any) {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <View style={styles.avatar}><Text style={{fontSize: 20}}>🤖</Text></View>
+          <View style={styles.avatar}><Ionicons name="sparkles-outline" size={21} color={colors.primary}/></View>
           <View>
             <Text style={styles.headerTitle}>Assistant IA 118</Text>
             <Text style={styles.headerSub}>Code de la route</Text>

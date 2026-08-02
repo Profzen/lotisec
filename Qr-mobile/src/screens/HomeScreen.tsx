@@ -179,7 +179,7 @@ export default function HomeScreen({ navigation }: Props) {
       const mapsUrl = `https://www.google.com/maps?q=${location.coords.latitude},${location.coords.longitude}`;
       const message = `*URGENCE SOS - LOTISEC*\n\n` +
                       `Bonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n` +
-                      `📍 Voici ma position actuelle : ${mapsUrl}`;
+                      `Voici ma position actuelle : ${mapsUrl}`;
 
       setSosActif(true);
       setAlerteEnvoyee(true);
@@ -395,7 +395,7 @@ export default function HomeScreen({ navigation }: Props) {
             <View style={styles.scanList}>
               {scans.length===0?<Text style={[styles.scanDate,{color:th.text3}]}>Aucune consultation enregistrée.</Text>:scans.map((scan, i) => (
                 <View key={scan.id} style={[styles.scanRow, { borderBottomColor: th.divider }, i === scans.length - 1 && { borderBottomWidth: 0 }]}>
-                   <View style={styles.scanIcon}><Text>{scan.niveau === 'professionnel' ? '🔐' : '👁️'}</Text></View>
+                   <View style={styles.scanIcon}><FontAwesome name={scan.niveau === 'professionnel' ? 'lock' : 'eye'} size={17} color={colors.primary}/></View>
                    <Text style={[styles.scanDate, { color: th.text, flex: 1 }]}>{scan.date}</Text>
                    <View style={[styles.scanBadge, { backgroundColor: scan.niveau === 'professionnel' ? colors.primaryLight : '#f0f0f0' }]}>
                      <Text style={styles.scanBadgeText}>{scan.niveau}</Text>

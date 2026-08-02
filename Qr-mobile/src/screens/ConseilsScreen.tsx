@@ -314,7 +314,7 @@ export default function ConseilsScreen() {
   // ─── Footer ───────────────────────────────────────────────
   const renderFooter = () => (
     <View style={styles.footer}>
-      <Text style={{ fontSize: 20, flexShrink: 0 }}>ℹ️</Text>
+      <Ionicons name="information-circle-outline" size={21} color={colors.primary} style={{flexShrink:0}} />
       <Text style={styles.footerText}>
         Ces conseils sont fournis à titre informatif. En cas d'urgence, appelez toujours les secours professionnels.
       </Text>

@@ -218,6 +218,7 @@ export function MapZem() {
       setLoading(false);
     }
   };
+  const cancelRide=async()=>{if(!activeRide)return;try{await api.post(`/zem/rides/${activeRide.id}/action`,{action:'cancel'});setActiveRide(null);setDestination(null);setRouteData(null);}catch{toast.error("Impossible d'annuler cette course.");}};
 
   if (!location) {
     return (
@@ -399,19 +400,14 @@ export function MapZem() {
           </>
         ) : (
           <div className="text-center">
-            <h3 className="text-primary mb-4">Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</h3>
+            <h3 className="text-primary mb-4">Course en cours</h3>
             <p className="text-secondary mb-4">
-              {activeRide.status === 'requested' ? "Recherche d'un conducteur à proximité..." : "Le conducteur est en route !"}
+              {['searching','offered'].includes(activeRide.status) ? "Recherche d'un conducteur à proximité..." : "Le conducteur est affecté."}
             </p>
             <div className="estimate-box justify-center mb-4">
               <span className="estimate-value estimate-price">{activeRide.price_fcfa} FCFA</span>
             </div>
-            <button className="btn danger" onClick={() => {
-              /* Logic to cancel in Supabase */
-              setActiveRide(null);
-              setDestination(null);
-              setRouteData(null);
-            }}>
+            <button className="btn danger" onClick={cancelRide}>
               Annuler la commande
             </button>
           </div>

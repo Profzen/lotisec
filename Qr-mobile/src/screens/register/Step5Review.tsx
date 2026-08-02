@@ -148,7 +148,7 @@ export default function Step5Review({ navigation, route }: Props) {
         {/* Note sécurité */}
         <View style={styles.securityBox}>
           <Text style={styles.securityText}>
-            🔒 Vos données sont chiffrées. Seuls les professionnels avec un code accrédité peuvent accéder aux données complètes.
+            <Ionicons name="lock-closed-outline" size={15} color={colors.primary}/> Vos données sont chiffrées. Seuls les professionnels avec un code accrédité peuvent accéder aux données complètes.
           </Text>
         </View>
 

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Home, Asterisk, Lightbulb, QrCode, Map as MapIcon } from 'lucide-react';
+import {configureRealtime} from '../api/session';
 
 export function Layout() {
+  useEffect(()=>{configureRealtime();const timer=setInterval(configureRealtime,45*60*1000);return()=>clearInterval(timer);},[]);
   const navLinks = [
     { to: '/home', icon: <Home size={24} />, label: 'Accueil' },
     { to: '/hopitaux', icon: <Asterisk size={24} />, label: 'Hôpitaux' },

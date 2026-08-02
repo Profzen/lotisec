@@ -9,5 +9,5 @@ export const supabase = supabaseUrl && supabaseAnonKey
   : null;
 
 if (!supabase) {
-  console.warn("⚠️ Supabase Client: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Realtime features (Zem) will be disabled.");
+  console.warn("Supabase Client: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Realtime features (Zem) will be disabled.");
 }

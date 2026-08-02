@@ -79,7 +79,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
 
       {/* Identité */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>👤 IDENTITÉ</Text>
+        <View style={{flexDirection:'row',alignItems:'center',gap:7}}><Ionicons name="person-outline" size={18} color={colors.primary}/><Text style={styles.sectionLabel}>IDENTITÉ</Text></View>
         <Text style={styles.name}>
           {identity?.first_name} {identity?.last_name}
         </Text>
@@ -90,7 +90,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
 
       {/* Médical */}
       <View style={[styles.section, styles.vitalSection]}>
-        <Text style={styles.sectionLabel}>🏥 DONNÉES MÉDICALES </Text>
+        <View style={{flexDirection:'row',alignItems:'center',gap:7}}><Ionicons name="medkit-outline" size={18} color={colors.primary}/><Text style={styles.sectionLabel}>DONNÉES MÉDICALES</Text></View>
 
         <View style={styles.bloodBadge}>
           <Text style={styles.bloodLabel}>GROUPE SANGUIN</Text>

@@ -8,10 +8,6 @@ const router=Router();
 const ACTIVE=['searching','offered','accepted','driver_en_route','driver_arrived','ready_to_start','in_progress','driver_completed'];
 const CHAT_OPEN=['accepted','driver_en_route','driver_arrived','ready_to_start','in_progress','driver_completed'];
 
-async function event(rideId:string,actorId:string|null,type:string,from:string|null,to:string|null,metadata:any={}){
-  await query(`INSERT INTO ride_events(ride_id,actor_id,event_type,from_status,to_status,metadata) VALUES($1,$2,$3,$4,$5,$6)`,[rideId,actorId,type,from,to,metadata]);
-}
-
 async function participant(rideId:string,userId:string){
   const result=await query<any>('SELECT * FROM rides WHERE id=$1 AND (passenger_id=$2 OR zem_id=$2) LIMIT 1',[rideId,userId]);
   return result.rows[0]||null;
@@ -79,7 +75,7 @@ router.post('/location',requireAuth,requirePermission('zem:drive'),async(req:Aut
   const result=await query<any>(`INSERT INTO zem_locations(zem_id,latitude,longitude,is_online,location,updated_at) VALUES($1,$2,$3,$4,ST_SetSRID(ST_MakePoint($3,$2),4326),now())
     ON CONFLICT(zem_id) DO UPDATE SET latitude=EXCLUDED.latitude,longitude=EXCLUDED.longitude,is_online=EXCLUDED.is_online,location=EXCLUDED.location,updated_at=now() RETURNING *`,[req.userId,lat,lng,Boolean(isOnline)]);
   const active=await query<any>('SELECT id FROM rides WHERE zem_id=$1 AND status=ANY($2::text[]) ORDER BY created_at DESC LIMIT 1',[req.userId,ACTIVE]);
-  if(active.rows[0])await query('INSERT INTO ride_positions(ride_id,user_id,latitude,longitude,accuracy,heading,speed) VALUES($1,$2,$3,$4,$5,$6,$7)',[active.rows[0].id,req.userId,lat,lng,req.body.accuracy??null,req.body.heading??null,req.body.speed??null]);
+  if(active.rows[0])await query(`INSERT INTO ride_positions(ride_id,user_id,latitude,longitude,accuracy,heading,speed) SELECT $1,$2,$3,$4,$5,$6,$7 WHERE NOT EXISTS(SELECT 1 FROM ride_positions WHERE ride_id=$1 AND user_id=$2 AND created_at>now()-interval '5 seconds')`,[active.rows[0].id,req.userId,lat,lng,req.body.accuracy??null,req.body.heading??null,req.body.speed??null]);
   return res.json(result.rows[0]);
 });
 
@@ -132,17 +128,12 @@ router.get('/history/:ignored',requireAuth,async(req:AuthRequest,res)=>{
 router.get('/rides/:rideId',requireAuth,async(req:AuthRequest,res)=>{let ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});if(ride.status==='offered'){await advanceExpiredOffer(ride.id);ride=await participant(req.params.rideId,req.userId as string);}return res.json({ride});});
 
 router.post('/rides/:rideId/action',requireAuth,async(req:AuthRequest,res)=>{
-  const ride=await participant(req.params.rideId,req.userId as string); if(!ride)return res.status(404).json({detail:'Course introuvable'});
-  const driver=ride.zem_id===req.userId,passenger=ride.passenger_id===req.userId,action=String(req.body?.action||'');
-  const cancelable=['searching','offered','accepted','driver_en_route','driver_arrived','ready_to_start','in_progress'];
-  const rules:any={driver_en_route:[driver,'accepted','driver_en_route','driver_en_route_at'],driver_arrived:[driver,'driver_en_route','driver_arrived','driver_arrived_at'],passenger_ready:[passenger,'driver_arrived','ready_to_start','passenger_ready_at'],start:[driver,'ready_to_start','in_progress','started_at'],driver_completed:[driver,'in_progress','driver_completed','driver_completed_at'],confirm_complete:[passenger,'driver_completed','completed','passenger_completed_at'],cancel:[(passenger||driver)&&cancelable.includes(ride.status),ride.status,'canceled','canceled_at'],no_show:[driver,'driver_arrived','no_show','canceled_at'],dispute:[passenger||driver,'driver_completed','disputed',null]};
-  const rule=rules[action]; if(!rule||!rule[0])return res.status(403).json({detail:'Action interdite'}); if(ride.status!==rule[1])return res.status(409).json({detail:`Action ${action} impossible depuis ${ride.status}`});
-  const timestamp=rule[3]?`,${rule[3]}=now()`:''; const completion=rule[2]==='completed'?',completed_at=now()':'';
-  const updated=await query<any>(`UPDATE rides SET status=$1,updated_at=now(),version=version+1${timestamp}${completion} WHERE id=$2 AND version=$3 RETURNING *`,[rule[2],ride.id,ride.version]);
-  if(!updated.rows[0])return res.status(409).json({detail:'La course vient d’être modifiée, actualisez'});
-  await event(ride.id,req.userId as string,action,ride.status,rule[2],{reason:req.body?.reason||null});
-  const other=driver?ride.passenger_id:ride.zem_id;if(other)void notifyUsers([other],'Mise à jour de votre course',rule[2].replaceAll('_',' '),{type:'ride_status',ride_id:ride.id,status:rule[2]});
-  return res.json({ride:updated.rows[0]});
+  if(!pool)return res.status(503).json({detail:'Base indisponible'});const client=await pool.connect();let other:string|null=null,nextStatus='';let result:any;
+  try{await client.query('BEGIN');const ride=(await client.query<any>('SELECT * FROM rides WHERE id=$1 AND (passenger_id=$2 OR zem_id=$2) FOR UPDATE',[req.params.rideId,req.userId])).rows[0];if(!ride){await client.query('ROLLBACK');return res.status(404).json({detail:'Course introuvable'});}
+    const driver=ride.zem_id===req.userId,passenger=ride.passenger_id===req.userId,action=String(req.body?.action||'');const cancelable=['searching','offered','accepted','driver_en_route','driver_arrived','ready_to_start','in_progress'];const rules:any={driver_en_route:[driver,'accepted','driver_en_route','driver_en_route_at'],driver_arrived:[driver,'driver_en_route','driver_arrived','driver_arrived_at'],passenger_ready:[passenger,'driver_arrived','ready_to_start','passenger_ready_at'],start:[driver,'ready_to_start','in_progress','started_at'],driver_completed:[driver,'in_progress','driver_completed','driver_completed_at'],confirm_complete:[passenger,'driver_completed','completed','passenger_completed_at'],cancel:[(passenger||driver)&&cancelable.includes(ride.status),ride.status,'canceled','canceled_at'],no_show:[driver,'driver_arrived','no_show','canceled_at'],dispute:[passenger||driver,'driver_completed','disputed',null]};const rule=rules[action];if(!rule||!rule[0]){await client.query('ROLLBACK');return res.status(403).json({detail:'Action interdite'});}if(ride.status!==rule[1]){await client.query('ROLLBACK');return res.status(409).json({detail:`Action ${action} impossible depuis ${ride.status}`});}
+    const timestamp=rule[3]?`,${rule[3]}=now()`:'';const completion=rule[2]==='completed'?',completed_at=now()':'';result=(await client.query<any>(`UPDATE rides SET status=$1,updated_at=now(),version=version+1${timestamp}${completion} WHERE id=$2 RETURNING *`,[rule[2],ride.id])).rows[0];await client.query(`INSERT INTO ride_events(ride_id,actor_id,event_type,from_status,to_status,metadata) VALUES($1,$2,$3,$4,$5,$6)`,[ride.id,req.userId,action,ride.status,rule[2],{reason:req.body?.reason||null}]);await client.query('COMMIT');other=driver?ride.passenger_id:ride.zem_id;nextStatus=rule[2];
+  }catch(error){await client.query('ROLLBACK');console.error(error);return res.status(500).json({detail:'Transition impossible'});}finally{client.release();}
+  if(other)void notifyUsers([other],'Mise à jour de votre course',nextStatus.replace(/_/g,' '),{type:'ride_status',ride_id:req.params.rideId,status:nextStatus});return res.json({ride:result});
 });
 
 router.get('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
@@ -154,6 +145,7 @@ router.get('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
 router.post('/rides/:rideId/messages',requireAuth,async(req:AuthRequest,res)=>{
   const ride=await participant(req.params.rideId,req.userId as string);if(!ride)return res.status(404).json({detail:'Course introuvable'});if(!CHAT_OPEN.includes(ride.status))return res.status(409).json({detail:'Conversation en lecture seule'});
   const body=String(req.body?.body||'').trim(),clientId=String(req.body?.client_message_id||randomUUID());if(!body||body.length>1000)return res.status(400).json({detail:'Message invalide'});
+  const recent=await query<{count:number}>(`SELECT COUNT(*)::int count FROM ride_messages WHERE sender_id=$1 AND created_at>now()-interval '1 minute'`,[req.userId]);if((recent.rows[0]?.count||0)>=30)return res.status(429).json({detail:'Trop de messages, patientez un instant'});
   const message=await query<any>(`INSERT INTO ride_messages(ride_id,sender_id,body,client_message_id) VALUES($1,$2,$3,$4) ON CONFLICT(sender_id,client_message_id) DO UPDATE SET body=EXCLUDED.body RETURNING *`,[ride.id,req.userId,body,clientId]);
   const other=ride.passenger_id===req.userId?ride.zem_id:ride.passenger_id;if(other)void notifyUsers([other],'Nouveau message de course',body.slice(0,100),{type:'ride_message',ride_id:ride.id});return res.status(201).json({message:message.rows[0]});
 });
