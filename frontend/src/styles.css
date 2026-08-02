@@ -787,3 +787,16 @@ input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0
   align-items: center;
   margin-bottom: 1rem;
 }
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

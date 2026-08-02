@@ -38,8 +38,10 @@ export default function App() {
         <Route path="conseils" element={<Conseils />} />
         <Route path="qr" element={<QrCode />} />
         <Route path="trajets" element={<Rides />} />
-        <Route path="assistant" element={<Assistant />} />
       </Route>
+
+      {/* Assistant IA en plein écran */}
+      <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
 
       {/* MapZem est en plein écran, sans la bottom nav */}
       <Route path="/map" element={<Protected><MapZem /></Protected>} />
