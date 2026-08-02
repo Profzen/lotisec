@@ -425,3 +425,116 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - URL configurable côté web avec `VITE_AI_API_URL` et côté Expo avec `EXPO_PUBLIC_AI_API_URL`; valeur temporaire : `https://agile-trust-production-c862.up.railway.app`.
 - Le chargeur Python recherche maintenant `default_code.pdf` dans le dossier courant, à la racine parente du monorepo ou via `RAG_PDF_PATH`, afin de fonctionner avec Railway Root Directory `/ai_service`.
 - Retour futur vers Node : renseigner l’URL `https://lotisec-backend.vercel.app/ai` dans les deux variables clientes après migration vers Groq et recette complète, sans modifier les écrans.
+
+## Plan d’exécution — Stabilisation mobile et cycle Zem complet (2026-08-02)
+
+### Audit de départ
+
+- Le chargement infini « Mon QR code » survient lorsque `qrToken` reste nul : le composant affiche un spinner sans erreur ni délai. La session utilise encore plusieurs clés incompatibles (`user`, `profile`, `lotisec_user`).
+- L’historique des scans affiché dans `HomeScreen` utilise `DEMO_SCANS`. Sa finalité réelle sera d’informer le propriétaire quand sa fiche a été consultée, par quel type d’autorité, avec quel niveau d’accès et éventuellement à quel endroit : transparence, sécurité et audit des données médicales.
+- L’API hôpitaux lit réellement Supabase et trie par distance PostGIS. La production ne contient cependant que trois établissements : CHU Sylvanus Olympio, CHU Campus et Hôpital Dogta-Lafiè. Les noms/coordonnées sont réels, mais le catalogue, les adresses et les attributs d’urgence sont incomplets et issus d’un peuplement manuel.
+- Le dispatch Zem sélectionne le conducteur en ligne le plus proche dans 5 km, crée une course `requested` et utilise Realtime pour course/position. Il reste incomplet : notification dépendante de l’écran ouvert, pas d’expiration/réaffectation robuste, pas de chat, pas d’étape conducteur arrivé, pas de double confirmation, et `RidesScreen` lit encore `lotisec_user` au lieu de `user`.
+- Il n’existe aucune table/route de messages de course. Plusieurs écrans utilisent encore des emojis comme icônes ou libellés.
+
+### Principes retenus
+
+- Le backend Node/Vercel est l’autorité de toutes les transitions ; aucun client ne modifie directement un statut métier.
+- Supabase stocke courses, offres, messages, positions et événements ; Realtime transporte seulement les changements autorisés.
+- Toute transition est vérifiée par rôle, participant et état courant, puis auditée.
+- Repli par API/polling si Realtime tombe, avec reprise de session et état de connexion visible.
+- Aucun établissement fictif en production ; chaque donnée sanitaire porte source et date de vérification.
+- Chaque loader finit en succès, état vide ou erreur avec « Réessayer ».
+
+### Phase 0 — Session, QR et navigation
+
+1. Centraliser `token`, `user`, `profile`, `qrToken` dans un module de session et migrer les anciennes clés.
+2. Au login/démarrage, appeler `/auth/me`, hydrater rôles/profil/QR et créer/récupérer le profil manquant.
+3. Remplacer le spinner QR par `loading | ready | missing-profile | error`, avec délai maximal et réparation explicite.
+4. Corriger `RidesScreen` pour utiliser la session canonique, défiler et afficher les erreurs réseau.
+5. Remplacer l’onglet « Mon QR » par « Assistant » avec une icône professionnelle. Garder agrandissement, partage et PDF du QR sur l’accueil.
+6. Tester session, compte sans profil, QR absent et reprise après reconnexion.
+
+### Phase 1 — Zéro emoji mobile
+
+1. Créer un registre typé d’icônes métier avec `Ionicons`, `MaterialCommunityIcons` ou `FontAwesome`.
+2. Remplacer les emojis dans Accueil, Hôpitaux, Conseils, Assistant, Profil, inscription, scan, passager Zem et conducteur Zem.
+3. Remplacer aussi les emojis dans alertes/libellés par texte clair et composants vectoriels ; messages externes en texte sobre.
+4. Garantir zones tactiles 44 × 44 px, contraste AA et libellés d’accessibilité.
+5. Ajouter un contrôle automatisé interdisant tout nouvel emoji dans `Qr-mobile/src`.
+
+### Phase 2 — Historique réel des scans
+
+1. Étendre le schéma : propriétaire, acteur, rôle/organisation, autorité, niveau révélé, date, position optionnelle, résultat.
+2. Journaliser chaque consultation réussie dans `/scan/verify`, pas uniquement `POST /scan`.
+3. Ajouter `GET /scans/me`, personnel et paginé ; réserver l’historique global aux superviseurs.
+4. Remplacer `DEMO_SCANS` par les données réelles avec états vide/erreur.
+5. Tester qu’un citoyen ne lit jamais l’historique d’un autre.
+
+### Phase 3 — Hôpitaux réels et tris fiables
+
+1. Ajouter `source`, `source_id`, `last_verified_at`, `verified`, `services`, `opening_hours`, `emergency_level`, `active`.
+2. Importer une source ouverte/autoritative pour le Togo (OpenStreetMap validé, complété par les listes officielles disponibles), sans écraser les corrections manuelles validées.
+3. Dédupliquer par coordonnées, nom, téléphone et identifiant source ; désactiver plutôt que supprimer.
+4. Ajouter rayon, type, urgences, recherche et tri `distance | nom | disponibilité` côté API.
+5. Utiliser PostGIS pour le classement et OSRM pour l’ETA routière, avec repli explicite.
+6. Afficher provenance/date et tester recherche, filtres, tri, appel et itinéraire.
+
+### Phase 4 — Cycle métier Zem production
+
+1. États canoniques : `searching`, `offered`, `accepted`, `driver_en_route`, `driver_arrived`, `ready_to_start`, `in_progress`, `driver_completed`, `completed`, `canceled`, `expired`, `no_show`, `disputed`.
+2. Ajouter `ride_offers` avec expiration et réponse. Proposer le Zem éligible le plus proche dans 5 km puis automatiquement le suivant après refus/expiration.
+3. Empêcher les courses incompatibles simultanées et verrouiller l’acceptation en transaction.
+4. Ajouter `ride_events` immuable et les horodatages métier sur `rides`.
+5. Offre Realtime lorsque l’app est ouverte et notification Expo Push en arrière-plan.
+6. Après acceptation, afficher l’approche. Actions conducteur : « Je suis arrivé », puis « Passager à bord ».
+7. Démarrage validé par les deux parties ou code court de prise en charge.
+8. Pendant le trajet, afficher destination, OSRM, position et ETA restante aux deux parties.
+9. À destination : confirmation conducteur puis passager ; prévoir timeout, contestation et clôture assistée.
+10. Gérer perte réseau, fermeture d’app, annulation, refus, no-show et reprise.
+
+### Phase 5 — Détail Trajet et carte temps réel
+
+1. Créer `RideDetailScreen` depuis une course active dans « Trajets ».
+2. Avant prise en charge : origine, Zem live, ETA, statut et bouton Chat.
+3. Après prise en charge : origine terminée, destination, itinéraire, progression, distance/ETA et Chat.
+4. Historique en lecture seule ; course active avec actions autorisées par rôle/statut.
+5. Un channel Realtime par course, polling de secours et reconnexion sans doublons.
+6. Position visible uniquement aux participants et partage arrêté à la clôture.
+
+### Phase 6 — Chat privé passager–Zem
+
+1. Ajouter `ride_messages(id, ride_id, sender_id, body, client_message_id, created_at, read_at)`.
+2. Lecture/écriture uniquement aux deux participants, de `accepted` à la clôture ; ensuite lecture seule.
+3. Routes paginées, envoi idempotent, accusé de lecture, Realtime et RLS adaptées.
+4. Créer `RideChatScreen` : envoi optimiste, retry, non-lus, clavier mobile, horodatage et messages système.
+5. Badge non-lu dans « Trajets » et le détail.
+6. Prévoir signalement/modération et rétention ; pas de pièces jointes en V1.
+
+### Phase 7 — Notifications et sécurité
+
+1. Stocker les jetons Expo Push par appareil et préférences.
+2. Notifier : offre, expiration, acceptation, arrivée, départ, message, arrivée destination, confirmation, annulation.
+3. Realtime pour l’app ouverte, push pour l’arrière-plan ; deep-link vers la course.
+4. Renforcer RLS de `rides`, `ride_offers`, `ride_messages`, `ride_events`, positions.
+5. Limiter fréquence des positions/messages/demandes et auditer les actions sensibles.
+
+### Phase 8 — Parité, tests et déploiement
+
+1. Réutiliser le même contrat Zem/chat sur le web sans dupliquer la logique métier.
+2. Écrire migrations additives et tests transitions, autorisations, concurrence, Realtime, chat et réseau.
+3. Recette automatisée : citoyen demande, Zem reçoit/accepte, approche, arrive, chat, démarre, progresse, double clôture.
+4. Tester Android, Expo Web responsive et Vercel ; valider zéro emoji et zéro loader infini.
+5. Déployer Supabase puis backend/frontend ; ne lancer EAS preview qu’après recette Web réussie.
+6. Mettre à jour `API_CONTRACT.md`, déploiement et mémoire avec preuves et rollback.
+
+### Critères de recette obligatoires
+
+- Aucun spinner QR infini ; QR créé/récupéré ou réparation explicite.
+- Assistant remplace Mon QR dans la barre ; QR téléchargeable depuis l’accueil.
+- Aucun emoji comme icône/libellé dans l’application mobile.
+- Historique de scans réel, personnel, paginé et protégé.
+- Établissements existants avec provenance ; filtres et tris vérifiés.
+- Une demande Zem déclenche une offre reçue ; refus/expiration passe au suivant.
+- Les participants suivent la bonne carte, discutent pendant la course et reprennent après reconnexion.
+- Départ/fin respectent les confirmations ; aucune transition interdite n’est forçable.
+- Tests backend/frontend/mobile, export Expo Web et recette production passent avant l’APK.
