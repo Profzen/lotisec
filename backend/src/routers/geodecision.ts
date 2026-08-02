@@ -49,14 +49,17 @@ router.get('/hopital-proche', async (req, res) => {
     return res.status(400).json({ detail: 'lat et lng sont requis' });
   }
 
+  const schema=await query<{enriched:boolean}>(`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='medical_facilities' AND column_name='source') enriched`);
+  const enriched=Boolean(schema.rows[0]?.enriched);
+  const extra=enriched?'source,source_id,last_verified_at,verified,services,opening_hours,emergency_level,':`'legacy'::text source,NULL::text source_id,NULL::timestamptz last_verified_at,false verified,'{}'::text[] services,NULL::text opening_hours,NULL::text emergency_level,`;
   const rows = await query<any>(
-    `SELECT id, name, type, address, phone, urgences, latitude, longitude,source,source_id,last_verified_at,verified,services,opening_hours,emergency_level,
+    `SELECT id, name, type, address, phone, urgences, latitude, longitude,${extra}
             ROUND(ST_Distance(
               location::geography,
               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
             )::numeric / 1000, 2) AS distance_km
      FROM medical_facilities
-     WHERE active=true
+     WHERE ${enriched?'active=true':'true'}
        AND ($3='tous' OR type=$3)
        AND ($4='' OR name ILIKE '%'||$4||'%' OR address ILIKE '%'||$4||'%')
        AND ($5=false OR urgences=true)

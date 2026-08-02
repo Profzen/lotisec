@@ -14,6 +14,7 @@
     "migrate:mobile-zem": "node run-mobile-zem-migration.js",
     "import:facilities": "node scripts/import-togo-medical-facilities.js",
     "audit:mobile-zem": "node scripts/audit-mobile-zem-readiness.js",
+    "e2e:zem": "node scripts/e2e-zem-cycle.js",
     "rag:index": "node scripts/index-rag.js",
     "verify:schema": "node verify-operational-schema.js",
     "inspect:operations": "node inspect-operational-state.js",
