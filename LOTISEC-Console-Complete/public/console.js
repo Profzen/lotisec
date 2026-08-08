@@ -234,8 +234,20 @@ const elements = {
   detailContent: document.querySelector("[data-detail-content]"),
   manualModal: document.querySelector("[data-manual-modal]"),
   mobileModal: document.querySelector("[data-mobile-modal]"),
+  userModal: document.querySelector("[data-user-modal]"),
+  organizationModal: document.querySelector("[data-organization-modal]"),
+  hospitalAgentModal: document.querySelector("[data-hospital-agent-modal]"),
+  grantRoleModal: document.querySelector("[data-grant-role-modal]"),
+  admissionModal: document.querySelector("[data-admission-modal]"),
+  zemModal: document.querySelector("[data-zem-modal]"),
   manualForm: document.querySelector("[data-manual-form]"),
   mobileForm: document.querySelector("[data-mobile-form]"),
+  userForm: document.querySelector("[data-user-form]"),
+  organizationForm: document.querySelector("[data-organization-form]"),
+  hospitalAgentForm: document.querySelector("[data-hospital-agent-form]"),
+  grantRoleForm: document.querySelector("[data-grant-role-form]"),
+  admissionForm: document.querySelector("[data-admission-form]"),
+  zemForm: document.querySelector("[data-zem-form]"),
   banner: document.querySelector("[data-incoming-banner]"),
   bannerCopy: document.querySelector("[data-incoming-copy]"),
   map: document.querySelector("[data-live-map]"),
@@ -977,8 +989,8 @@ function renderAmbulances() {
 
 function renderHospitals() {
   if (!hospitals.length) return `${moduleTop(moduleHeader("Portail hospitalier", "Hôpitaux", "Établissements et capacités déclarées."))}<section class="module-card"><p>Aucun établissement hospitalier enregistré.</p></section>`;
-  const admissionMarkup = `<section class="module-card"><header><div><small>ADMISSIONS</small><h2>Demandes d’accueil</h2></div></header><div class="compact-list">${state.admissions.map((item)=>`<div class="notification-row"><span><strong>${escapeHtml(item.hospital_name || 'Hôpital')}</strong><small>Incident ${escapeHtml(item.incident_id)} · ${escapeHtml(item.status)}</small></span>${item.status==='pending' ? `<span><button data-action="admission-status" data-id="${item.id}" data-status="accepted">Accepter</button><button data-action="admission-status" data-id="${item.id}" data-status="rejected">Refuser</button></span>` : ''}</div>`).join('') || '<p>Aucune demande d’admission.</p>'}</div></section>`;
-  const agentsMarkup = canPermission('organization:members') ? `<section class="module-card"><header><div><small>ÉQUIPE</small><h2>Agents de l’établissement</h2></div><button data-action="create-hospital-agent">Créer un agent</button></header><div class="compact-list">${state.organizationMembers.map((item)=>`<div class="notification-row"><span><strong>${escapeHtml(`${item.first_name||''} ${item.last_name||''}`.trim()||item.phone)}</strong><small>${escapeHtml(item.phone)} · ${(item.roles||[]).map(escapeHtml).join(', ')}</small></span>${item.id!==session.user.id?`<button data-action="deactivate-member" data-id="${item.id}">Désactiver</button>`:''}</div>`).join('')||'<p>Aucun agent.</p>'}</div></section>` : '';
+  const admissionMarkup = `<section class="module-card"><header><div><small>ADMISSIONS</small><h2>Demandes d’accueil</h2></div></header><div class="compact-list">${state.admissions.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(item.hospital_name || 'Hôpital')}</strong><small>Incident ${escapeHtml(item.incident_id)} · ${escapeHtml(item.status)}</small></span>${item.status==='pending' ? `<span><button data-action="admission-status" data-id="${item.id}" data-status="accepted">Accepter</button><button data-action="admission-status" data-id="${item.id}" data-status="rejected">Refuser</button></span>` : ''}</div>`).join('') || '<p>Aucune demande d’admission.</p>'}</div></section>`;
+  const agentsMarkup = canPermission('organization:members') ? `<section class="module-card"><header><div><small>ÉQUIPE</small><h2>Agents de l’établissement</h2></div><button data-action="create-hospital-agent">Créer un agent</button></header><div class="compact-list">${state.organizationMembers.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(`${item.first_name||''} ${item.last_name||''}`.trim()||item.phone)}</strong><small>${escapeHtml(item.phone)} · ${(item.roles||[]).map(escapeHtml).join(', ')}</small></span>${item.id!==session.user.id?`<button data-action="deactivate-member" data-id="${item.id}">Désactiver</button>`:''}</div>`).join('')||'<p>Aucun agent.</p>'}</div></section>` : '';
   return `
     ${moduleTop(moduleHeader("Portail hospitalier synchronisé", "Hôpitaux", "Capacité d'accueil déclarée en temps réel et recommandations géodécisionnelles."), `<section class="module-metrics">
       ${metricCard("Places disponibles", hospitals.reduce((sum, item) => sum + item.beds, 0), "Toutes spécialités", "green")}
@@ -1121,7 +1133,7 @@ function renderNotifications() {
 }
 
 function renderAudit() {
-  return `${moduleTop(moduleHeader("Traçabilité", "Journal d’audit", "Opérations sensibles enregistrées par le backend."))}<section class="module-card"><div class="compact-list">${state.auditLogs.map((item)=>`<div class="notification-row"><span><strong>${escapeHtml(item.action)}</strong><small>${escapeHtml(item.entity_type || '')} ${escapeHtml(item.entity_id || '')}</small></span><time>${new Date(item.created_at).toLocaleString('fr-FR')}</time></div>`).join('') || '<p>Aucune opération auditée.</p>'}</div></section>`;
+  return `${moduleTop(moduleHeader("Traçabilité", "Journal d’audit", "Opérations sensibles enregistrées par le backend."))}<section class="module-card"><div class="compact-list">${state.auditLogs.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(item.action)}</strong><small>${escapeHtml(item.entity_type || '')} ${escapeHtml(item.entity_id || '')}</small></span><time>${new Date(item.created_at).toLocaleString('fr-FR')}</time></div>`).join('') || '<p>Aucune opération auditée.</p>'}</div></section>`;
 }
 
 function renderSettings() {
@@ -1139,12 +1151,12 @@ function renderSettings() {
 function renderUsers() {
   const roles = ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent','zem_driver','citizen'];
   return `${moduleTop(moduleHeader("Administration RBAC", "Utilisateurs & rôles", "Attribuez des rôles et une organisation aux comptes institutionnels.", '<button class="button button-secondary" data-action="create-user">Créer un compte</button><button class="button button-primary" data-action="create-organization">Créer une organisation</button>'))}
-    <section class="module-card"><div class="compact-list">${state.adminUsers.map((user)=>`<div class="notification-row"><span><strong>${escapeHtml(`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.phone)}</strong><small>${escapeHtml(user.phone)} · ${(user.roles || []).map((entry)=>escapeHtml(entry.role)).join(', ') || 'aucun rôle'}</small></span><span><button data-action="grant-role" data-id="${user.id}">Attribuer</button>${(user.roles || []).map((entry)=>`<button data-action="revoke-role" data-id="${user.id}" data-role="${escapeHtml(entry.role)}" data-organization-id="${escapeHtml(entry.organization_id || '')}">Retirer ${escapeHtml(entry.role)}</button>`).join('')}</span></div>`).join('') || '<p>Aucun utilisateur disponible.</p>'}</div></section>
+    <section class="module-card"><div class="compact-list">${state.adminUsers.map((user)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.phone)}</strong><small>${escapeHtml(user.phone)} · ${(user.roles || []).map((entry)=>escapeHtml(entry.role)).join(', ') || 'aucun rôle'}</small></span><span><button class="button button-secondary" style="min-height:30px;padding:0 10px;font-size:0.6rem;" data-action="grant-role" data-id="${user.id}">Attribuer</button>${(user.roles || []).map((entry)=>`<button class="button button-danger" style="min-height:30px;padding:0 10px;font-size:0.6rem;margin-left:5px;" data-action="revoke-role" data-id="${user.id}" data-role="${escapeHtml(entry.role)}" data-organization-id="${escapeHtml(entry.organization_id || '')}">Retirer ${escapeHtml(entry.role)}</button>`).join('')}</span></div>`).join('') || '<p>Aucun utilisateur disponible.</p>'}</div></section>
     <section class="module-card"><header><div><small>RÉFÉRENTIEL</small><h2>Rôles disponibles</h2></div></header><p>${roles.join(' · ')}</p><p>${state.organizations.length} organisation(s) active(s).</p></section>`;
 }
 
 function renderZemApplications() {
-  return `${moduleTop(moduleHeader("Contrôle", "Accréditations Zem", "Validation obligatoire avant l’activation du mode conducteur."))}<section class="module-card"><div class="compact-list">${state.zemApplications.map((item)=>`<div class="notification-row"><span><strong>${escapeHtml(`${item.first_name || ''} ${item.last_name || ''}`.trim() || item.phone)}</strong><small>${escapeHtml(item.plate || '')} · ${escapeHtml(item.work_zone || '')} · ${escapeHtml(item.status)}</small></span>${item.status==='pending'?`<span><button data-action="zem-application" data-id="${item.id}" data-status="approved">Approuver</button><button data-action="zem-application" data-id="${item.id}" data-status="rejected">Refuser</button></span>`:''}</div>`).join('') || '<p>Aucune demande Zem.</p>'}</div></section>`;
+  return `${moduleTop(moduleHeader("Contrôle", "Accréditations Zem", "Validation obligatoire avant l’activation du mode conducteur."))}<section class="module-card"><div class="compact-list">${state.zemApplications.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(`${item.first_name || ''} ${item.last_name || ''}`.trim() || item.phone)}</strong><small>${escapeHtml(item.plate || '')} · ${escapeHtml(item.work_zone || '')} · ${escapeHtml(item.status)}</small></span>${item.status==='pending'?`<span><button class="button button-primary" style="min-height:30px;padding:0 10px;font-size:0.6rem;" data-action="zem-application" data-id="${item.id}" data-status="approved">Approuver</button><button class="button button-danger" style="min-height:30px;padding:0 10px;font-size:0.6rem;margin-left:5px;" data-action="zem-application" data-id="${item.id}" data-status="rejected">Refuser</button></span>`:''}</div>`).join('') || '<p>Aucune demande Zem.</p>'}</div></section>`;
 }
 
 function renderCurrentModule() {
@@ -1360,6 +1372,127 @@ elements.mobileForm?.addEventListener("submit", async (event) => {
   await sendMobileIncident(incident);
 });
 
+elements.userForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.userForm);
+  try {
+    await apiFetch('/api/v1/admin/users', { 
+      method: 'POST', 
+      body: JSON.stringify(Object.fromEntries(form)) 
+    });
+    elements.userModal.close();
+    elements.userForm.reset();
+    toast('Compte créé', 'L’utilisateur a été ajouté.');
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Création refusée', error.message);
+  }
+});
+
+elements.organizationForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.organizationForm);
+  try {
+    await apiFetch('/api/v1/organizations', { 
+      method: 'POST', 
+      body: JSON.stringify(Object.fromEntries(form)) 
+    });
+    elements.organizationModal.close();
+    elements.organizationForm.reset();
+    toast('Organisation créée', form.get('name'));
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Création refusée', error.message);
+  }
+});
+
+elements.hospitalAgentForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.hospitalAgentForm);
+  try {
+    await apiFetch(`/api/v1/organizations/${session.user.organizationId}/agents`, {
+      method: 'POST',
+      body: JSON.stringify({
+        first_name: form.get('first_name'),
+        last_name: form.get('last_name'),
+        phone: form.get('phone'),
+        password: form.get('password'),
+        role: 'hospital_agent'
+      })
+    });
+    elements.hospitalAgentModal.close();
+    elements.hospitalAgentForm.reset();
+    toast('Agent créé', `${form.get('first_name')} ${form.get('last_name')}`);
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Création refusée', error.message);
+  }
+});
+
+elements.grantRoleForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.grantRoleForm);
+  const userId = form.get('user_id');
+  const role = form.get('role');
+  const organizationId = form.get('organization_id') || null;
+  try {
+    await apiFetch(`/api/v1/admin/users/${userId}/roles`, { 
+      method: 'POST', 
+      body: JSON.stringify({ role, organization_id: organizationId }) 
+    });
+    elements.grantRoleModal.close();
+    elements.grantRoleForm.reset();
+    toast('Rôle attribué', `${role} a été ajouté.`);
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Attribution refusée', error.message);
+  }
+});
+
+elements.admissionForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.admissionForm);
+  const hospitalId = form.get('hospital_id');
+  try {
+    await apiFetch(`/api/v1/interventions/${state.mission.interventionId}/admissions`, { 
+      method: 'POST', 
+      body: JSON.stringify({ hospital_id: hospitalId, patient_summary: {} }) 
+    });
+    elements.admissionModal.close();
+    elements.admissionForm.reset();
+    toast('Admission demandée', 'L’hôpital a été notifié.');
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Demande refusée', error.message);
+  }
+});
+
+elements.zemForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.zemForm);
+  const application_id = form.get('application_id');
+  const status = form.get('status');
+  const review_note = form.get('review_note');
+  try {
+    await apiFetch(`/api/v1/zem/applications/${application_id}`, { 
+      method: 'PATCH', 
+      body: JSON.stringify({ status, review_note }) 
+    });
+    elements.zemModal.close();
+    elements.zemForm.reset();
+    toast('Demande Zem mise à jour', status);
+    await loadOperationalData();
+    renderCurrentModule();
+  } catch (error) {
+    toast('Décision refusée', error.message);
+  }
+});
+
 function refreshMobileGps() {
   const fallback = () => {
     const variations = [[6.2027, 1.1984], [6.1588, 1.2101], [6.1871, 1.1757]];
@@ -1430,6 +1563,12 @@ document.querySelector("[data-open-maps]")?.addEventListener("click", () => {
 const emergencyModal = document.querySelector("[data-emergency-modal]");
 document.querySelector("[data-emergency]")?.addEventListener("click", () => openDialog(emergencyModal));
 document.querySelector("[data-close-emergency]")?.addEventListener("click", () => emergencyModal.close());
+document.querySelector("[data-close-user]")?.addEventListener("click", () => elements.userModal.close());
+document.querySelector("[data-close-organization]")?.addEventListener("click", () => elements.organizationModal.close());
+document.querySelector("[data-close-hospital-agent]")?.addEventListener("click", () => elements.hospitalAgentModal.close());
+document.querySelector("[data-close-grant-role]")?.addEventListener("click", () => elements.grantRoleModal.close());
+document.querySelector("[data-close-admission]")?.addEventListener("click", () => elements.admissionModal.close());
+document.querySelector("[data-close-zem]")?.addEventListener("click", () => elements.zemModal.close());
 document.querySelector("[data-menu-toggle]")?.addEventListener("click", () => document.querySelector("[data-sidebar]")?.classList.toggle("is-open"));
 
 document.querySelectorAll("[data-module]").forEach((link) => {
@@ -1499,19 +1638,12 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
     } catch (error) { toast("Décision refusée", error.message); }
   }
   if (action === "grant-role") {
-    const role = window.prompt('Rôle à attribuer : admin, supervisor, dispatcher, firefighter, ambulance_driver, hospital_manager, hospital_agent, zem_driver ou citizen');
-    if (!role) return;
-    const globalRoles = ['citizen','zem_driver'];
-    let organizationId = null;
-    if (!globalRoles.includes(role)) {
-      const choices = state.organizations.map((item)=>`${item.code || item.name}=${item.id}`).join('\n');
-      organizationId = window.prompt(`ID de l’organisation :\n${choices}`);
-      if (!organizationId) return;
-    }
-    try {
-      await apiFetch(`/api/v1/admin/users/${button.dataset.id}/roles`, { method:'POST', body:JSON.stringify({ role, organization_id:organizationId }) });
-      toast('Rôle attribué', `${role} a été ajouté.`); await loadOperationalData(); renderCurrentModule();
-    } catch (error) { toast('Attribution refusée', error.message); }
+    const userId = button.dataset.id;
+    const form = elements.grantRoleForm;
+    form.querySelector('[name="user_id"]').value = userId;
+    const orgSelect = form.querySelector('[data-org-select]');
+    orgSelect.innerHTML = `<option value="">Aucune</option>` + state.organizations.map((org) => `<option value="${org.id}">${escapeHtml(org.name)} (${org.code})</option>`).join('');
+    openDialog(elements.grantRoleModal);
   }
   if (action === "revoke-role") {
     const suffix = button.dataset.organizationId ? `?organization_id=${encodeURIComponent(button.dataset.organizationId)}` : '';
@@ -1521,23 +1653,12 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
     } catch (error) { toast('Retrait refusé', error.message); }
   }
   if (action === "create-organization") {
-    const name = window.prompt('Nom de l’organisation'); if (!name) return;
-    const type = window.prompt('Type : hospital, clinic, fire_station, samu, ambulance_service, police, gendarmerie ou partner'); if (!type) return;
-    const code = window.prompt('Code institutionnel unique'); if (!code) return;
-    try {
-      await apiFetch('/api/v1/organizations', { method:'POST', body:JSON.stringify({ name,type,code }) });
-      toast('Organisation créée', name); await loadOperationalData(); renderCurrentModule();
-    } catch (error) { toast('Création refusée', error.message); }
+    elements.organizationForm.reset();
+    openDialog(elements.organizationModal);
   }
   if (action === "create-hospital-agent") {
-    const first_name=window.prompt('Prénom'); if(!first_name)return;
-    const last_name=window.prompt('Nom'); if(!last_name)return;
-    const phone=window.prompt('Téléphone'); if(!phone)return;
-    const password=window.prompt('Mot de passe temporaire (12 caractères minimum)'); if(!password)return;
-    try {
-      await apiFetch(`/api/v1/organizations/${session.user.organizationId}/agents`,{method:'POST',body:JSON.stringify({first_name,last_name,phone,password,role:'hospital_agent'})});
-      toast('Agent créé',`${first_name} ${last_name}`); await loadOperationalData(); renderCurrentModule();
-    } catch(error){toast('Création refusée',error.message);}
+    elements.hospitalAgentForm.reset();
+    openDialog(elements.hospitalAgentModal);
   }
   if (action === "deactivate-member") {
     try {
@@ -1546,30 +1667,22 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
     } catch(error){toast('Désactivation refusée',error.message);}
   }
   if (action === "create-user") {
-    const first_name = window.prompt('Prénom'); if (!first_name) return;
-    const last_name = window.prompt('Nom'); if (!last_name) return;
-    const phone = window.prompt('Téléphone international'); if (!phone) return;
-    const password = window.prompt('Mot de passe temporaire (12 caractères minimum)'); if (!password) return;
-    try {
-      await apiFetch('/api/v1/admin/users', { method:'POST', body:JSON.stringify({ first_name,last_name,phone,password }) });
-      toast('Compte créé', `${first_name} ${last_name}`); await loadOperationalData(); renderCurrentModule();
-    } catch (error) { toast('Création refusée', error.message); }
+    elements.userForm.reset();
+    openDialog(elements.userModal);
   }
   if (action === "request-admission") {
     if (!state.mission) return;
-    const choices = hospitals.map((item)=>`${item.name}=${item.id} (${item.beds} places)`).join('\n');
-    const hospitalId = window.prompt(`ID de l’hôpital cible :\n${choices}`); if (!hospitalId) return;
-    try {
-      await apiFetch(`/api/v1/interventions/${state.mission.interventionId}/admissions`, { method:'POST', body:JSON.stringify({ hospital_id:hospitalId,patient_summary:{} }) });
-      toast('Admission demandée','L’hôpital a été notifié.'); await loadOperationalData(); renderCurrentModule();
-    } catch (error) { toast('Demande refusée',error.message); }
+    const form = elements.admissionForm;
+    const hospitalSelect = form.querySelector('[data-hospital-select]');
+    hospitalSelect.innerHTML = hospitals.map((h) => `<option value="${h.id}">${escapeHtml(h.name)} (${h.beds} places libres)</option>`).join('');
+    openDialog(elements.admissionModal);
   }
   if (action === "zem-application") {
-    const review_note = window.prompt('Note de décision (facultative)') || '';
-    try {
-      await apiFetch(`/api/v1/zem/applications/${button.dataset.id}`, { method:'PATCH', body:JSON.stringify({ status:button.dataset.status,review_note }) });
-      toast('Demande Zem mise à jour',button.dataset.status); await loadOperationalData(); renderCurrentModule();
-    } catch (error) { toast('Décision refusée',error.message); }
+    const form = elements.zemForm;
+    form.querySelector('[name="application_id"]').value = button.dataset.id;
+    form.querySelector('[name="status"]').value = button.dataset.status;
+    form.querySelector('[name="review_note"]').value = '';
+    openDialog(elements.zemModal);
   }
   if (action === "toggle-theme") toggleTheme();
   if (action === "copy-api") {
