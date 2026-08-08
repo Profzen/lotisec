@@ -139,7 +139,7 @@ export function Home() {
         <div>
           <div className="lotisec-card-header">ALERTES RAPIDES & ASSISTANCE</div>
           
-          <div className="action-item" onClick={() => navigate('/assistant')} style={{ backgroundColor: 'rgba(0,122,61,0.05)', border: 'none', marginBottom: '8px' }}>
+          <div className="action-item" onClick={() => navigate('/assistant')} style={{ backgroundColor: 'rgba(21,101,216,0.05)', border: 'none', marginBottom: '8px' }}>
             <div className="action-icon green" style={{ backgroundColor: 'var(--color-primary)' }}><MessageCircle size={20} color="white" /></div>
             <div className="action-content">
               <div className="action-title" style={{ color: 'var(--color-primary)' }}>Assistant IA LOTISEC</div>

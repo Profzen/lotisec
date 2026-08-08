@@ -1,18 +1,18 @@
 :root {
   /* Lotisec Colors */
-  --color-primary: #006a4e; /* Le vert drapeau */
-  --color-primary-light: #008a66;
-  --color-danger: #D21034; /* Le rouge SOS */
-  --color-warning: #FFD100; /* Le jaune */
-  --color-success: #28a745;
+  --color-primary: #1565D8; /* Le bleu d'action */
+  --color-primary-light: #EAF2FF;
+  --color-danger: #E5484D; /* Le rouge SOS */
+  --color-warning: #F59E0B; /* Le jaune */
+  --color-success: #0F9F7A;
   
-  --color-background: #006a4e; /* Le fond de page complet est vert comme sur mobile */
+  --color-background: #071A2E; /* Le fond de page complet est marine opérationnel */
   --color-surface: #ffffff;
   --color-surface-glass: rgba(255, 255, 255, 0.95);
   
-  --color-text: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-border: #f3f4f6;
+  --color-text: #10243E;
+  --color-text-secondary: #52657A;
+  --color-border: #DDE5EF;
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
