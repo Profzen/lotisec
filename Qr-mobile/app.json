@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/logo-118.png",
       "resizeMode": "contain",
-      "backgroundColor": "#006A4E"
+      "backgroundColor": "#071A2E"
     },
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
       "splash": {
         "image": "./assets/logo-118.png",
         "resizeMode": "contain",
-        "backgroundColor": "#006A4E"
+        "backgroundColor": "#071A2E"
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-118.png",
-        "backgroundColor": "#006A4E"
+        "backgroundColor": "#071A2E"
       },
       "package": "com.lotisec.togo",
       "config": {
@@ -38,7 +38,7 @@
       "splash": {
         "image": "./assets/logo-118.png",
         "resizeMode": "contain",
-        "backgroundColor": "#006A4E"
+        "backgroundColor": "#071A2E"
       }
     },
     "web": {
@@ -49,7 +49,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#006A4E",
+          "backgroundColor": "#071A2E",
           "image": "./assets/logo-118.png",
           "imageWidth": 200
         }
