@@ -561,3 +561,30 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Gates après ce jalon : 23/23 tests backend, TypeScript mobile réussi, build frontend réussi. Le test anti-emoji parcourt désormais tous les `.ts/.tsx` mobiles via `Extended_Pictographic` et drapeaux régionaux.
 - La procédure reproductible de migration, import, recette, notifications, APK et rollback est dans `docs/MOBILE_ZEM_DEPLOYMENT.md`. La recette automatisée est `backend/scripts/e2e-zem-cycle.js` et exige des secrets injectés uniquement par environnement.
 - Vérification HTTP production : backend `/health` 200 avec base `up`, frontend citoyen 200, console `https://lotisec-delta.vercel.app` 200. Après détection d’un `500` pré-migration sur l’annuaire, un fallback de schéma a été déployé et `/geo/hopital-proche` répond de nouveau 200 avec `source=legacy` jusqu’à l’import traçable.
+
+## Mise à jour produit — 2026-08-08
+
+### Rebranding global et Intégration Logo LOTISEC
+- **Rebranding final 118 → LOTISEC** : Remplacement systématique de toutes les occurrences de "118" par "LOTISEC" (nom définitif de la plateforme, le 118 demeurant uniquement le numéro d'appel d'urgence) sur l'ensemble de la base de code :
+  - **Mobile Expo (`Qr-mobile/`)** : Mise à jour de `app.json` (name, slug, package Android), des écrans `HomeScreen.tsx`, `ScanResultScreen.tsx`, `QRCodeScreen.tsx`, `ZemPassengerScreen.tsx`, `AssistantScreen.tsx`, etc.
+  - **Web Citoyen (`frontend/`)** : Modification des fichiers `Auth.tsx`, `Home.tsx`, `Assistant.tsx`, `ScanResult.tsx`, `Layout.tsx`, et `PwaInstallPrompt.tsx`.
+- **Intégration du logo** : Remplacement du nouveau fichier logo `lotisec.png` (généré par IA : bouclier bleu marine, bleu électrique et cyan) dans les répertoires d'assets mobiles (`Qr-mobile/assets/logo-118.png` pour préserver les liaisons d'imports statiques) et web (`frontend/public/logo-118.png`, `pwa-192x192.png`, etc.).
+- **Build EAS Android** : Lancement et succès du build de production Android sur Expo EAS. APK disponible sous l'ID : `47e44af3-9f32-4b04-aea0-0269d9cae41d`.
+
+### Refonte Graphique de la Console d'Administration
+- **Formulaires dynamiques via Modales (`<dialog>`)** : Remplacement intégral des boîtes de dialogue système `window.prompt()` par des fenêtres modales HTML5 natives élégantes et intégrées, alignées sur le design system de la console :
+  - Modal **Création Utilisateur** (`data-user-modal`) pour enregistrer un nouvel agent.
+  - Modal **Création Organisation** (`data-organization-modal`) avec types de structures paramétrés.
+  - Modal **Création Agent Hospitalier** (`data-hospital-agent-modal`) pour le personnel d'établissement.
+  - Modal **Attribution de Rôle** (`data-grant-role-modal`) dynamique (avec peuplement des organisations actives).
+  - Modal **Demande d'Admission** (`data-admission-modal`) et validation de conducteur Zem (`data-zem-modal`).
+- **Correction CSS Grid de la Console** : Alignement des listes de données opérationnelles (Membres, Utilisateurs, Admissions, Zem) grâce à l'insertion de balises puces de statut (`<i></i>`) en premier enfant des lignes `.notification-row`, résolvant définitivement les chevauchements de textes et de boutons d'action.
+- **Ajout de la déconnexion** : Intégration du bouton "Se déconnecter" sous l'avatar utilisateur avec nettoyage du cache `localStorage`.
+
+### Alignement Visuel du Portail Web Citoyen (`frontend/`)
+- **Migration thématique** : Abandon définitif du thème vert historique (`#006a4e` / `#008a66`) du portail Web Citoyen pour s'harmoniser avec la charte graphique de la console et du mobile :
+  - Fond de page principal : Marine opérationnel (`#071A2E`).
+  - Couleur primaire d'action : Bleu électrique (`#1565D8`).
+  - Fond secondaire d'accentuation : Bleu d'accompagnement doux (`#EAF2FF`).
+  - Couleur de texte et bordures ajustées en conséquence.
+- **Vérification de build** : La commande `npm run build` a été exécutée et s'est terminée avec succès, confirmant l'absence de régression ou d'erreur sur l'application PWA.
