@@ -51,7 +51,14 @@ function applyRbac() {
   document.querySelectorAll("[data-module]").forEach((el) => { el.hidden = !allowed.has(el.dataset.module); });
   document.querySelectorAll('[data-open-mobile]').forEach((el) => { el.hidden = !demoMode; });
   const card = document.querySelector(".operator-card span:nth-child(2)");
-  if (card) card.innerHTML = `<small>${session.user.organization?.name || "LOTISEC"}</small><strong>${session.user.first_name || session.user.phone}</strong><em><i></i> ${roles.join(" · ")}</em>`;
+  if (card) {
+    card.innerHTML = `<small>${escapeHtml(session.user.organization?.name || "LOTISEC")}</small><strong>${escapeHtml(session.user.first_name || session.user.phone)}</strong><em><i></i> ${escapeHtml(roles.join(" · "))}</em><button class="logout-btn" type="button" style="background:none;border:none;color:#E5484D;font-size:0.75rem;padding:0;margin-top:6px;cursor:pointer;text-align:left;display:block;text-decoration:underline;font-weight:600;">Se déconnecter</button>`;
+    card.querySelector(".logout-btn")?.addEventListener("click", () => {
+      localStorage.removeItem(AUTH_KEY);
+      session = null;
+      location.reload();
+    });
+  }
   const organizations = session.user.organizations || [];
   if (organizations.length > 1 && !document.querySelector('[data-organization-switch]')) {
     const select = document.createElement('select'); select.dataset.organizationSwitch = '';
