@@ -18,7 +18,7 @@ const AI_API_URL = (
 export function Assistant() {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: 'Bonjour ! Je suis l\'Assistant IA 118. Je suis là pour répondre à toutes vos questions sur le code de la route et la sécurité routière au Togo. Comment puis-je vous aider ?' }
+    { role: 'assistant', content: 'Bonjour ! Je suis l\'Assistant IA LOTISEC. Je suis là pour répondre à toutes vos questions sur le code de la route et la sécurité routière au Togo. Comment puis-je vous aider ?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -158,7 +158,7 @@ export function Assistant() {
             <span style={{ fontSize: 20 }}>🤖</span>
           </div>
           <div>
-            <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>Assistant IA 118</div>
+            <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>Assistant IA LOTISEC</div>
             <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem' }}>En ligne</div>
           </div>
         </div>

@@ -14,9 +14,8 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS cancellation_reason text;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_code text;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
 
--- Les demandes de l'ancien prototype n'ont ni offre ni délai fiable : on les clôture
--- explicitement au lieu de fabriquer une offre orpheline.
-UPDATE rides SET status='expired', updated_at=now() WHERE status='requested';
+-- Les anciennes demandes `requested` sont conservées telles quelles pour que cette
+-- migration reste additive. Seules les nouvelles courses utilisent le cycle canonique.
 
 CREATE TABLE IF NOT EXISTS ride_offers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -115,6 +114,8 @@ ALTER TABLE ride_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ride_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ride_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ride_positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scan_access_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE device_push_tokens ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS rides_participant_select ON rides;
 CREATE POLICY rides_participant_select ON rides FOR SELECT TO authenticated USING (
@@ -142,4 +143,8 @@ CREATE POLICY ride_messages_participant_select ON ride_messages FOR SELECT TO au
 DROP POLICY IF EXISTS ride_positions_participant_select ON ride_positions;
 CREATE POLICY ride_positions_participant_select ON ride_positions FOR SELECT TO authenticated USING (
   EXISTS(SELECT 1 FROM rides r WHERE r.id=ride_id AND (r.passenger_id=(auth.jwt()->>'app_user_id') OR r.zem_id=(auth.jwt()->>'app_user_id')))
+);
+DROP POLICY IF EXISTS scan_access_owner_select ON scan_access_events;
+CREATE POLICY scan_access_owner_select ON scan_access_events FOR SELECT TO authenticated USING (
+  EXISTS(SELECT 1 FROM profiles p WHERE p.id=profile_id AND p.user_id=(auth.jwt()->>'app_user_id'))
 );

@@ -40,12 +40,13 @@ async function advanceExpiredOffer(rideId:string){
     await client.query('BEGIN');
     const ride=(await client.query<any>('SELECT * FROM rides WHERE id=$1 FOR UPDATE',[rideId])).rows[0];
     if(!ride||ride.status!=='offered'){await client.query('ROLLBACK');return;}
-    const expired=(await client.query<any>(`UPDATE ride_offers SET status='expired',responded_at=now() WHERE ride_id=$1 AND status='offered' AND expires_at<=now() RETURNING id`,[rideId])).rows;
+    const expired=(await client.query<any>(`UPDATE ride_offers SET status='expired',responded_at=now() WHERE ride_id=$1 AND status='offered' AND expires_at<=now() RETURNING id,zem_id`,[rideId])).rows;
     if(!expired.length){await client.query('ROLLBACK');return;}
     const excluded=(await client.query<{zem_id:string}>('SELECT zem_id FROM ride_offers WHERE ride_id=$1',[rideId])).rows.map((row:any)=>row.zem_id);
     const offer=await nextOffer(client,{...ride,status:'offered'},excluded);
     await client.query('COMMIT');
-    if(offer)void notifyUsers([offer.zem_id],'Nouvelle course LOTISEC',`${Number(ride.distance_km).toFixed(1)} km · ${ride.price_fcfa} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:offer.id});
+    void notifyUsers(expired.map((item:any)=>item.zem_id),'Offre expirée','Cette proposition a été transmise à un autre conducteur.',{type:'ride_offer_expired',ride_id:ride.id});
+    if(offer)void notifyUsers([offer.zem_id],'Nouvelle course LOTISEC',`${Number(ride.distance_km).toFixed(1)} km · ${ride.price_fcfa} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:offer.id});else void notifyUsers([ride.passenger_id],'Aucun Zem disponible','Aucun autre conducteur disponible dans un rayon de 5 km.',{type:'ride_expired',ride_id:ride.id});
   }catch(error){await client.query('ROLLBACK');console.error('offer advance failed',error);}finally{client.release();}
 }
 
@@ -113,6 +114,7 @@ router.post('/offers/:offerId/respond',requireAuth,requirePermission('zem:drive'
     const excluded=(await client.query<{zem_id:string}>('SELECT zem_id FROM ride_offers WHERE ride_id=$1',[ride.id])).rows.map((r:any)=>r.zem_id);
     const next=await nextOffer(client,{...ride,status:'offered'},excluded); await client.query('COMMIT');
     if(next)void notifyUsers([next.zem_id],'Nouvelle course LOTISEC',`${Number(ride.distance_km).toFixed(1)} km · ${ride.price_fcfa} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:next.id});
+    else void notifyUsers([ride.passenger_id],'Aucun Zem disponible','Tous les conducteurs proches ont décliné la course.',{type:'ride_expired',ride_id:ride.id});
     return res.json({status:next?'reassigned':'expired'});
   }catch(error:any){await client.query('ROLLBACK');console.error(error);return res.status(500).json({detail:'Réponse impossible'});}finally{client.release();}
 });

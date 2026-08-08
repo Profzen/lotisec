@@ -94,7 +94,7 @@ export function PwaInstallPrompt() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
         <img src="/logo-118.png" alt="118 Logo" style={{ width: '60px', height: '60px', borderRadius: '12px' }} />
         <div>
-          <h3 style={{ margin: '0 0 5px 0', color: 'var(--color-primary)', fontSize: '1.2rem' }}>Installer 118</h3>
+          <h3 style={{ margin: '0 0 5px 0', color: 'var(--color-primary)', fontSize: '1.2rem' }}>Installer LOTISEC</h3>
           <p style={{ margin: 0, color: '#666', fontSize: '0.9rem' }}>
             Accédez plus rapidement aux secours depuis votre écran d'accueil.
           </p>

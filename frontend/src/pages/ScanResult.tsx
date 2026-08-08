@@ -27,7 +27,7 @@ export function ScanResult() {
       if (e.response && e.response.status === 403) {
         toast.error("Accès refusé : rôle professionnel requis.");
       } else {
-        toast.error("Erreur de liaison au serveur 118.");
+        toast.error("Erreur de liaison au serveur LOTISEC.");
       }
     } finally {
       setVerifying(false);
@@ -39,7 +39,7 @@ export function ScanResult() {
       <div className="app-content" style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ backgroundColor: 'var(--color-primary)', padding: '3rem 1rem', textAlign: 'center', color: 'white' }}>
           <ShieldAlert size={60} style={{ marginBottom: '1rem' }} />
-          <h1 style={{ color: 'white', margin: 0 }}>118</h1>
+          <h1 style={{ color: 'white', margin: 0 }}>LOTISEC</h1>
           <div style={{ opacity: 0.8, fontSize: '0.875rem' }}>Fiche d'urgence scannée</div>
         </div>
 

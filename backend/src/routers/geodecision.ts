@@ -44,6 +44,7 @@ router.get('/hopital-proche', async (req, res) => {
   const search = String(req.query.q || '').trim();
   const emergencies = String(req.query.urgences || '') === 'true';
   const maxDistance = Math.min(250, Math.max(1, Number(req.query.rayon_km || 100)));
+  const requestedSort=String(req.query.sort||'distance');const sort=requestedSort==='name'?'name ASC':requestedSort==='availability'?'urgences DESC, distance_km ASC':'distance_km ASC';
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ detail: 'lat et lng sont requis' });
@@ -64,7 +65,7 @@ router.get('/hopital-proche', async (req, res) => {
        AND ($4='' OR name ILIKE '%'||$4||'%' OR address ILIKE '%'||$4||'%')
        AND ($5=false OR urgences=true)
        AND ST_DWithin(location::geography,ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,$6*1000)
-     ORDER BY distance_km
+     ORDER BY ${sort}
      LIMIT 50`,
     [lng, lat,type,search,emergencies,maxDistance]
   );

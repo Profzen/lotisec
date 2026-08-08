@@ -22,7 +22,7 @@ export function Layout() {
             <img src="/logo-118.png" alt="118 Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <h2 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.5rem', letterSpacing: '-0.5px' }}>
-            118
+            LOTISEC
           </h2>
         </div>
         

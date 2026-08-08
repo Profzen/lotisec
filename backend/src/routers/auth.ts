@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
-import { query } from '../database';
+import { pool, query } from '../database';
 import { AuthRequest, requireAuth } from '../middleware/auth';
 import { permissionsFor, rolesForOrganization } from '../security/rbac';
 import { jwtSecret } from '../security/jwt';
@@ -70,17 +70,8 @@ function signRealtimeToken(userId: string, session: Awaited<ReturnType<typeof se
 }
 
 async function ensureProfile(userId: string) {
-  const existing = await query<any>('SELECT id,qr_token,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1',[userId]);
-  if (existing.rows[0]?.qr_token) return existing.rows[0];
-  const qrToken=uuidv4().slice(0,8).toUpperCase();
-  if(existing.rows[0]){
-    const repaired=await query<any>('UPDATE profiles SET qr_token=$1 WHERE id=$2 RETURNING id,qr_token,first_name,last_name',[qrToken,existing.rows[0].id]);
-    return repaired.rows[0];
-  }
-  const created=await query<any>(`INSERT INTO profiles(id,user_id,qr_token,profile_type,first_name,last_name,birth_date,gender,nationality,blood_type,access_code,has_vehicle)
-    VALUES($1,$2,$3,'CITIZEN','Utilisateur','LOTISEC','01/01/2000','NC','Togo','NC',$4,false)
-    RETURNING id,qr_token,first_name,last_name`,[uuidv4(),userId,qrToken,uuidv4().slice(0,8)]);
-  return created.rows[0];
+  if(!pool)throw new Error('Base indisponible');const client=await pool.connect();
+  try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[userId]);const existing=(await client.query<any>('SELECT id,qr_token,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1 FOR UPDATE',[userId])).rows[0];if(existing?.qr_token){await client.query('COMMIT');return existing;}const qrToken=uuidv4().slice(0,8).toUpperCase();let profile;if(existing)profile=(await client.query<any>('UPDATE profiles SET qr_token=$1 WHERE id=$2 RETURNING id,qr_token,first_name,last_name',[qrToken,existing.id])).rows[0];else profile=(await client.query<any>(`INSERT INTO profiles(id,user_id,qr_token,profile_type,first_name,last_name,birth_date,gender,nationality,blood_type,access_code,has_vehicle) VALUES($1,$2,$3,'CITIZEN','Utilisateur','LOTISEC','01/01/2000','NC','Togo','NC',$4,false) RETURNING id,qr_token,first_name,last_name`,[uuidv4(),userId,qrToken,uuidv4().slice(0,8)])).rows[0];await client.query('COMMIT');return profile;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
 
 router.post('/register', async (req, res) => {

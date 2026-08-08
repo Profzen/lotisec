@@ -266,6 +266,6 @@ Toutes ces routes exigent `Authorization: Bearer <token LOTISEC>`. L’identité
 
 ## Établissements médicaux
 
-- `GET /geo/hopital-proche?lat=&lng=&type=tous|hopital|clinique|dispensaire|cs&q=&urgences=true|false&rayon_km=`.
+- `GET /geo/hopital-proche?lat=&lng=&type=tous|hopital|clinique|dispensaire|cs&q=&urgences=true|false&rayon_km=&sort=distance|name|availability`.
 - Réponse : identité, coordonnées, distance PostGIS, `eta_seconds` OSRM si disponible, source, identifiant source, date de vérification, services et horaires.
 - `npm run import:facilities` synchronise les objets hospital/clinic/health_centre d’OpenStreetMap pour le Togo par `(source, source_id)` sans inventer de coordonnées.

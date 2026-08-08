@@ -24,7 +24,7 @@ const AI_API_URL = (
 
 export default function AssistantScreen({ navigation }: any) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: "Bonjour ! Je suis l'Assistant IA 118. Je réponds à toutes vos questions sur le code de la route et la sécurité au Togo." }
+    { role: 'assistant', content: "Bonjour ! Je suis l'Assistant IA LOTISEC. Je réponds à toutes vos questions sur le code de la route et la sécurité au Togo." }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -165,7 +165,7 @@ export default function AssistantScreen({ navigation }: any) {
         <View style={styles.headerInfo}>
           <View style={styles.avatar}><Ionicons name="sparkles-outline" size={21} color={colors.primary}/></View>
           <View>
-            <Text style={styles.headerTitle}>Assistant IA 118</Text>
+            <Text style={styles.headerTitle}>Assistant IA LOTISEC</Text>
             <Text style={styles.headerSub}>Code de la route</Text>
           </View>
         </View>

@@ -1,28 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../api/config';
-import { supabase } from '../api/supabase';
-import { registerPushToken } from './notifications';
-
+import {api} from '../api/config';import {supabase} from '../api/supabase';import {registerPushToken} from './notifications';
 export type LotisecSession={token:string;realtimeToken?:string|null;user:any};
 const KEYS={token:'token',user:'user',profile:'profile',qr:'qrToken',realtime:'realtimeToken'} as const;
-
-export async function persistSession(data:any):Promise<LotisecSession>{
-  const token=data.token||data.access_token;if(!token)throw new Error('Jeton de session absent');
-  const user=data.user||{},realtimeToken=data.realtime_token||null;
-  const pairs:[string,string][]=[[KEYS.token,token],[KEYS.user,JSON.stringify(user)],['lotisec_user',JSON.stringify(user)],[KEYS.profile,JSON.stringify(user)]];
-  if(realtimeToken)pairs.push([KEYS.realtime,realtimeToken]);if(user.qr_token)pairs.push([KEYS.qr,user.qr_token]);
-  await AsyncStorage.multiSet(pairs);if(realtimeToken&&supabase)await supabase.realtime.setAuth(realtimeToken);
-  void registerPushToken(token).catch(()=>{});
-  return {token,realtimeToken,user};
+let cache:LotisecSession|null=null,lastProfileRefresh=0,lastRealtimeRefresh=0,inFlight:Promise<LotisecSession|null>|null=null;
+async function storeUser(user:any){await AsyncStorage.multiSet([[KEYS.user,JSON.stringify(user)],['lotisec_user',JSON.stringify(user)],[KEYS.profile,JSON.stringify(user)]]);if(user.qr_token)await AsyncStorage.setItem(KEYS.qr,user.qr_token);}
+export async function persistSession(data:any):Promise<LotisecSession>{const token=data.token||data.access_token;if(!token)throw new Error('Jeton de session absent');const user=data.user||{},realtimeToken=data.realtime_token||null;await AsyncStorage.setItem(KEYS.token,token);await storeUser(user);if(realtimeToken){await AsyncStorage.setItem(KEYS.realtime,realtimeToken);if(supabase)await supabase.realtime.setAuth(realtimeToken);}cache={token,realtimeToken,user};lastProfileRefresh=Date.now();lastRealtimeRefresh=realtimeToken?Date.now():0;void registerPushToken(token).catch(()=>{});return cache;}
+async function doHydrate(force:boolean){const now=Date.now();if(cache&&!force&&now-lastProfileRefresh<5*60_000)return cache;const values=await AsyncStorage.multiGet([KEYS.token,KEYS.user,KEYS.realtime,'lotisec_user']);const map=Object.fromEntries(values);const token=map[KEYS.token];if(!token)return null;const storedUser=map[KEYS.user]||map.lotisec_user;let user=storedUser?JSON.parse(storedUser):cache?.user||{};if(force||now-lastProfileRefresh>=5*60_000||!user.id){try{const me=await api('/auth/me','GET',undefined,token);user={...user,...me.user};await storeUser(user);lastProfileRefresh=now;}catch(error){if(!user.id)throw error;}}
+  let realtimeToken=map[KEYS.realtime]||cache?.realtimeToken||null;if(force||now-lastRealtimeRefresh>=45*60_000||!realtimeToken){try{const result=await api('/auth/realtime-token','POST',{},token);realtimeToken=result.token;if(realtimeToken){await AsyncStorage.setItem(KEYS.realtime,realtimeToken);if(supabase)await supabase.realtime.setAuth(realtimeToken);lastRealtimeRefresh=now;}}catch{/* Le polling HTTP reste actif. */}}else if(realtimeToken&&supabase)await supabase.realtime.setAuth(realtimeToken);cache={token,realtimeToken,user};return cache;
 }
-
-export async function hydrateSession():Promise<LotisecSession|null>{
-  const values=await AsyncStorage.multiGet([KEYS.token,KEYS.user,KEYS.realtime,'lotisec_user']);const map=Object.fromEntries(values);
-  const storedToken=map[KEYS.token];if(!storedToken)return null;const token:string=storedToken;const storedUser=map[KEYS.user]||map.lotisec_user;let user=storedUser?JSON.parse(storedUser):{};
-  try{const me=await api('/auth/me','GET',undefined,token);user={...user,...me.user};await AsyncStorage.multiSet([[KEYS.user,JSON.stringify(user)],['lotisec_user',JSON.stringify(user)],[KEYS.profile,JSON.stringify(user)]]);if(user.qr_token)await AsyncStorage.setItem(KEYS.qr,user.qr_token);}catch(error){if(!user.id)throw error;}
-  let realtimeToken=map[KEYS.realtime]||null;
-  try{const result=await api('/auth/realtime-token','POST',{},token);realtimeToken=result.token;if(realtimeToken){await AsyncStorage.setItem(KEYS.realtime,realtimeToken);if(supabase)await supabase.realtime.setAuth(realtimeToken);}}catch{/* Polling remains available. */}
-  return {token,realtimeToken,user};
-}
-
-export async function clearSession(){await AsyncStorage.multiRemove([...Object.values(KEYS),'lotisec_user','userProfile']);}
+export async function hydrateSession(force=false):Promise<LotisecSession|null>{if(inFlight)return inFlight;inFlight=doHydrate(force).finally(()=>{inFlight=null;});return inFlight;}
+export async function clearSession(){cache=null;lastProfileRefresh=0;lastRealtimeRefresh=0;await AsyncStorage.multiRemove([...Object.values(KEYS),'lotisec_user','userProfile']);}

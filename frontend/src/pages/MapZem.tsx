@@ -395,7 +395,7 @@ export function MapZem() {
               disabled={!destination || !routeData || loading}
             >
               <Car size={20} />
-              {loading ? 'Commande en cours...' : 'Commander un 118 Zem'}
+              {loading ? 'Commande en cours...' : 'Commander un Lotisec Zem'}
             </button>
           </>
         ) : (

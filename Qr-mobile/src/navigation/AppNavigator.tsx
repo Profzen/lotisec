@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +48,7 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+export const navigationRef=createNavigationContainerRef<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 // 2. CONFIGURATION DES ONGLETS
@@ -126,7 +127,7 @@ function TabNavigator() {
 // 3. NAVIGATEUR PRINCIPAL
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName="Landing"
         screenOptions={{

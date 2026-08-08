@@ -33,7 +33,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Ionicons name="shield-half" size={70} color={colors.primary} />
-          <Text style={styles.headerTitle}>118</Text>
+          <Text style={styles.headerTitle}>LOTISEC</Text>
           <Text style={styles.headerSub}>Fiche d'urgence scannée</Text>
         </View>
 

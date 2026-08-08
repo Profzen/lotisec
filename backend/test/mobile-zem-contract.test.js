@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..');
 test('la migration Zem complète contient offres, événements, chat, positions, scans et RLS',()=>{
   const sql=fs.readFileSync(path.join(root,'migrations','20260802_mobile_zem_complete.sql'),'utf8');
   for(const table of ['ride_offers','ride_events','ride_messages','ride_positions','device_push_tokens','scan_access_events'])assert.match(sql,new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`,'i'));
-  for(const table of ['rides','zem_locations','ride_offers','ride_events','ride_messages','ride_positions'])assert.match(sql,new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`,'i'));
+  for(const table of ['rides','zem_locations','ride_offers','ride_events','ride_messages','ride_positions','scan_access_events','device_push_tokens'])assert.match(sql,new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`,'i'));
   assert.match(sql,/app_user_id/i);
 });
 

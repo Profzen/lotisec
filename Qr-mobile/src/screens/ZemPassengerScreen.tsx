@@ -70,7 +70,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
             if (payload.new.status === 'accepted') {
               Alert.alert("Succès", "Un Zem a accepté votre course ! Il est en route.");
             } else if (payload.new.status === 'completed') {
-              Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec 118 Zem !");
+              Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec Lotisec Zem !");
               setActiveRide(null);
               setDestination(null);
               setRouteData(null);

@@ -58,6 +58,7 @@ export default function HospitauxScreen({ navigation }: any) {
   const [location,   setLocation]   = useState<Location.LocationObject | null>(null);
   const [hopitaux,   setHopitaux]   = useState<Hopital[]>([]);
   const [filtreActif,setFiltreActif]= useState<string>('tous');
+  const [tri,setTri]=useState<'distance'|'nom'|'urgences'>('distance');
   const [recherche,  setRecherche]  = useState('');
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +117,7 @@ export default function HospitauxScreen({ navigation }: any) {
       (filtreActif === 'urgences' && h.urgences) ||
       h.type === filtreActif;
     return matchR && matchF;
-  });
+  }).sort((a,b)=>tri==='nom'?a.name.localeCompare(b.name):tri==='urgences'?Number(b.urgences)-Number(a.urgences)||a.distance-b.distance:a.distance-b.distance);
 
   // ─── Actions ──────────────────────────────────────────────
   const ouvrirItineraire = (h: Hopital) => {
@@ -334,6 +335,7 @@ export default function HospitauxScreen({ navigation }: any) {
             );
           })}
         </ScrollView>
+        <View style={styles.sortRow}><Text style={styles.sortLabel}>Trier par</Text>{([{key:'distance',label:'Distance'},{key:'nom',label:'Nom'},{key:'urgences',label:'Urgences'}] as const).map(option=><TouchableOpacity key={option.key} accessibilityRole="button" style={[styles.sortButton,tri===option.key&&styles.sortButtonActive]} onPress={()=>setTri(option.key)}><Text style={[styles.sortText,tri===option.key&&styles.sortTextActive]}>{option.label}</Text></TouchableOpacity>)}</View>
       </View>
 
       {/* ── LISTE ── */}
@@ -552,6 +554,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flex: 1,
   },
+  sortRow:{flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:14,paddingBottom:10},
+  sortLabel:{fontSize:11,color:colors.textSecondary,marginRight:2},
+  sortButton:{minHeight:34,paddingHorizontal:11,borderRadius:10,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center'},
+  sortButtonActive:{backgroundColor:colors.primaryLight,borderColor:colors.primary},
+  sortText:{fontSize:11,fontFamily:fonts.semiBold,color:colors.textSecondary},
+  sortTextActive:{color:colors.primary},
   sourceText:{fontSize:10,color:colors.textLight,marginBottom:9},
 
   // Distance

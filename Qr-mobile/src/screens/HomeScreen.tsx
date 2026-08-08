@@ -232,7 +232,7 @@ export default function HomeScreen({ navigation }: Props) {
     if(!qrToken) return Alert.alert("Erreur", "Token introuvable.");
     const html = `
       <html><body style="text-align:center;font-family:Helvetica;padding:40px;">
-        <h1 style="color:#D21034;">118</h1> 
+        <h1 style="color:#D21034;">LOTISEC</h1> 
         <h2>Fiche d'urgence</h2>
         <hr/>
         <div style="margin:30px;">
@@ -309,7 +309,7 @@ export default function HomeScreen({ navigation }: Props) {
           <TouchableOpacity style={[styles.alertRow, { backgroundColor: colors.primaryLight }]} onPress={() => navigation.navigate('Assistant' as any)}>
             <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="comments-o" size={19} color={colors.white}/></View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.alertTitle, { color: colors.primary }]}>Assistant IA 118</Text>
+              <Text style={[styles.alertTitle, { color: colors.primary }]}>Assistant IA LOTISEC</Text>
               <Text style={[styles.alertSub, { color: colors.primary, opacity: 0.7 }]}>Questions sur le code de la route</Text>
             </View>
             <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
