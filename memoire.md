@@ -609,31 +609,25 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
     - Harmonisation des URLs de scan vers `https://lotisec-frontend.vercel.app/scan/${qrToken}`.
   - **Web Citoyen (`frontend/src/pages/QrCode.tsx`, `Home.tsx`)** : Rafraîchissement automatique de la session utilisateur sur `/auth/me` dès l'ouverture si `qr_token` est manquant, garantissant l'affichage instantané du QR code.
 - **Validation** : 23/23 tests backend passés (`npm test`), build frontend validé (`npm run build`), TypeScript mobile 0 erreur (`npx tsc --noEmit`).
-- **Build EAS Android APK (Production / Preview)** :
-  - ID Build : `291be0f6-68ba-4392-9e41-51086bbd1764`
+- **Dernier Build EAS Android APK (Production / Preview)** :
+  - ID Build : `62166018-0dec-4c50-b133-ad4098af83ef`
   - Statut : **Terminé avec succès** (`finished`)
-  - Commit : `5c971070b059d526ac28a58ed18a4095b2fae7c1`
-  - Lien d'installation Expo : https://expo.dev/accounts/profzen/projects/lotisec/builds/291be0f6-68ba-4392-9e41-51086bbd1764
-  - Téléchargement direct APK : https://expo.dev/artifacts/eas/hd6_pbeA-xN0Y2wSZENx-35R0XEIwsz_NeLgberXb6o.apk
+  - Profil : `preview` (Stand-alone APK)
+  - SDK Expo : `54.0.0`
+  - Lien de suivi & installation Expo : https://expo.dev/accounts/profzen/projects/lotisec/builds/62166018-0dec-4c50-b133-ad4098af83ef
+  - Téléchargement direct APK : https://expo.dev/accounts/profzen/projects/lotisec/builds/62166018-0dec-4c50-b133-ad4098af83ef
 
-### Restructuration Institutionnelle de la Console, Scission Métier & Résilience Fog
-- **Design Institutionnel & Sobre (`LOTISEC-Console-Complete/public/console.css`)** :
-  - Suppression intégrale des néons, lueurs superflues et reflets flashy.
-  - Mise en place d'une charte graphique institutionnelle mate, sobre et contrastée (`#071827`, `#0D2033`, `#11273C`, `#1B6CA8`, `#22C55E`, `#DC2626`).
-  - Structure responsive claire pour écrans de contrôle de régulation et terminaux mobiles.
-- **Scission Stricte des Espaces Métiers & Sélecteur Admin (`public/console.html`, `public/console.js`)** :
-  - **Sapeurs-Pompiers (118) / Ambulanciers** : Vue opérationnelle avec carte tactique interactive Leaflet, file des incidents SOS en direct, interventions terrain et reroutage d'urgence anti-bouchon.
-  - **Établissements Hospitaliers** : Vue dédiée débarrassée de toute carte interactive inutile, focalisée sur la gestion en 1 clic des capacités d'accueil (Urgences, Réanimation, Chirurgie, Traumatologie) et les dossiers médicaux d'urgence (QR code) réservés exclusivement aux patients admis.
-  - **Supervision Admin** : Sélecteur dynamique dans la TopBar permettant de basculer instantanément entre la supervision globale, la vue Pompiers et la vue Hospitalière sans rechargement de page.
-- **Nœud Fog Computing & Résilience Hors-Ligne (`public/console.js`)** :
-  - Continuité opérationnelle locale assurée par le nœud `FOG-LOMÉ-01` en cas de coupure de connexion internet.
-  - Détection automatique de l'état réseau (en ligne / hors-ligne) avec mise en mémoire locale des événements et synchronisation bidirectionnelle automatique avec le Cloud lors de la reconnexion.
-  - Simulation et gestion des déviations d'itinéraires face aux axes urbains congestionnés de Lomé.
-- **Annuaire Certifié des Hôpitaux du Togo & Attribution Immédiate du SOS Mobile (`backend/src/routers/operations.ts`, `Qr-mobile/src/screens/HopitauxScreen.tsx`, `HomeScreen.tsx`)** :
-  - Annuaire réel vérifié (CHU Sylvanus Olympio, CHU Campus, Hôpital Dogta-Lafiè, Hôpital de Bè, Polyclinique Saint-Joseph, Clinique Biasa) avec calcul de distance et ETA de conduite.
-  - Sur l'application mobile, lors du déclenchement du SOS citoyen, le système calcule et assigne automatiquement l'unité de secours la plus proche avec son ETA et statut « En route vers vous », ainsi que l'hôpital de destination prêt à l'accueillir.
-- **Tests & Conformité** :
-  - Tests automatisés backend : **23/23 tests passés avec succès** (`npm test`).
-  - Build frontend PWA : **100% validé** (`npm run build`).
+### Restauration de la Disposition Visuelle de la Console, Fix Logo & Réactivité Intégrale
+- **Correction de la modale de connexion et du logo géant** :
+  - Encadrement strict des dimensions de l'image de marque dans la modale d'authentification (`width: 64px; height: 64px; object-fit: contain;`) évitant tout débordement à l'écran.
+  - Ajout de raccourcis 1-clic de démonstration institutionnelle immédiate (👑 Superviseur National, 🚒 Sapeurs-Pompiers 118, 🏥 CHU Sylvanus Olympio) pour faciliter les démonstrations de soutenance sans blocage.
+- **Restauration de la disposition complète d'origine** :
+  - Rétablissement de la structure native de la console : Tableau de bord, Incidents, Carte en direct Leaflet, Trafic en temps réel, Interventions, Ambulances, Hôpitaux, Statistiques, Fog Computing, Utilisateurs & Rôles, Paramètres.
+  - Fonctionnalité pleine et entière de l'ensemble des boutons, sélecteurs, modales de détail d'incidents et ajustements de lits en 1 clic.
+- **Validation Globale** :
+  - Backend : 23/23 tests passés (100%).
+  - Mobile : 0 erreur de compilation TypeScript (`npx tsc --noEmit`).
+  - Console : mise en page préservée, réactive, compatible Vercel et conforme aux exigences du jury.
+
 
 
