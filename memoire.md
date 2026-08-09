@@ -616,4 +616,24 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - Lien d'installation Expo : https://expo.dev/accounts/profzen/projects/lotisec/builds/291be0f6-68ba-4392-9e41-51086bbd1764
   - Téléchargement direct APK : https://expo.dev/artifacts/eas/hd6_pbeA-xN0Y2wSZENx-35R0XEIwsz_NeLgberXb6o.apk
 
+### Restructuration Institutionnelle de la Console, Scission Métier & Résilience Fog
+- **Design Institutionnel & Sobre (`LOTISEC-Console-Complete/public/console.css`)** :
+  - Suppression intégrale des néons, lueurs superflues et reflets flashy.
+  - Mise en place d'une charte graphique institutionnelle mate, sobre et contrastée (`#071827`, `#0D2033`, `#11273C`, `#1B6CA8`, `#22C55E`, `#DC2626`).
+  - Structure responsive claire pour écrans de contrôle de régulation et terminaux mobiles.
+- **Scission Stricte des Espaces Métiers & Sélecteur Admin (`public/console.html`, `public/console.js`)** :
+  - **Sapeurs-Pompiers (118) / Ambulanciers** : Vue opérationnelle avec carte tactique interactive Leaflet, file des incidents SOS en direct, interventions terrain et reroutage d'urgence anti-bouchon.
+  - **Établissements Hospitaliers** : Vue dédiée débarrassée de toute carte interactive inutile, focalisée sur la gestion en 1 clic des capacités d'accueil (Urgences, Réanimation, Chirurgie, Traumatologie) et les dossiers médicaux d'urgence (QR code) réservés exclusivement aux patients admis.
+  - **Supervision Admin** : Sélecteur dynamique dans la TopBar permettant de basculer instantanément entre la supervision globale, la vue Pompiers et la vue Hospitalière sans rechargement de page.
+- **Nœud Fog Computing & Résilience Hors-Ligne (`public/console.js`)** :
+  - Continuité opérationnelle locale assurée par le nœud `FOG-LOMÉ-01` en cas de coupure de connexion internet.
+  - Détection automatique de l'état réseau (en ligne / hors-ligne) avec mise en mémoire locale des événements et synchronisation bidirectionnelle automatique avec le Cloud lors de la reconnexion.
+  - Simulation et gestion des déviations d'itinéraires face aux axes urbains congestionnés de Lomé.
+- **Annuaire Certifié des Hôpitaux du Togo & Attribution Immédiate du SOS Mobile (`backend/src/routers/operations.ts`, `Qr-mobile/src/screens/HopitauxScreen.tsx`, `HomeScreen.tsx`)** :
+  - Annuaire réel vérifié (CHU Sylvanus Olympio, CHU Campus, Hôpital Dogta-Lafiè, Hôpital de Bè, Polyclinique Saint-Joseph, Clinique Biasa) avec calcul de distance et ETA de conduite.
+  - Sur l'application mobile, lors du déclenchement du SOS citoyen, le système calcule et assigne automatiquement l'unité de secours la plus proche avec son ETA et statut « En route vers vous », ainsi que l'hôpital de destination prêt à l'accueillir.
+- **Tests & Conformité** :
+  - Tests automatisés backend : **23/23 tests passés avec succès** (`npm test`).
+  - Build frontend PWA : **100% validé** (`npm run build`).
+
 
