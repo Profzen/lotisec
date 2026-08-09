@@ -588,3 +588,25 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - Fond secondaire d'accentuation : Bleu d'accompagnement doux (`#EAF2FF`).
   - Couleur de texte et bordures ajustées en conséquence.
 - **Vérification de build** : La commande `npm run build` a été exécutée et s'est terminée avec succès, confirmant l'absence de régression ou d'erreur sur l'application PWA.
+
+## Mise à jour produit — 2026-08-09
+
+### Correction Cartographie Mobile & Web, Commande Zem et Génération QR Code
+- **Affichage de la Carte Zem (`Qr-mobile/src/screens/ZemPassengerScreen.tsx`, `ZemDriverScreen.tsx`, `RideDetailScreen.tsx`)** :
+  - Suppression de `mapType="none"` qui coupait le pipeline de rendu sous Android/Google Maps SDK.
+  - Configuration de `UrlTile` avec `shouldReplaceMapContent={true}`, `tileSize={256}`, `zIndex={1}` et tuiles OpenStreetMap / CartoDB.
+  - Définition d'un point de centrage initial par défaut sur Lomé (`6.1375, 1.2125`) en cas de GPS indisponible.
+  - Remplacement du composant factice `PlatformMap.web.tsx` par une carte interactive complète propulsée par Leaflet avec marqueurs, polylines, zoom et sélection de coordonnées au clic.
+- **Réactivité et Robustesse de Commande Zem (`ZemPassengerScreen.tsx`, `src/utils/osrm.ts`)** :
+  - Passage de l'API OSRM en `https://router.project-osrm.org/...` sécurisé.
+  - Ajout d'un calcul de distance de secours instantané (Haversine avec coefficient urbain `1.3`), garantissant que `getRoute` ne retourne jamais `null` et que le panneau d'estimation (distance + prix) s'affiche immédiatement au choix du point d'arrivée.
+  - Gestion explicite des erreurs et feedback visuel lors du clic sur « Commander le Zem » (indicateur de chargement `ActivityIndicator` sur le bouton, auto-chargement de la session utilisateur `getUser()`, et alertes explicites en cas d'absence de conducteurs à proximité).
+- **Génération et Récupération des Codes QR (Mobile & Web)** :
+  - **Backend (`backend/src/routers/profil.ts`)** : Ajout des routes `GET /` et `GET /me` (authentifiées) assurant l'auto-création et la restitution du `qr_token` et des données médicales.
+  - **Mobile (`Qr-mobile/src/screens/QRCodeScreen.tsx`, `HomeScreen.tsx`, `src/api/profil.ts`)** :
+    - Auto-guérison de la session : appel à `/auth/me` si `qr_token` n'est pas en cache local.
+    - Export PDF officiel LOTISEC avec logo, identité, groupe sanguin, contacts et QR code vectoriel.
+    - Harmonisation des URLs de scan vers `https://lotisec-frontend.vercel.app/scan/${qrToken}`.
+  - **Web Citoyen (`frontend/src/pages/QrCode.tsx`, `Home.tsx`)** : Rafraîchissement automatique de la session utilisateur sur `/auth/me` dès l'ouverture si `qr_token` est manquant, garantissant l'affichage instantané du QR code.
+- **Validation** : 23/23 tests backend passés (`npm test`), build frontend validé (`npm run build`), TypeScript mobile 0 erreur (`npx tsc --noEmit`).
+
