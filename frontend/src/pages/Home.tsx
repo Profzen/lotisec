@@ -26,15 +26,32 @@ const DEMO_SCANS = [
 
 export function Home() {
   const navigate = useNavigate();
-  const user = useMemo(() => {
+  const [user, setUser] = useState<UserData | null>(() => {
     const raw = localStorage.getItem('lotisec_user');
     return raw ? (JSON.parse(raw) as UserData) : null;
-  }, []);
+  });
   
   const [loadingSOS, setLoadingSOS] = useState(false);
   const [sosActif, setSosActif] = useState(false);
   const [showScans, setShowScans] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
+
+  useEffect(() => {
+    const refreshUser = async () => {
+      if (!user?.qr_token) {
+        try {
+          const { data } = await api.get('/auth/me', { headers: authHeaders() });
+          if (data?.user) {
+            setUser(data.user);
+            localStorage.setItem('lotisec_user', JSON.stringify(data.user));
+          }
+        } catch (e) {
+          console.warn('Erreur refresh user:', e);
+        }
+      }
+    };
+    refreshUser();
+  }, []);
 
   const handleSOS = () => {
     if (sosActif) {
@@ -212,7 +229,7 @@ export function Home() {
 
         <div className="lotisec-card" onClick={() => setQrModalVisible(true)} style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
           <div style={{ width: 50, height: 50, borderRadius: 10, border: '1px solid var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {user?.qr_token ? <QRCode value={`https://qr-web-dbap.vercel.app/scan/${user.qr_token}`} size={34} fgColor="var(--color-primary)" /> : <div>...</div>}
+            {user?.qr_token ? <QRCode value={`${window.location.origin}/scan/${user.qr_token}`} size={34} fgColor="var(--color-primary)" /> : <div>...</div>}
           </div>
           <div className="action-content">
             <div className="action-title">Mon QR code</div>
@@ -288,7 +305,7 @@ export function Home() {
           <div className="qr-modal-content">
             <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Mon Code QR</h2>
             <div id="print-qr-area" style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '1rem', display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-               {user?.qr_token ? <QRCode value={`https://lotisec.com/scan/${user.qr_token}`} size={220} /> : <div>Chargement...</div>}
+               {user?.qr_token ? <QRCode value={`${window.location.origin}/scan/${user.qr_token}`} size={220} /> : <div>Chargement...</div>}
             </div>
             <button className="btn primary" onClick={generatePDF}>📄 Imprimer / PDF</button>
             <button className="btn ghost mt-4" onClick={() => setQrModalVisible(false)}>Fermer</button>

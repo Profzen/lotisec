@@ -35,7 +35,28 @@ const profilSchema = z.object({
   emergency_contacts: z.array(contactSchema).optional().default([])
 });
 
-router.post('/', requireAuth, async (req: AuthRequest, res) => {
+router.get(['/', '/me'], requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId as string;
+  const existing = await query<any>(
+    'SELECT * FROM profiles WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  if (existing.rows.length === 0) {
+    return res.status(404).json({ detail: 'Profil introuvable' });
+  }
+  const profile = existing.rows[0];
+  const contacts = await query<any>(
+    'SELECT name, phone, relation FROM emergency_contacts WHERE profile_id = $1 ORDER BY name ASC',
+    [profile.id]
+  );
+  return res.json({
+    profile,
+    qr_token: profile.qr_token,
+    emergency_contacts: contacts.rows
+  });
+});
+
+router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
   const parsed = profilSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
@@ -54,7 +75,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
   if (existing.rows.length > 0) {
     profileId = existing.rows[0].id;
-    qrToken = existing.rows[0].qr_token;
+    qrToken = existing.rows[0].qr_token || uuidv4().slice(0, 8).toUpperCase();
 
     await query(
       `UPDATE profiles SET
@@ -77,8 +98,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         plate = $17,
         brand = $18,
         model = $19,
+        qr_token = $20,
         updated_at = NOW()
-      WHERE id = $20`,
+      WHERE id = $21`,
       [
         data.profile_type,
         data.first_name,
@@ -99,6 +121,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         data.plate,
         data.brand,
         data.model,
+        qrToken,
         profileId
       ]
     );

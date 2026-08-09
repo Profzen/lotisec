@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, 
-  StatusBar, Image, Alert, Share, ActivityIndicator
+  StatusBar, Alert, Share, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,42 +10,128 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { colors } from '../theme/colors';
-
+import { fontSizes, fonts } from '../theme/typography';
+import { hydrateSession } from '../services/session';
+import { api } from '../api/config';
 
 export default function QRCodeScreen() {
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem('qrToken');
-        const storedProfile = await AsyncStorage.getItem('profile');
-        
-        if (storedToken) setQrToken(storedToken);
-        if (storedProfile) setProfile(JSON.parse(storedProfile));
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadUserData();
   }, []);
 
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 1. Essayer via hydrateSession
+      const session = await hydrateSession(true);
+      let token = session?.user?.qr_token;
+      let userProfile = session?.user;
+
+      // 2. Si non présent, appeler directement /auth/me
+      if (!token && session?.token) {
+        try {
+          const meData = await api('/auth/me', 'GET', undefined, session.token);
+          if (meData?.user?.qr_token) {
+            token = meData.user.qr_token;
+            userProfile = meData.user;
+          }
+        } catch (e) {
+          console.warn('Erreur /auth/me dans QRCodeScreen:', e);
+        }
+      }
+
+      // 3. Fallback AsyncStorage
+      if (!token) {
+        token = await AsyncStorage.getItem('qrToken');
+      }
+      if (!userProfile) {
+        const stored = await AsyncStorage.getItem('profile');
+        if (stored) userProfile = JSON.parse(stored);
+      }
+
+      if (token) {
+        setQrToken(token);
+        await AsyncStorage.setItem('qrToken', token);
+      }
+      if (userProfile) {
+        setProfile(userProfile);
+      }
+
+      if (!token) {
+        setError("Votre code QR n'a pas pu être chargé. Vérifiez votre connexion.");
+      }
+    } catch (e: any) {
+      console.error('Erreur chargement QR Code:', e);
+      setError(e?.message || 'Erreur lors de la récupération du code QR');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const scanUrl = qrToken ? `https://lotisec-frontend.vercel.app/scan/${qrToken}` : '';
+
   const generatePDF = async () => {
-    if (!qrToken) return Alert.alert("Erreur", "Données non disponibles");
+    if (!qrToken) return Alert.alert("Erreur", "Code QR non disponible");
+
+    const userName = profile?.first_name && profile?.last_name
+      ? `${profile.first_name} ${profile.last_name}`
+      : 'Citoyen LOTISEC';
+    const bloodType = profile?.blood_type && profile.blood_type !== 'NC' ? profile.blood_type : 'Non spécifié';
+    const phone = profile?.phone || 'Non renseigné';
 
     const html = `
+      <!DOCTYPE html>
       <html>
-        <body style="text-align:center; padding: 50px; font-family: sans-serif;">
-          <h1 style="font-size: 40px; font-weight: bold; font-family: sans-serif;">
-            <span style="color: #D21034;">Safe</span><span style="color: #FFCD00;">Life</span>
-          </h1>
-          <p style="font-size: 20px;">Fiche d'urgence officielle</p>
-          <div style="margin: 40px auto; padding: 20px; border: 2px solid #EEE; display: inline-block; border-radius: 20px;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://qr-web-dbap.vercel.app/scan/${qrToken}" />
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; text-align: center; padding: 40px; color: #071A2E; }
+            .header { margin-bottom: 20px; }
+            .logo { font-size: 32px; font-weight: 900; color: #1565D8; letter-spacing: 2px; }
+            .title { font-size: 18px; color: #5B7289; margin-top: 4px; }
+            .card { margin: 30px auto; padding: 25px; border: 2px solid #E1E8F0; border-radius: 20px; max-width: 340px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .qr-img { width: 240px; height: 240px; border-radius: 12px; }
+            .token-text { font-size: 16px; font-weight: bold; color: #1565D8; margin-top: 15px; letter-spacing: 1.5px; }
+            .info-table { margin: 20px auto; text-align: left; width: 100%; border-collapse: collapse; }
+            .info-table td { padding: 6px 0; font-size: 14px; }
+            .info-label { color: #5B7289; font-weight: 500; }
+            .info-val { font-weight: bold; color: #071A2E; text-align: right; }
+            .footer { font-size: 12px; color: #5B7289; margin-top: 30px; line-height: 1.5; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">LOTISEC</div>
+            <div class="title">Fiche d'Urgence Médicale Officielle</div>
+          </div>
+          <div class="card">
+            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(scanUrl)}" />
+            <div class="token-text">ID: ${qrToken}</div>
+            <table class="info-table">
+              <tr>
+                <td class="info-label">Titulaire :</td>
+                <td class="info-val">${userName}</td>
+              </tr>
+              <tr>
+                <td class="info-label">Groupe sanguin :</td>
+                <td class="info-val">${bloodType}</td>
+              </tr>
+              <tr>
+                <td class="info-label">Téléphone :</td>
+                <td class="info-val">${phone}</td>
+              </tr>
+            </table>
+          </div>
+          <div class="footer">
+            En cas d'accident, scannez ce code pour accéder instantanément aux données médicales d'urgence et alerter les proches.<br/>
+            Plateforme Nationale de Secours Routier — Togo
           </div>
         </body>
       </html>
@@ -61,9 +147,10 @@ export default function QRCodeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+        <Text style={styles.loadingText}>Génération de votre code QR...</Text>
+      </SafeAreaView>
     );
   }
 
@@ -73,7 +160,7 @@ export default function QRCodeScreen() {
       
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mon Code QR</Text>
-        <Text style={styles.headerSub}>Télécharger, imprimer et plastifier avant usage </Text>
+        <Text style={styles.headerSub}>Télécharger, imprimer et coller sur votre casque ou véhicule</Text>
       </View>
 
       <View style={styles.content}>
@@ -82,37 +169,64 @@ export default function QRCodeScreen() {
           <View style={styles.qrWrapper}>
             {qrToken ? (
               <QRCode 
-                value={`https://qr-web-dbap.vercel.app/scan/${qrToken}`}
+                value={scanUrl}
                 size={220}
-                color="black"
+                color="#071A2E"
                 backgroundColor="white"
               />
             ) : (
-              <Ionicons name="alert-circle-outline" size={80} color="#DDD" />
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle-outline" size={60} color={colors.warning} />
+                <Text style={styles.errorText}>{error || 'Code QR indisponible'}</Text>
+                <TouchableOpacity style={styles.retryBtn} onPress={loadUserData}>
+                  <Text style={styles.retryBtnText}>Réessayer</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
           
+          {qrToken && (
+            <View style={styles.tokenContainer}>
+              <Text style={styles.tokenLabel}>IDENTIFIANT SECURISE</Text>
+              <Text style={styles.tokenValue}>{qrToken}</Text>
+            </View>
+          )}
         </View>
 
         {/* ACTIONS */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.mainAction} onPress={generatePDF}>
-            <Ionicons name="document-text" size={24} color="white" />
-            <Text style={styles.mainActionText}>TÉLÉCHARGER MON CODE QR</Text>
+          <TouchableOpacity 
+            style={[styles.mainAction, !qrToken && styles.actionDisabled]} 
+            onPress={generatePDF}
+            disabled={!qrToken}
+          >
+            <Ionicons name="document-text" size={22} color="white" />
+            <Text style={styles.mainActionText}>TÉLÉCHARGER MA FICHE PDF</Text>
           </TouchableOpacity>
 
           <View style={styles.row}>
             <TouchableOpacity 
-              style={styles.secondaryAction} 
-              onPress={() => Share.share({ message: `Lien vers ma fiche LOTISEC : https://qr-web-dbap.vercel.app/scan/${qrToken}` })}
+              style={[styles.secondaryAction, !qrToken && styles.actionDisabled]} 
+              onPress={() => {
+                if (scanUrl) {
+                  Share.share({ message: `Fiche d'urgence médicale LOTISEC : ${scanUrl}` });
+                }
+              }}
+              disabled={!qrToken}
             >
-              <Ionicons name="share-social" size={20} color={colors.text} />
+              <Ionicons name="share-social" size={18} color={colors.text} />
               <Text style={styles.secondaryText}>Partager le lien</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.secondaryAction} onPress={() => Alert.alert("Aide", "Ce QR Code contient vos informations d'urgence.")}>
-              <Ionicons name="help-circle" size={20} color={colors.text} />
-              <Text style={styles.secondaryText}>Aide</Text>
+            <TouchableOpacity 
+              style={styles.secondaryAction} 
+              onPress={() => Alert.alert(
+                "Protection & Sécurité", 
+                "Ce code QR permet à tout témoin ou secouriste d'accéder instantanément à vos données médicales et de contacter vos proches en cas d'accident."
+              )}
+            >
+              <Ionicons name="help-circle" size={18} color={colors.text} />
+              <Text style={styles.secondaryText}>Comment ça marche ?</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -129,65 +243,87 @@ export default function QRCodeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { padding: 25, backgroundColor: colors.primaryDark, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#ffffff' },
-  headerSub: { fontSize: 14, color: '#ffffff', marginTop: 4 },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: '#071A2E',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { fontSize: fontSizes.xl, fontFamily: fonts.bold, color: '#ffffff' },
+  headerSub: { fontSize: fontSizes.xs, fontFamily: fonts.regular, color: '#A8B8C9', marginTop: 4, textAlign: 'center' },
   content: { flex: 1, padding: 20, alignItems: 'center', justifyContent: 'center' },
   qrCard: {
     backgroundColor: 'white',
-    padding: 30,
-    borderRadius: 30,
+    padding: 24,
+    borderRadius: 24,
     alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 10,
     width: '100%',
-    marginBottom: 30,
+    maxWidth: 340,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   qrWrapper: {
-    padding: 15,
+    padding: 16,
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: '#F0F4F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 240,
   },
-  userName: { fontSize: 20, fontWeight: 'bold', marginTop: 20, color: '#222' },
-  bloodBadge: { paddingHorizontal: 15, paddingVertical: 6, borderRadius: 10, marginTop: 10 },
-  bloodText: { fontWeight: 'bold', fontSize: 13 },
-  actionContainer: { width: '100%' },
+  tokenContainer: { marginTop: 14, alignItems: 'center' },
+  tokenLabel: { fontSize: 10, fontFamily: fonts.bold, color: colors.textSecondary, letterSpacing: 1 },
+  tokenValue: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.primary, marginTop: 2, letterSpacing: 2 },
+  errorBox: { alignItems: 'center', padding: 15, gap: 8 },
+  errorText: { fontSize: fontSizes.sm, color: colors.textSecondary, textAlign: 'center' },
+  retryBtn: { marginTop: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 },
+  retryBtnText: { color: 'white', fontFamily: fonts.semiBold, fontSize: fontSizes.xs },
+  actionContainer: { width: '100%', maxWidth: 340 },
   mainAction: {
     backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
-    borderRadius: 20,
-    marginBottom: 15,
+    paddingVertical: 15,
+    borderRadius: 14,
+    marginBottom: 12,
   },
-  mainActionText: { color: 'white', fontWeight: 'bold', marginLeft: 10, fontSize: 15 },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  mainActionText: { color: 'white', fontFamily: fonts.bold, marginLeft: 8, fontSize: fontSizes.sm },
+  actionDisabled: { opacity: 0.5 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   secondaryAction: {
     backgroundColor: 'white',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 15,
-    borderRadius: 15,
-    width: '48%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    flex: 1,
     borderWidth: 1,
-    borderColor: '#EEE',
+    borderColor: colors.border,
   },
-  secondaryText: { marginLeft: 8, fontSize: 13, color: '#333', fontWeight: '500' },
+  secondaryText: { marginLeft: 6, fontSize: fontSizes.xs, color: colors.text, fontFamily: fonts.medium },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: '#E8F5E9',
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 30,
+    backgroundColor: '#EAF2FF',
+    padding: 14,
+    borderRadius: 14,
+    marginTop: 15,
     alignItems: 'center',
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: '#C8D9F2',
   },
-  infoBoxText: { flex: 1, marginLeft: 10, fontSize: 12, color: '#2E7D32', lineHeight: 18 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  infoBoxText: { flex: 1, marginLeft: 10, fontSize: fontSizes.xs, color: colors.primary, lineHeight: 17 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  loadingText: { marginTop: 12, fontSize: fontSizes.sm, color: colors.textSecondary },
 });

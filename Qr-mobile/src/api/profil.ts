@@ -50,5 +50,5 @@ export const createProfil = async (profile: ProfileData, token: string) => {
   console.log("Payload final envoyé :", payload);
 
   // Utilisation de l'URL qui a provoqué la 500 (car c'est la bonne route)
-  return await api('/profil/', 'POST', payload, token);
+  return await api('/profil', 'POST', payload, token);
 };

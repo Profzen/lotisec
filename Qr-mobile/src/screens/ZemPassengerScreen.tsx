@@ -13,11 +13,14 @@ import { useAuth } from '../hooks/useAuth';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
-import { getRoute, RouteData } from '../utils/osrm';
+import { getRoute, calculateFallbackDistance, RouteData } from '../utils/osrm';
 import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
+
+// Centre par défaut : Lomé, Togo
+const DEFAULT_COORDS = { latitude: 6.1375, longitude: 1.2125 };
 
 export default function ZemPassengerScreen({ navigation }: any) {
   const { getUser } = useAuth();
@@ -29,6 +32,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const [activeRide, setActiveRide] = useState<any>(null);
   const [zemLocation, setZemLocation] = useState<{lat: number, lng: number} | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requestingRide, setRequestingRide] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapView>(null);
 
@@ -44,57 +48,92 @@ export default function ZemPassengerScreen({ navigation }: any) {
   }, []);
 
   const loadUser = async () => {
-    const u = await getUser();
-    setUser(u);
+    try {
+      const u = await getUser();
+      setUser(u);
+    } catch (e) {
+      console.warn('Erreur chargement session utilisateur:', e);
+    }
     startTracking();
   };
 
   const startTracking = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Erreur', 'Permission de localisation refusée');
-      setLoading(false);
-      return;
-    }
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Activez la localisation pour commander un Zem.');
+        // Position par défaut sur Lomé
+        setLocation({
+          coords: {
+            latitude: DEFAULT_COORDS.latitude,
+            longitude: DEFAULT_COORDS.longitude,
+            altitude: null,
+            accuracy: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        });
+        setLoading(false);
+        return;
+      }
 
-    const loc = await Location.getCurrentPositionAsync({});
-    setLocation(loc);
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLocation(loc);
 
-    // Écouter les mises à jour des courses (si Supabase est configuré)
-    if (supabase) {
-      supabase
-        .channel('public:rides')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, payload => {
-          if (activeRide && payload.new.id === activeRide.id) {
-            setActiveRide(payload.new);
-            if (payload.new.status === 'accepted') {
-              Alert.alert("Succès", "Un Zem a accepté votre course ! Il est en route.");
-            } else if (payload.new.status === 'completed') {
-              Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec Lotisec Zem !");
-              setActiveRide(null);
-              setDestination(null);
-              setRouteData(null);
-              setDestinationName('');
-            } else if (payload.new.status === 'declined') {
-              Alert.alert("Désolé", "Le Zem a décliné. Relancez la recherche.");
-              setActiveRide(null);
+      // Écouter les mises à jour des courses
+      if (supabase) {
+        supabase
+          .channel('public:rides')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, (payload: any) => {
+            if (activeRide && payload.new.id === activeRide.id) {
+              setActiveRide(payload.new);
+              if (payload.new.status === 'accepted') {
+                Alert.alert("Succès", "Un Zem a accepté votre course ! Il est en route.");
+              } else if (payload.new.status === 'completed') {
+                Alert.alert("Arrivée", "Course terminée. Merci d'avoir voyagé avec LOTISEC Zem !");
+                setActiveRide(null);
+                setDestination(null);
+                setRouteData(null);
+                setDestinationName('');
+              } else if (payload.new.status === 'declined') {
+                Alert.alert("Information", "Le conducteur a décliné. Recherche d'un autre conducteur...");
+              }
             }
-          }
-        })
-        .subscribe();
-        
-      // Suivi de la position de la moto si une course est active
-      supabase
-        .channel('zem_tracking')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'zem_locations' }, payload => {
-          if (activeRide && payload.new.zem_id === activeRide.zem_id) {
-            setZemLocation({ lat: payload.new.latitude, lng: payload.new.longitude });
-          }
-        })
-        .subscribe();
-    }
+          })
+          .subscribe();
 
-    setLoading(false);
+        // Suivi de la position de la moto si une course est active
+        supabase
+          .channel('zem_tracking')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'zem_locations' }, (payload: any) => {
+            if (activeRide && payload.new.zem_id === activeRide.zem_id) {
+              setZemLocation({ lat: payload.new.latitude, lng: payload.new.longitude });
+            }
+          })
+          .subscribe();
+      }
+    } catch (err) {
+      console.warn('[ZemPassenger] Erreur acquisition GPS:', err);
+      // Fallback Lomé
+      setLocation({
+        coords: {
+          latitude: DEFAULT_COORDS.latitude,
+          longitude: DEFAULT_COORDS.longitude,
+          altitude: null,
+          accuracy: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        },
+        timestamp: Date.now(),
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ─── Recherche d'adresse avec debounce ─────────────────────
@@ -123,8 +162,9 @@ export default function ZemPassengerScreen({ navigation }: any) {
     const lng = parseFloat(result.lon);
 
     setDestination({ lat, lng });
-    setDestinationName(getShortName(result));
-    setSearchQuery(getShortName(result));
+    const name = getShortName(result);
+    setDestinationName(name);
+    setSearchQuery(name);
     setShowResults(false);
     setSearchResults([]);
     Keyboard.dismiss();
@@ -133,19 +173,27 @@ export default function ZemPassengerScreen({ navigation }: any) {
     mapRef.current?.animateToRegion({
       latitude: lat,
       longitude: lng,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
     }, 800);
 
-    // Calculer l'itinéraire
-    if (location) {
-      setLoading(true);
-      const rData = await getRoute(
-        { latitude: location.coords.latitude, longitude: location.coords.longitude },
-        { latitude: lat, longitude: lng }
-      );
+    // Calcul immédiat du tracé et de la distance
+    const startCoords = location
+      ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
+      : DEFAULT_COORDS;
+
+    // Estimation immédiate
+    const fallback = calculateFallbackDistance(startCoords, { latitude: lat, longitude: lng });
+    setRouteData({
+      coordinates: [startCoords, { latitude: lat, longitude: lng }],
+      distanceKm: fallback.distanceKm,
+      durationMin: fallback.durationMin,
+    });
+
+    // Raffinement via OSRM
+    const rData = await getRoute(startCoords, { latitude: lat, longitude: lng });
+    if (rData) {
       setRouteData(rData);
-      setLoading(false);
     }
   };
 
@@ -155,64 +203,95 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
     const dest = {
       lat: e.nativeEvent.coordinate.latitude,
-      lng: e.nativeEvent.coordinate.longitude
+      lng: e.nativeEvent.coordinate.longitude,
     };
     setDestination(dest);
     setShowResults(false);
 
-    // Géocodage inversé pour afficher le nom du lieu
-    const reverseResult = await reverseGeocode(dest.lat, dest.lng);
-    if (reverseResult) {
-      const name = getShortName(reverseResult);
-      setDestinationName(name);
-      setSearchQuery(name);
-    } else {
-      setDestinationName(`${dest.lat.toFixed(4)}, ${dest.lng.toFixed(4)}`);
-    }
+    // Calcul immédiat de la distance pour un affichage instantané
+    const startCoords = location
+      ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
+      : DEFAULT_COORDS;
 
-    if (location) {
-      setLoading(true);
-      const rData = await getRoute(
-        { latitude: location.coords.latitude, longitude: location.coords.longitude },
-        { latitude: dest.lat, longitude: dest.lng }
-      );
+    const fallback = calculateFallbackDistance(startCoords, { latitude: dest.lat, longitude: dest.lng });
+    setRouteData({
+      coordinates: [startCoords, { latitude: dest.lat, longitude: dest.lng }],
+      distanceKm: fallback.distanceKm,
+      durationMin: fallback.durationMin,
+    });
+
+    // Géocodage inversé pour afficher le nom du lieu
+    reverseGeocode(dest.lat, dest.lng).then((reverseResult) => {
+      if (reverseResult) {
+        const name = getShortName(reverseResult);
+        setDestinationName(name);
+        setSearchQuery(name);
+      } else {
+        const name = `${dest.lat.toFixed(4)}, ${dest.lng.toFixed(4)}`;
+        setDestinationName(name);
+        setSearchQuery(name);
+      }
+    });
+
+    // Calcul de l'itinéraire OSRM
+    const rData = await getRoute(startCoords, { latitude: dest.lat, longitude: dest.lng });
+    if (rData) {
       setRouteData(rData);
-      setLoading(false);
     }
   };
 
   const requestZem = async () => {
-    if (!destination || !location || !user || !routeData) return;
+    if (!destination) {
+      Alert.alert('Destination requise', 'Veuillez choisir un lieu d’arrivée sur la carte ou via la recherche.');
+      return;
+    }
 
-    const price = Math.round(routeData.distanceKm * 75);
+    let currentUser = user;
+    if (!currentUser) {
+      currentUser = await getUser();
+      setUser(currentUser);
+    }
+
+    if (!currentUser?.id) {
+      Alert.alert('Connexion requise', 'Veuillez vous connecter pour commander une course.');
+      return;
+    }
+
+    const startLat = location?.coords.latitude || DEFAULT_COORDS.latitude;
+    const startLng = location?.coords.longitude || DEFAULT_COORDS.longitude;
+
+    // Calcul distance et prix garanti
+    const distanceKm = routeData?.distanceKm || calculateFallbackDistance({ latitude: startLat, longitude: startLng }, { latitude: destination.lat, longitude: destination.lng }).distanceKm;
+    const price = Math.max(300, Math.round(distanceKm * 75));
 
     try {
-      setLoading(true);
+      setRequestingRide(true);
       const res = await api('/zem/request', 'POST', {
-        passengerId: user.id,
-        originLat: location.coords.latitude,
-        originLng: location.coords.longitude,
+        passengerId: currentUser.id,
+        originLat: startLat,
+        originLng: startLng,
         destLat: destination.lat,
         destLng: destination.lng,
-        distanceKm: Math.round(routeData.distanceKm * 10) / 10,
-        priceFcfa: price
+        distanceKm: Math.round(distanceKm * 10) / 10,
+        priceFcfa: price,
       });
 
       if (res.ride) {
         setActiveRide(res.ride);
         navigation.navigate('RideDetail', { rideId: res.ride.id });
       } else {
-        Alert.alert("Erreur", "Aucun Zem disponible.");
+        Alert.alert('Information', 'Votre demande est enregistrée. Recherche d’un conducteur Zem en cours...');
       }
     } catch (err: any) {
-      Alert.alert("Erreur", err.message || "Impossible de commander.");
+      console.warn('[ZemPassenger] Erreur commande:', err);
+      Alert.alert('Commande Zem', err.message || 'Aucun conducteur Zem n’est disponible à proximité actuellement.');
     } finally {
-      setLoading(false);
+      setRequestingRide(false);
     }
   };
 
   const cancelRide = async () => {
-    if (!activeRide || !supabase) return;
+    if (!activeRide) return;
     try {
       await api(`/zem/rides/${activeRide.id}/action`, 'POST', { action: 'cancel' });
       setActiveRide(null);
@@ -221,19 +300,29 @@ export default function ZemPassengerScreen({ navigation }: any) {
       setRouteData(null);
       setDestinationName('');
       setSearchQuery('');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Impossible d’annuler la course.');
     }
   };
+
+  const estimatedDistance = routeData?.distanceKm || (destination && location ? calculateFallbackDistance(
+    { latitude: location.coords.latitude, longitude: location.coords.longitude },
+    { latitude: destination.lat, longitude: destination.lng }
+  ).distanceKm : 0);
+
+  const estimatedPrice = Math.max(300, Math.round(estimatedDistance * 75));
 
   if (loading && !location) {
     return (
       <View style={styles.centerState}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.centerText}>Acquisition GPS...</Text>
+        <Text style={styles.centerText}>Acquisition de la carte et du GPS...</Text>
       </View>
     );
   }
+
+  const currentLat = location?.coords.latitude || DEFAULT_COORDS.latitude;
+  const currentLng = location?.coords.longitude || DEFAULT_COORDS.longitude;
 
   return (
     <View style={styles.container}>
@@ -303,21 +392,20 @@ export default function ZemPassengerScreen({ navigation }: any) {
             {isSearching && (
               <View style={styles.searchingIndicator}>
                 <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.searchingText}>Recherche en cours...</Text>
+                <Text style={styles.searchingText}>Recherche d’adresses...</Text>
               </View>
             )}
           </View>
         )}
       </SafeAreaView>
 
-      {/* Carte */}
+      {/* Carte interactive */}
       <MapView
         ref={mapRef}
         style={styles.map}
-        mapType="none"
         initialRegion={{
-          latitude: location?.coords.latitude || 6.13,
-          longitude: location?.coords.longitude || 1.21,
+          latitude: currentLat,
+          longitude: currentLng,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
@@ -327,53 +415,41 @@ export default function ZemPassengerScreen({ navigation }: any) {
         onMapReady={() => setMapReady(true)}
       >
         <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           maximumZ={19}
           flipY={false}
+          tileSize={256}
+          zIndex={1}
+          shouldReplaceMapContent={true}
         />
         {destination && (
           <Marker
             coordinate={{ latitude: destination.lat, longitude: destination.lng }}
-            title={destinationName || "Destination"}
-            pinColor="red"
+            title={destinationName || 'Destination'}
+            pinColor="#D21034"
           />
         )}
-        {(destination && location && routeData) ? (
+        {destination && routeData && (
           <Polyline
             coordinates={routeData.coordinates}
             strokeColor={colors.primary}
             strokeWidth={4}
           />
-        ) : (destination && location) ? (
-          <Polyline
-            coordinates={[
-              { latitude: location.coords.latitude, longitude: location.coords.longitude },
-              { latitude: destination.lat, longitude: destination.lng }
-            ]}
-            strokeColor={colors.primary}
-            strokeWidth={4}
-            lineDashPattern={[5, 5]}
-          />
-        ) : null}
-        
+        )}
+
         {/* Marqueur dynamique de la moto Zem */}
         {zemLocation && (
           <Marker
             coordinate={{ latitude: zemLocation.lat, longitude: zemLocation.lng }}
             title="Votre Zem"
-          >
-            <View style={{
-              width: 24, height: 24, backgroundColor: colors.warning,
-              borderRadius: 12, borderWidth: 3, borderColor: 'white',
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3
-            }} />
-          </Marker>
+            pinColor="#FFCD00"
+          />
         )}
       </MapView>
 
       {/* Message si carte ne charge pas */}
-      {!mapReady && (
-        <View style={styles.mapLoadingOverlay}>
+      {!mapReady && Platform.OS !== 'web' && (
+        <View style={styles.mapLoadingOverlay} pointerEvents="none">
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.mapLoadingText}>Chargement de la carte...</Text>
         </View>
@@ -383,45 +459,64 @@ export default function ZemPassengerScreen({ navigation }: any) {
       <View style={styles.bottomPanel}>
         {!activeRide ? (
           <>
-            <Text style={styles.instruction}>
+            <Text style={styles.instruction} numberOfLines={2}>
               {destination
                 ? destinationName || 'Destination sélectionnée'
-                : "Recherchez une adresse ou appuyez sur la carte"
-              }
+                : 'Recherchez une adresse ou touchez la carte pour choisir'}
             </Text>
-            {destination && location && routeData && (
+
+            {destination && (
               <View style={styles.estimateBox}>
                 <View style={styles.estimateItem}>
                   <Text style={styles.estimateLabel}>Distance</Text>
                   <Text style={styles.estimateValue}>
-                    {Math.round(routeData.distanceKm * 10) / 10} km
+                    {Math.round(estimatedDistance * 10) / 10} km
                   </Text>
                 </View>
                 <View style={styles.estimateDivider} />
                 <View style={styles.estimateItem}>
                   <Text style={styles.estimateLabel}>Prix estimé</Text>
                   <Text style={styles.priceText}>
-                    {Math.round(routeData.distanceKm * 75)} FCFA
+                    {estimatedPrice} FCFA
                   </Text>
                 </View>
               </View>
             )}
+
             <TouchableOpacity
-              style={[styles.btn, { backgroundColor: destination ? colors.primary : '#ccc' }]}
+              style={[
+                styles.btn,
+                { backgroundColor: destination ? colors.primary : colors.border },
+              ]}
               onPress={requestZem}
-              disabled={!destination || loading}
+              disabled={!destination || requestingRide}
+              activeOpacity={0.8}
             >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Commander le Zem</Text>}
+              {requestingRide ? (
+                <View style={styles.btnRow}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={[styles.btnText, { marginLeft: 10 }]}>Recherche d’un Zem...</Text>
+                </View>
+              ) : (
+                <Text style={styles.btnText}>Commander le Zem</Text>
+              )}
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={styles.rideTitle}>Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}</Text>
-            <Text style={styles.rideInfo}>Prix: {activeRide.price_fcfa} FCFA</Text>
-            <Text style={styles.statusInfo}>
-              {activeRide.status === 'requested' ? "Recherche d'un conducteur..." : "Votre Zem est en route !"}
+            <Text style={styles.rideTitle}>
+              Course {activeRide.status === 'requested' ? 'en attente' : 'en cours'}
             </Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.danger }]} onPress={cancelRide}>
+            <Text style={styles.rideInfo}>Prix : {activeRide.price_fcfa} FCFA</Text>
+            <Text style={styles.statusInfo}>
+              {activeRide.status === 'requested'
+                ? 'Recherche d’un conducteur...'
+                : 'Votre Zem est en route !'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: colors.danger }]}
+              onPress={cancelRide}
+            >
               <Text style={styles.btnText}>Annuler</Text>
             </TouchableOpacity>
           </>
@@ -434,12 +529,18 @@ export default function ZemPassengerScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   headerSafe: {
-    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     backgroundColor: 'rgba(255,255,255,0.95)',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 15 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10 },
   headerTitle: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.text, marginLeft: 15 },
-  map: { width, height },
+  map: { width: '100%', height: '100%', flex: 1 },
 
   // Recherche
   searchContainer: { paddingHorizontal: 15, paddingBottom: 10 },
@@ -451,9 +552,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 4,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 4,
   },
-  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
     fontSize: fontSizes.sm,
@@ -481,7 +582,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
-  resultIcon: { fontSize: 16, marginRight: 10 },
+  resultIcon: { marginRight: 10 },
   resultText: { flex: 1 },
   resultName: { fontSize: fontSizes.sm, fontFamily: fonts.semiBold, color: colors.text },
   resultAddress: { fontSize: fontSizes.xs, color: colors.textSecondary, marginTop: 2 },
@@ -498,10 +599,13 @@ const styles = StyleSheet.create({
   // Map loading
   mapLoadingOverlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#F0F4F8',
     zIndex: 5,
   },
   mapLoadingText: { marginTop: 10, fontSize: fontSizes.md, color: colors.textSecondary },
@@ -509,42 +613,48 @@ const styles = StyleSheet.create({
   // Bottom panel
   bottomPanel: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 5,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
   },
   instruction: {
     fontSize: fontSizes.md,
     fontFamily: fonts.semiBold,
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   estimateBox: {
     flexDirection: 'row',
     backgroundColor: colors.background,
     borderRadius: 12,
     padding: 14,
-    marginBottom: 15,
+    marginBottom: 14,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   estimateItem: { flex: 1, alignItems: 'center' },
   estimateLabel: { fontSize: fontSizes.xs, color: colors.textSecondary, marginBottom: 4 },
   estimateValue: { fontSize: fontSizes.md, fontFamily: fonts.bold, color: colors.text },
   estimateDivider: { width: 1, height: 32, backgroundColor: colors.border },
-  priceText: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.success },
-  btn: { padding: 15, borderRadius: 12, alignItems: 'center' },
+  priceText: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.primary },
+  btn: { paddingVertical: 15, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  btnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   btnText: { color: '#fff', fontFamily: fonts.bold, fontSize: fontSizes.md },
   rideTitle: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.text, textAlign: 'center', marginBottom: 5 },
-  rideInfo: { fontSize: fontSizes.md, fontFamily: fonts.semiBold, color: colors.success, textAlign: 'center', marginBottom: 5 },
+  rideInfo: { fontSize: fontSizes.md, fontFamily: fonts.semiBold, color: colors.primary, textAlign: 'center', marginBottom: 5 },
   statusInfo: { fontSize: fontSizes.md, fontFamily: fonts.regular, color: colors.textSecondary, textAlign: 'center', marginBottom: 15 },
-  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   centerText: { marginTop: 10, fontSize: fontSizes.md, color: colors.textSecondary },
 });

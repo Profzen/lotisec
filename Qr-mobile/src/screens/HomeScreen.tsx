@@ -111,11 +111,36 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const session=await hydrateSession();
-        if(!session){setQrState('error');return;}
-        setProfile(session.user);setQrToken(session.user.qr_token||null);setQrState(session.user.qr_token?'ready':'missing');
-        const history=await api('/scans/me?page_size=10','GET',undefined,session.token);
-        setScans((history.items||[]).map((item:any)=>({id:item.id,date:new Date(item.created_at).toLocaleString(),niveau:item.access_level||'professionnel',authority:item.authority,lieu:item.latitude!=null?`${Number(item.latitude).toFixed(3)}, ${Number(item.longitude).toFixed(3)}`:undefined})));
+        const session = await hydrateSession(true);
+        if (!session) { setQrState('error'); return; }
+        
+        let token = session.user?.qr_token;
+        let currentUser = session.user;
+
+        if (!token && session.token) {
+          try {
+            const me = await api('/auth/me', 'GET', undefined, session.token);
+            if (me?.user?.qr_token) {
+              token = me.user.qr_token;
+              currentUser = me.user;
+            }
+          } catch (e) {
+            console.warn('Erreur auto-récupération /auth/me:', e);
+          }
+        }
+
+        setProfile(currentUser);
+        setQrToken(token || null);
+        setQrState(token ? 'ready' : 'missing');
+
+        const history = await api('/scans/me?page_size=10', 'GET', undefined, session.token).catch(() => ({ items: [] }));
+        setScans((history.items || []).map((item: any) => ({
+          id: item.id,
+          date: new Date(item.created_at).toLocaleString(),
+          niveau: item.access_level || 'professionnel',
+          authority: item.authority,
+          lieu: item.latitude != null ? `${Number(item.latitude).toFixed(3)}, ${Number(item.longitude).toFixed(3)}` : undefined
+        })));
       } catch (e) {
         console.log('Erreur chargement données:', e);
         setQrState('error');
@@ -236,7 +261,7 @@ export default function HomeScreen({ navigation }: Props) {
         <h2>Fiche d'urgence</h2>
         <hr/>
         <div style="margin:30px;">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://qr-web-dbap.vercel.app/scan/${qrToken}" width="250" height="250" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://lotisec-frontend.vercel.app/scan/${qrToken}" width="250" height="250" />
         </div>
         
       </body></html>
@@ -374,7 +399,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity style={[styles.card, styles.qrCard, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]} onPress={() => setQrModalVisible(true)}>
           <View style={[styles.qrPreview, { borderColor: colors.primary, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }]}>
             {qrState==='ready'&&qrToken ? (
-              <QRCode value={`https://qr-web-dbap.vercel.app/scan/${qrToken}`} size={34} color={colors.primary} />
+              <QRCode value={`https://lotisec-frontend.vercel.app/scan/${qrToken}`} size={34} color={colors.primary} />
             ) : qrState==='loading' ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ):<FontAwesome name="exclamation-circle" size={24} color={colors.warning}/>} 
@@ -418,7 +443,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={[styles.modalTitle, { color: th.text }]}>Mon Code QR</Text>
             <View style={styles.qrContainer}>
                {qrState === 'ready' && qrToken ? (
-                 <QRCode value={`https://qr-web-dbap.vercel.app/scan/${qrToken}`} size={220} />
+                 <QRCode value={`https://lotisec-frontend.vercel.app/scan/${qrToken}`} size={220} />
                ) : qrState === 'loading' ? (
                  <ActivityIndicator size="large" color={colors.primary} />
                ) : (
