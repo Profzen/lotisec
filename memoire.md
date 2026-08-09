@@ -609,4 +609,11 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
     - Harmonisation des URLs de scan vers `https://lotisec-frontend.vercel.app/scan/${qrToken}`.
   - **Web Citoyen (`frontend/src/pages/QrCode.tsx`, `Home.tsx`)** : Rafraîchissement automatique de la session utilisateur sur `/auth/me` dès l'ouverture si `qr_token` est manquant, garantissant l'affichage instantané du QR code.
 - **Validation** : 23/23 tests backend passés (`npm test`), build frontend validé (`npm run build`), TypeScript mobile 0 erreur (`npx tsc --noEmit`).
+- **Build EAS Android APK (Production / Preview)** :
+  - ID Build : `291be0f6-68ba-4392-9e41-51086bbd1764`
+  - Statut : **Terminé avec succès** (`finished`)
+  - Commit : `5c971070b059d526ac28a58ed18a4095b2fae7c1`
+  - Lien d'installation Expo : https://expo.dev/accounts/profzen/projects/lotisec/builds/291be0f6-68ba-4392-9e41-51086bbd1764
+  - Téléchargement direct APK : https://expo.dev/artifacts/eas/hd6_pbeA-xN0Y2wSZENx-35R0XEIwsz_NeLgberXb6o.apk
+
 
