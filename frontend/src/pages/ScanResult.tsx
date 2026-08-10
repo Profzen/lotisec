@@ -10,22 +10,20 @@ export function ScanResult() {
 
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying, setVerifying] = useState(false);
-  const professionalSession = Boolean(localStorage.getItem('lotisec_token'));
+  const [pin, setPin] = useState('');
 
   const handleUnlock = async () => {
-    if (!professionalSession) return navigate('/login');
-
     setVerifying(true);
     try {
       const response = await api.post('/scan/verify', {
         token: token,
-        pin: '',
+        pin: pin.trim(),
         authority_type: 'emergency_unit',
       });
       setUnlockedData(response.data);
     } catch (e: any) {
       if (e.response && e.response.status === 403) {
-        toast.error("Accès refusé : rôle professionnel requis.");
+        toast.error("PIN ou code institutionnel invalide.");
       } else {
         toast.error("Erreur de liaison au serveur LOTISEC.");
       }
@@ -50,17 +48,27 @@ export function ScanResult() {
 
           <div className="lotisec-card" style={{ padding: '2rem', textAlign: 'center' }}>
             <h3 style={{ marginBottom: '1rem' }}>🔐 Accès professionnel authentifié</h3>
-            <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.5rem' }}>
-              Connectez-vous avec un compte institutionnel autorisé pour accéder aux données vitales.
+            <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+              Saisissez le PIN du citoyen ou un code institutionnel autorisé.
             </p>
+
+            <input
+              value={pin}
+              onChange={(event) => setPin(event.target.value)}
+              placeholder="PIN ou code institutionnel"
+              autoCapitalize="characters"
+              autoComplete="one-time-code"
+              type="password"
+              style={{ width: '100%', marginBottom: '1rem' }}
+            />
 
             <button 
               className="btn primary" 
               onClick={handleUnlock} 
-              disabled={verifying}
+              disabled={verifying || !pin.trim()}
               style={{ width: '100%' }}
             >
-              {verifying ? 'Vérification...' : professionalSession ? 'Ouvrir la fiche' : 'Se connecter'}
+              {verifying ? 'Vérification...' : 'Ouvrir la fiche'}
             </button>
           </div>
         </div>
@@ -99,6 +107,12 @@ export function ScanResult() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {(medical?.height || medical?.weight) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Taille / Poids</span>
+                <span style={{ fontWeight: 'bold' }}>{medical?.height || 'NC'} cm · {medical?.weight || 'NC'} kg</span>
+              </div>
+            )}
             {medical?.allergies && medical.allergies !== 'Aucune' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
                 <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Allergies</span>
@@ -115,6 +129,12 @@ export function ScanResult() {
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
                 <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Médicaments</span>
                 <span style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '0.875rem' }}>{medical.medications}</span>
+              </div>
+            )}
+            {(medical?.doctor_name || medical?.doctor_phone) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Médecin traitant</span>
+                <span style={{ fontWeight: 'bold' }}>{[medical.doctor_name, medical.doctor_phone].filter(Boolean).join(' · ')}</span>
               </div>
             )}
           </div>

@@ -661,6 +661,14 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 
 ## Mise à jour produit — 2026-08-10
 
+### Finalisation comptes de recette, scan médical et cartes Zem
+- Les six comptes de recette couvrent citoyen, Zem, pompier, ambulancier, administrateur et gestionnaire du CHU Sylvanus Olympio; le script protégé par `ALLOW_ACCEPTANCE_ACCOUNT_RESET=true` utilise le mot de passe de recette uniforme documenté dans le code.
+- Les codes institutionnels `POMP2626`, `AMBU1818`, `MEDC3737` et `POL1717`, ainsi que le PIN personnel, ouvrent `/scan/verify` en production. La réponse inclut taille, poids et coordonnées du médecin lorsqu'ils existent.
+- Les écrans de scan mobile et web proposent un champ PIN/code et affichent la fiche médicale enrichie. Le PDF QR mobile embarque désormais le QR en base64 sans dépendre d'un service QR externe.
+- Les cartes Zem natives utilisent CartoDB Voyager avec conservation du fond standard afin d'éviter l'écran gris sur Android/iOS.
+- Les accès rapides de la console utilisent un mode démonstration local explicite : aucun faux JWT n'est envoyé au backend, supprimant la boucle de retour vers la connexion. Les menus restent séparés entre supervision, secours et hôpital; les données réelles restent filtrées côté backend par permissions et organisation.
+- Validation locale : tests backend, TypeScript mobile, build frontend, syntaxe et build console réussis.
+
 ### Rétablissement de l'Interactivité Console, Zéro Emoji & Déconnexion
 - **Correction d'erreur de syntaxe bloquante (`LOTISEC-Console-Complete/public/console.js`)** :
   - Suppression d'une accolade fermante prématurée dans `applyRbac` qui interrompait l'exécution du script, bloquait l'ensemble des écouteurs d'événements, le sélecteur de rôle, la déconnexion et l'initialisation de l'interface.
@@ -672,7 +680,6 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - *Admin / Superviseur National* : Accès complet à tous les modules + sélecteur d'espace dans la TopBar pour tester en direct chaque perspective.
   - *Hôpitaux (ex: CHU Sylvanus Olympio)* : Vue restreinte aux modules sanitaires (`Hôpitaux`, `Capacités & Lits` avec ajustement en 1 clic, `Fiches Patients` QR Code, `Notifications`), sans carte tactique de poursuite.
   - *Sapeurs-Pompiers (118) & Ambulanciers* : Vue opérationnelle avec file d'incidents, carte Leaflet temps réel, reroutage anti-bouchon et demandes d'admission hospitalière.
-
 
 
 

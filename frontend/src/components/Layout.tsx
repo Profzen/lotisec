@@ -19,7 +19,7 @@ export function Layout() {
       <aside className="sidebar">
         <div style={{ padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, overflow: 'hidden' }}>
-            <img src="/logo-118.png" alt="118 Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src="/logo-lotisec.png" alt="Logo LOTISEC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <h2 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.5rem', letterSpacing: '-0.5px' }}>
             LOTISEC

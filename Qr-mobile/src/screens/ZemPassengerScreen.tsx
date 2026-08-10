@@ -415,12 +415,12 @@ export default function ZemPassengerScreen({ navigation }: any) {
         onMapReady={() => setMapReady(true)}
       >
         <UrlTile
-          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
           maximumZ={19}
           flipY={false}
           tileSize={256}
           zIndex={1}
-          shouldReplaceMapContent={true}
+          shouldReplaceMapContent={false}
         />
         {destination && (
           <Marker

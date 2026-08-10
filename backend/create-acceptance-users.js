@@ -1,6 +1,6 @@
 const {Pool}=require('pg');
 const bcrypt=require('bcryptjs');
-const {randomUUID,randomBytes}=require('crypto');
+const {randomUUID}=require('crypto');
 require('dotenv').config();
 
 const accounts=[
@@ -8,10 +8,11 @@ const accounts=[
   {key:'zem',phone:'+22800001002',legacyPhone:'00001002',role:'zem_driver',first:'Kossi',last:'Zem'},
   {key:'firefighter',phone:'+22800001003',legacyPhone:'00001003',role:'firefighter',first:'Yao',last:'Pompier',org:{name:'Caserne LOTISEC Recette',type:'fire_station',code:'LOTISEC-FIRE-RECETTE'}},
   {key:'ambulance',phone:'+22800001004',legacyPhone:'00001004',role:'ambulance_driver',first:'Ama',last:'Ambulancière',org:{name:'Ambulances LOTISEC Recette',type:'ambulance_service',code:'LOTISEC-AMB-RECETTE'}},
-  {key:'admin',phone:'+22800001005',legacyPhone:'00001005',role:'admin',first:'Admin',last:'Recette',org:{name:'Administration LOTISEC',type:'lotisec',code:'LOTISEC-HQ'}}
+  {key:'admin',phone:'+22800001005',legacyPhone:'00001005',role:'admin',first:'Admin',last:'Recette',org:{name:'Administration LOTISEC',type:'lotisec',code:'LOTISEC-HQ'}},
+  {key:'hospital',phone:'+22800001006',legacyPhone:'00001006',role:'hospital_manager',first:'Kossi',last:'Gestionnaire',org:{name:'CHU Sylvanus Olympio',type:'hospital',code:'CHU-SO'}}
 ];
 
-function password(){return `Ls!${randomBytes(9).toString('base64url')}9`;}
+const ACCEPTANCE_PASSWORD='Ls!Pass2026!';
 
 async function main(){
   if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL manquante');
@@ -21,7 +22,7 @@ async function main(){
   try{
     await pool.query('BEGIN');
     for(const account of accounts){
-      const clearPassword=password();
+      const clearPassword=ACCEPTANCE_PASSWORD;
       let user=(await pool.query('SELECT id FROM users WHERE phone=$1 OR phone=$2',[account.phone,account.legacyPhone])).rows[0];
       const userId=user?.id||randomUUID();
       if(user)await pool.query('UPDATE users SET phone=$1,password=$2 WHERE id=$3',[account.phone,await bcrypt.hash(clearPassword,12),userId]);

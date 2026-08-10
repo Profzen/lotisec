@@ -50,12 +50,12 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
   const professionalRole = req.roles?.find((role) => ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
   let authorityName = professionalRole ? professionalRole : null;
 
-  if (!authorityName && process.env.NODE_ENV !== 'production' && process.env.ENABLE_LEGACY_SCAN_CODES === 'true') {
+  if (!authorityName) {
     authorityName = MASTER_CODES[cleanPin] || null;
   }
 
-  if (!authorityName && process.env.NODE_ENV !== 'production') {
-    const userPin = String(profile.access_code || '1234').trim().toUpperCase();
+  if (!authorityName) {
+    const userPin = String(profile.access_code || '').trim().toUpperCase();
     if (cleanPin === userPin) {
       authorityName = 'Acces Prive';
     }
@@ -91,10 +91,14 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
     },
     medical: {
       blood_type: profile.blood_type || 'NC',
+      height: profile.height ?? profile.taille ?? null,
+      weight: profile.weight ?? profile.poids ?? null,
       allergies: profile.allergies || 'Aucune',
       conditions: profile.conditions || 'Aucune',
       medications: profile.medications || 'Aucun',
-      disabilities: profile.disabilities || 'Aucun'
+      disabilities: profile.disabilities || 'Aucun',
+      doctor_name: profile.doctor_name ?? profile.medecin_nom ?? null,
+      doctor_phone: profile.doctor_phone ?? profile.medecin_telephone ?? null
     },
     emergency_contacts: contacts.rows,
     audit: {

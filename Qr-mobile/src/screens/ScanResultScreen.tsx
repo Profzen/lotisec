@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, ScrollView, Linking,
+  StyleSheet, ActivityIndicator, Alert, ScrollView, Linking, TextInput,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
@@ -14,11 +14,12 @@ export default function ScanResultScreen({ route, navigation }: any) {
 
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying,    setVerifying]    = useState(false);
+  const [pin, setPin] = useState('');
 
   const handleUnlock = async () => {
     setVerifying(true);
     try {
-      const data = await api('/scan/verify', 'POST', { token:profileId,pin:'',authority_type:'emergency_unit' });
+      const data = await api('/scan/verify', 'POST', { token:profileId,pin:pin.trim(),authority_type:'emergency_unit' });
       setUnlockedData(data);
     } catch (e: any) {
       Alert.alert("Accès refusé", e?.message || "Un compte professionnel autorisé est requis.");
@@ -44,13 +45,24 @@ export default function ScanResultScreen({ route, navigation }: any) {
         <View style={styles.lockBox}>
           <Text style={styles.lockTitle}><FontAwesome name="shield" size={24} /> Accès Médical Sécurisé</Text>
           <Text style={styles.lockSubtitle}>
-            Connectez-vous avec un compte professionnel autorisé pour accéder aux données vitales complètes.
+            Saisissez le PIN du citoyen ou un code institutionnel autorisé pour accéder aux données vitales.
           </Text>
+
+          <TextInput
+            value={pin}
+            onChangeText={setPin}
+            placeholder="PIN ou code institutionnel"
+            placeholderTextColor={colors.textLight}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            secureTextEntry
+            style={styles.pinInput}
+          />
 
           <TouchableOpacity
             style={[styles.btn, verifying && styles.btnDisabled]}
             onPress={handleUnlock}
-            disabled={verifying}
+            disabled={verifying || !pin.trim()}
           >
             {verifying
               ? <ActivityIndicator color="#fff" />
@@ -97,6 +109,13 @@ export default function ScanResultScreen({ route, navigation }: any) {
           <Text style={styles.bloodValue}>{medical?.blood_type || 'NC'}</Text>
         </View>
 
+        {(medical?.height || medical?.weight) && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Taille / Poids</Text>
+            <Text style={styles.infoValue}>{medical?.height || 'NC'} cm · {medical?.weight || 'NC'} kg</Text>
+          </View>
+        )}
+
         {medical?.allergies && medical.allergies !== 'Aucune' && (
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Allergies</Text>
@@ -119,6 +138,12 @@ export default function ScanResultScreen({ route, navigation }: any) {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Handicap</Text>
             <Text style={styles.infoValue}>{medical.disabilities}</Text>
+          </View>
+        )}
+        {(medical?.doctor_name || medical?.doctor_phone) && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Médecin traitant</Text>
+            <Text style={styles.infoValue}>{[medical.doctor_name, medical.doctor_phone].filter(Boolean).join(' · ')}</Text>
           </View>
         )}
       </View>
@@ -190,6 +215,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  pinInput: { width: '100%', minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.white, color: colors.text, paddingHorizontal: 14, marginBottom: 12 },
   container:        { flex: 1, backgroundColor: '#f1f5f9' },
   content:          { padding: 20, paddingBottom: 40 },
 

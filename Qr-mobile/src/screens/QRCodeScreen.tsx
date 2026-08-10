@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, 
   StatusBar, Alert, Share, ActivityIndicator
@@ -15,6 +15,7 @@ import { hydrateSession } from '../services/session';
 import { api } from '../api/config';
 
 export default function QRCodeScreen() {
+  const qrRef = useRef<any>(null);
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,17 @@ export default function QRCodeScreen() {
     const bloodType = profile?.blood_type && profile.blood_type !== 'NC' ? profile.blood_type : 'Non spécifié';
     const phone = profile?.phone || 'Non renseigné';
 
+    let qrDataUrl = '';
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        if (!qrRef.current?.toDataURL) return reject(new Error('QR indisponible'));
+        qrRef.current.toDataURL((value: string) => resolve(value));
+      });
+      qrDataUrl = `data:image/png;base64,${base64}`;
+    } catch {
+      return Alert.alert("Erreur", "Impossible de préparer le QR pour le PDF");
+    }
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -112,7 +124,7 @@ export default function QRCodeScreen() {
             <div class="title">Fiche d'Urgence Médicale Officielle</div>
           </div>
           <div class="card">
-            <img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(scanUrl)}" />
+            <img class="qr-img" src="${qrDataUrl}" />
             <div class="token-text">ID: ${qrToken}</div>
             <table class="info-table">
               <tr>
@@ -169,6 +181,7 @@ export default function QRCodeScreen() {
           <View style={styles.qrWrapper}>
             {qrToken ? (
               <QRCode 
+                getRef={(ref) => { qrRef.current = ref; }}
                 value={scanUrl}
                 size={220}
                 color="#071A2E"

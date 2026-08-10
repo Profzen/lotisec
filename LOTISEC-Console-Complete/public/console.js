@@ -14,7 +14,7 @@ function apiFetch(path, options = {}) {
   if (session?.token) headers.Authorization = `Bearer ${session.token}`;
   return fetch(`${API_BASE}${path}`, { ...options, headers, cache: options.cache || "no-store" }).then(async (response) => {
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401) { localStorage.removeItem(AUTH_KEY); session = null; showLogin(); }
+    if (response.status === 401 && !session?.demo) { localStorage.removeItem(AUTH_KEY); session = null; showLogin(); }
     if (!response.ok) throw new Error(body.detail || body.error || `Erreur API ${response.status}`);
     return body;
   });
@@ -58,6 +58,7 @@ function showLogin(message = "") {
         const role = btn.dataset.quickRole;
         session = {
           token: "demo-jwt-token",
+          demo: true,
           realtimeToken: null,
           user: {
             id: `demo-${role}`,
@@ -70,11 +71,9 @@ function showLogin(message = "") {
           }
         };
         localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+        if (!demoMode) { location.reload(); return; }
         overlay.remove();
         applyRbac();
-        startRealtime();
-        loadOperationalData();
-        pollMobileApi();
         renderCurrentModule();
       });
     });
@@ -235,7 +234,7 @@ const hospitals = [
   }
 ];
 
-const demoMode = new URLSearchParams(location.search).get("demo") === "1";
+const demoMode = new URLSearchParams(location.search).get("demo") === "1" || session?.demo === true;
 if (!demoMode) {
   ambulances.splice(0, ambulances.length);
   hospitals.splice(0, hospitals.length);
@@ -672,7 +671,7 @@ async function sendMobileIncident(incident) {
 }
 
 async function pollMobileApi() {
-  if (!session?.token) return;
+  if (!session?.token || session.demo) return;
   try {
     const result = await apiFetch(`/api/v1/incidents${state.apiCursor ? `?since=${encodeURIComponent(new Date(state.apiCursor).toISOString())}` : ""}`);
     (result.incidents || []).map(normalizeApiIncident).forEach((incident) => {
@@ -695,6 +694,7 @@ function normalizeApiIncident(item) {
 let realtimeClient = null;
 function setConnectionMode(label) { setText('[data-connection-mode]',label); }
 function startRealtime() {
+  if (session?.demo) { setConnectionMode('MODE DÉMONSTRATION LOCAL'); return; }
   if (!session?.realtimeToken || !window.supabase || !window.LOTISEC_SUPABASE_URL || !window.LOTISEC_SUPABASE_ANON_KEY) { setConnectionMode('POLLING API AUTHENTIFIÉ'); return; }
   realtimeClient = window.supabase.createClient(window.LOTISEC_SUPABASE_URL, window.LOTISEC_SUPABASE_ANON_KEY, { accessToken: async () => {
     const result = await apiFetch('/auth/realtime-token', { method:'POST' });
@@ -713,7 +713,7 @@ function startRealtime() {
 }
 
 async function loadOperationalData() {
-  if (!session?.token) return;
+  if (!session?.token || session.demo) return;
   const [facilityResult, resourceResult, interventionResult, admissionResult, notificationResult, responderResult, accidentGeoResult, accidentStatsResult] = await Promise.all([
     apiFetch('/api/v1/facilities').catch(() => ({ facilities:[] })),
     apiFetch('/api/v1/resources').catch(() => ({ resources:[] })),
