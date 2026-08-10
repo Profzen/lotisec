@@ -659,6 +659,21 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - **Application Mobile Expo** : 0 erreur TypeScript (`npx tsc --noEmit`), APK compilé avec succès sur EAS.
 - **Portail Web & Console** : Builds de production validés, mise en page native opérationnelle, réactivité totale sur tous les contrôles.
 
+## Mise à jour produit — 2026-08-10
+
+### Rétablissement de l'Interactivité Console, Zéro Emoji & Déconnexion
+- **Correction d'erreur de syntaxe bloquante (`LOTISEC-Console-Complete/public/console.js`)** :
+  - Suppression d'une accolade fermante prématurée dans `applyRbac` qui interrompait l'exécution du script, bloquait l'ensemble des écouteurs d'événements, le sélecteur de rôle, la déconnexion et l'initialisation de l'interface.
+- **Suppression intégrale des emojis dans la console** :
+  - Remplacement systématique de tous les emojis par des icônes SVG vectorielles professionnelles et épurées (Sidebar, modales, boutons de connexion rapide, indicateurs de flux, cartes).
+- **Rétablissement et mise en valeur du bouton « Se déconnecter »** :
+  - Intégré directement sous l'avatar et les rôles de l'opérateur avec icône SVG et confirmation immédiate, réinitialisant la session `localStorage` et renvoyant au choix de profil.
+- **Cloisonnement RBAC strict & fluide** :
+  - *Admin / Superviseur National* : Accès complet à tous les modules + sélecteur d'espace dans la TopBar pour tester en direct chaque perspective.
+  - *Hôpitaux (ex: CHU Sylvanus Olympio)* : Vue restreinte aux modules sanitaires (`Hôpitaux`, `Capacités & Lits` avec ajustement en 1 clic, `Fiches Patients` QR Code, `Notifications`), sans carte tactique de poursuite.
+  - *Sapeurs-Pompiers (118) & Ambulanciers* : Vue opérationnelle avec file d'incidents, carte Leaflet temps réel, reroutage anti-bouchon et demandes d'admission hospitalière.
+
+
 
 
 
