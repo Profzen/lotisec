@@ -37,9 +37,18 @@ function showLogin(message = "") {
       <em data-login-error></em>
       <div class="login-quick-roles">
         <small>ACCÈS RAPIDE DE DÉMONSTRATION</small>
-        <button type="button" class="login-quick-btn" data-quick-role="admin"><span>👑 <strong>Superviseur National</strong></span><small>Accès total</small></button>
-        <button type="button" class="login-quick-btn" data-quick-role="firefighter"><span>🚒 <strong>Sapeurs-Pompiers (118)</strong></span><small>Secours</small></button>
-        <button type="button" class="login-quick-btn" data-quick-role="hospital"><span>🏥 <strong>CHU Sylvanus Olympio</strong></span><small>Hôpital</small></button>
+        <button type="button" class="login-quick-btn" data-quick-role="admin">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-right:6px;vertical-align:middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> <strong>Superviseur National</strong></span>
+          <small>Accès total</small>
+        </button>
+        <button type="button" class="login-quick-btn" data-quick-role="firefighter">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-right:6px;vertical-align:middle;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg> <strong>Sapeurs-Pompiers (118)</strong></span>
+          <small>Secours & Trafic</small>
+        </button>
+        <button type="button" class="login-quick-btn" data-quick-role="hospital">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-right:6px;vertical-align:middle;"><path d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/><path d="M10 9h4M12 7v4M9 17h6"/></svg> <strong>CHU Sylvanus Olympio</strong></span>
+          <small>Lits & Fiches QR</small>
+        </button>
       </div>
     </form>`;
     document.body.appendChild(overlay);
@@ -119,7 +128,13 @@ function applyRbac() {
 
   const card = document.querySelector(".operator-card span:nth-child(2)");
   if (card) {
-    card.innerHTML = `<small>${escapeHtml(session.user.organization?.name || "LOTISEC")}</small><strong>${escapeHtml(session.user.first_name ? `${session.user.first_name} ${session.user.last_name || ''}`.trim() : session.user.phone)}</strong><em><i></i> ${escapeHtml(roles.join(" · "))}</em><button class="logout-btn" type="button" style="background:none;border:none;color:#E5484D;font-size:0.75rem;padding:0;margin-top:6px;cursor:pointer;text-align:left;display:block;text-decoration:underline;font-weight:600;">Se déconnecter</button>`;
+    card.innerHTML = `<small>${escapeHtml(session.user.organization?.name || "LOTISEC")}</small>
+      <strong>${escapeHtml(session.user.first_name ? `${session.user.first_name} ${session.user.last_name || ''}`.trim() : session.user.phone)}</strong>
+      <em><i></i> ${escapeHtml(roles.join(" · "))}</em>
+      <button class="logout-btn" type="button" style="background:#dc262622;border:1px solid #dc262666;color:#FF6B6B;font-size:0.75rem;padding:5px 10px;margin-top:8px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:700;transition:0.15s;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Se déconnecter
+      </button>`;
     card.querySelector(".logout-btn")?.addEventListener("click", () => {
       localStorage.removeItem(AUTH_KEY);
       session = null;
@@ -127,10 +142,12 @@ function applyRbac() {
     });
   }
 
-  if (activePerspective === 'hospital' && ["Incidents", "Carte en direct", "Trafic en temps réel", "Interventions"].includes(state.currentModule)) {
+  if (activePerspective === 'hospital' && ["Incidents", "Carte en direct", "Trafic en temps réel", "Interventions", "Tableau de bord", "Ambulances"].includes(state.currentModule)) {
     switchModule("Capacités & Lits");
+  } else if (activePerspective === 'firefighter' && ["Capacités & Lits", "Fiches Patients", "Utilisateurs", "Audit", "Accréditations Zem"].includes(state.currentModule)) {
+    switchModule("Tableau de bord");
   }
-}
+
   const organizations = session.user.organizations || [];
   if (organizations.length > 1 && !document.querySelector('[data-organization-switch]')) {
     const select = document.createElement('select'); select.dataset.organizationSwitch = '';
@@ -899,7 +916,7 @@ function ambulanceIconMarkup(name) {
 }
 
 function hospitalIconMarkup(hospital, recommended) {
-  return `<div class="hospital-map-marker ${recommended ? "is-recommended" : ""}"><span>✚</span><b>${escapeHtml(hospital.name)}</b><small>${hospital.beds} places · ${hospital.eta} min</small></div>`;
+  return `<div class="hospital-map-marker ${recommended ? "is-recommended" : ""}"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;display:inline-block;"><path d="M12 5v14M5 12h14"/></svg></span><b>${escapeHtml(hospital.name)}</b><small>${hospital.beds} places · ${hospital.eta} min</small></div>`;
 }
 
 function destroyOperationalMaps() {
@@ -997,9 +1014,9 @@ function liveMapMarkup({ compact = false } = {}) {
       <div class="leaflet-host" data-operational-map aria-label="Carte interactive de suivi opérationnel"></div>
       <div class="fog-map-badge"><i></i><span><strong>${demoMode ? 'FOG-LOMÉ-01' : 'LOTISEC · OSRM'}</strong><small>${demoMode ? (mission.routeBlocked ? "Itinéraire recalculé · 27 ms" : "Décision locale · 24 ms") : 'Routage sans donnée trafic temps réel'}</small></span></div>
       <div class="map-decision-flow">
-        <span><i>🚑</i><b>${escapeHtml(ambulance.name)}</b><small>Ambulance affectée</small></span><em>→</em>
-        <span><i>!</i><b>${escapeHtml(incident?.place || "Incident")}</b><small>Lieu d'intervention</small></span><em>→</em>
-        ${hospital?`<span class="is-recommended"><i>✚</i><b>${escapeHtml(hospital.name)}</b><small>Cible hospitalière · ${hospital.eta} min</small></span>`:'<span><i>✚</i><b>Hôpital à déterminer</b><small>Après prise en charge</small></span>'}
+        <span><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg></i><b>${escapeHtml(ambulance.name)}</b><small>Ambulance affectée</small></span><em>→</em>
+        <span><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></i><b>${escapeHtml(incident?.place || "Incident")}</b><small>Lieu d'intervention</small></span><em>→</em>
+        ${hospital?`<span class="is-recommended"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"><path d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/><path d="M10 9h4M12 7v4M9 17h6"/></svg></i><b>${escapeHtml(hospital.name)}</b><small>Cible hospitalière · ${hospital.eta} min</small></span>`:'<span><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"><path d="M3 21h18M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16"/><path d="M10 9h4M12 7v4M9 17h6"/></svg></i><b>Hôpital à déterminer</b><small>Après prise en charge</small></span>'}
       </div>
       <div class="route-decision-banner ${mission.routeBlocked ? "is-alert" : ""}">
         <strong>${demoMode ? (mission.routeBlocked ? "CONGESTION DÉTECTÉE AVANT DÉPART" : "VOIE RETENUE PAR LE FOG") : 'ITINÉRAIRE ROUTIER OSRM'}</strong>
@@ -1052,7 +1069,7 @@ function renderAmbulances() {
     </section>`)}
     <section class="fleet-grid">${ambulances.map((item) => `
       <article class="resource-card">
-        <header><span class="resource-icon">🚑</span><div><small>${item.id}</small><h2>${escapeHtml(item.name)}</h2></div><em class="resource-status resource-status--${item.status === "Disponible" ? "ok" : item.status === "En mission" ? "busy" : "off"}">${item.status}</em></header>
+        <header><span class="resource-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg></span><div><small>${item.id}</small><h2>${escapeHtml(item.name)}</h2></div><em class="resource-status resource-status--${item.status === "Disponible" ? "ok" : item.status === "En mission" ? "busy" : "off"}">${item.status}</em></header>
         <div class="resource-facts"><span><small>Numéro d'urgence</small><strong>${item.number}</strong></span><span><small>Équipage</small><strong>${item.crew} pers.</strong></span><span><small>Distance estimée</small><strong>${item.distance} km</strong></span><span><small>ETA</small><strong>${item.eta} min</strong></span></div>
         <div class="resource-actions"><button data-action="view-ambulance" data-id="${item.id}">Voir sur la carte</button><button ${item.status === "Maintenance" ? "disabled" : ""} data-action="assign-ambulance" data-id="${item.id}">Affecter</button></div>
       </article>`).join("")}</section>
@@ -1133,7 +1150,7 @@ function renderInterventions() {
       <article class="module-card intervention-detail">
         <header><div><small>${incident?.id}</small><h2>${escapeHtml(incident?.type || "Incident")}</h2></div><em class="resource-status resource-status--busy">${mission.phase}</em></header>
         <p>⌖ ${escapeHtml(incident?.place || "Position GPS reçue")}</p>
-        <div class="assignment-banner"><span>🚑</span><div><small>MOYEN AFFECTÉ</small><strong>${escapeHtml(ambulance.name)}</strong><em>${ambulance.number}</em></div><div><small>HÔPITAL CIBLE</small><strong>${escapeHtml(hospital?.name || 'Non sélectionné')}</strong><em>${hospital ? `${hospital.beds} places disponibles` : 'Admission à demander'}</em></div></div>
+        <div class="assignment-banner"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg></span><div><small>MOYEN AFFECTÉ</small><strong>${escapeHtml(ambulance.name)}</strong><em>${ambulance.number}</em></div><div><small>HÔPITAL CIBLE</small><strong>${escapeHtml(hospital?.name || 'Non sélectionné')}</strong><em>${hospital ? `${hospital.beds} places disponibles` : 'Admission à demander'}</em></div></div>
         <div class="phase-track">${phases.map((phase, index) => `<span class="${index < activeIndex ? "is-done" : index === activeIndex ? "is-active" : ""}"><i>${index < activeIndex ? "✓" : index + 1}</i><b>${phaseLabels[phase]}</b></span>`).join("")}</div>
         <div class="resource-actions"><button data-action="advance-mission">Passer au statut suivant</button>${['on_scene','patient_loaded'].includes(mission.phase) ? '<button data-action="request-admission">Demander un hôpital</button>' : ''}<button data-action="go-module" data-target="Carte en direct">Afficher le détail sur la carte</button></div>
       </article>
@@ -1213,7 +1230,7 @@ function renderSettings() {
   return `
     ${moduleTop(moduleHeader("Configuration", "Paramètres", "Préférences de la console, synchronisation mobile et informations d'intégration."))}
     <section class="settings-grid">
-      <article class="module-card settings-card"><header><div><small>AFFICHAGE</small><h2>Thème de la console</h2></div></header><p>Les textes, champs, cartes et contrôles restent contrastés dans les deux modes.</p><button class="theme-choice" data-action="toggle-theme"><span>${theme === "dark" ? "☀" : "☾"}</span><strong>Passer en mode ${theme === "dark" ? "clair" : "sombre"}</strong></button></article>
+      <article class="module-card settings-card"><header><div><small>AFFICHAGE</small><h2>Thème de la console</h2></div></header><p>Les textes, champs, cartes et contrôles restent contrastés dans les deux modes.</p><button class="theme-choice" data-action="toggle-theme"><strong>${theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}</strong></button></article>
       <article class="module-card settings-card"><header><div><small>APPLICATIONS CLIENTES</small><h2>API de réception</h2></div></header><code>POST /api/v1/incidents</code><p>Canal canonique authentifié pour les SOS mobile, web et opérateur.</p><button data-action="copy-api">Copier l'URL de l'API</button><button data-action="open-citizen">Ouvrir le portail citoyen</button></article>
       <article class="module-card settings-card"><header><div><small>TEMPS RÉEL</small><h2>Synchronisation</h2></div></header><label class="setting-toggle"><span><strong>Réception automatique</strong><small>Supabase Realtime avec repli API toutes les 3 secondes</small></span><input type="checkbox" checked disabled></label><label class="setting-toggle"><span><strong>Priorisation serveur</strong><small>Score opérationnel calculé par le backend</small></span><input type="checkbox" checked disabled></label></article>
       <article class="module-card settings-card"><header><div><small>SÉCURITÉ</small><h2>Contrôle d'accès RBAC</h2></div></header><p>Session JWT, permissions et organisation : ${(session.user.roles || []).map(escapeHtml).join(', ')}.</p><button data-action="test-api">Tester la connexion API</button></article>
@@ -1470,7 +1487,9 @@ function setTheme(theme) {
   localStorage.setItem(THEME_KEY, theme);
   const toggle = document.querySelector("[data-theme-toggle]");
   if (toggle) {
-    toggle.textContent = theme === "dark" ? "☀" : "☾";
+    toggle.innerHTML = theme === "dark" 
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
     toggle.setAttribute("aria-label", `Passer au mode ${theme === "dark" ? "clair" : "sombre"}`);
   }
 }
