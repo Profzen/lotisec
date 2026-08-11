@@ -321,6 +321,8 @@ router.patch('/resources/:id/location',requireAuth,async(req:AuthRequest,res)=>{
   const global=req.permissions?.some((p)=>p==='*'||p==='interventions:manage');
   const result=await query<any>(`UPDATE response_units SET latitude=$1,longitude=$2,status=COALESCE($3,status),updated_at=NOW() WHERE id=$4 AND ($5::boolean OR organization_id=$6) RETURNING *`,[parsed.data.latitude,parsed.data.longitude,parsed.data.status||null,req.params.id,global||false,req.organizationId]);
   if(!result.rows[0])return res.status(404).json({detail:'Ressource introuvable ou interdite'});
+  await query(`INSERT INTO response_unit_positions(response_unit_id,actor_id,organization_id,latitude,longitude,status) VALUES($1,$2,$3,$4,$5,$6)`,[req.params.id,req.userId,result.rows[0].organization_id,parsed.data.latitude,parsed.data.longitude,parsed.data.status||result.rows[0].status]);
+  await audit(req.userId,req.organizationId,'response_unit.location_updated','response_unit',req.params.id,{status:parsed.data.status||result.rows[0].status});
   return res.json({resource:result.rows[0]});
 });
 
@@ -479,6 +481,12 @@ router.patch('/zem/applications/:id', requireAuth, requirePermission('zem:approv
 router.get('/audit', requireAuth, requirePermission('admin:manage'), async (_req,res)=>{
   const result=await query<any>('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500');
   return res.json({logs:result.rows});
+});
+
+router.get('/activity-audit',requireAuth,requirePermission('reports:read'),async(req:AuthRequest,res)=>{
+  const global=req.permissions?.includes('*')||req.roles?.includes('admin');
+  const result=await query<any>(`SELECT id,request_id,actor_id,organization_id,method,route,action,status_code,success,client_type,ip_address,duration_ms,metadata,created_at FROM api_activity_logs WHERE ($1::boolean OR organization_id=$2) ORDER BY created_at DESC LIMIT 1000`,[global||false,req.organizationId]);
+  return res.json({activities:result.rows});
 });
 
 router.get('/organizations/:id/emergency-access-codes',requireAuth,requirePermission('medical_access:manage'),async(req:AuthRequest,res)=>{

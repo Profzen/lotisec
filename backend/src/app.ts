@@ -15,6 +15,7 @@ import zemRouter from './routers/zem';
 import operationsRouter from './routers/operations';
 import aiRouter from './routers/ai';
 import { pool } from './database';
+import {activityAudit} from './middleware/activityAudit';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use(cors({ origin: (origin, callback) => {
   return callback(new Error('Origin not allowed by CORS'));
 }, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
+app.use(activityAudit);
 
 app.get('/', (_req, res) => {
   res.json({

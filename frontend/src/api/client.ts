@@ -4,7 +4,8 @@ export const API_URL = (import.meta.env.VITE_API_URL || 'https://lotisec-backend
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000
+  timeout: 10000,
+  headers:{'X-LOTISEC-Client':'citizen_web'}
 });
 
 api.interceptors.request.use((config) => {

@@ -290,7 +290,8 @@ export function Home() {
                   <div className="action-title">Déconnexion</div>
                   <div className="action-subtitle">Quitter votre session sécurisée</div>
                 </div>
-                <button className="btn danger" style={{ width: 'auto' }} onClick={() => {
+                <button className="btn danger" style={{ width: 'auto' }} onClick={async () => {
+                  await api.post('/auth/logout',{}).catch(()=>null);
                   localStorage.removeItem('lotisec_token');
                   localStorage.removeItem('lotisec_user');
                   window.location.href = '/login';

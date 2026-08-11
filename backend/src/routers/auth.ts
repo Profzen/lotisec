@@ -136,6 +136,7 @@ router.post('/register', async (req, res) => {
   }
 
   const session = await sessionFor(userId);
+  await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.registered','user',$1,$3)`,[userId,session.organizationId,{account_type,client:req.headers['x-lotisec-client']||'api'}]);
 
   return res.json({
     status: 'success',
@@ -169,16 +170,19 @@ router.post('/login', async (req, res) => {
 
   const user = result.rows[0];
   if (!user) {
+    await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,metadata) VALUES(NULL,NULL,'auth.login_failed','session',$1)`,[{reason:'unknown_account',client:req.headers['x-lotisec-client']||'api',ip:req.ip}]);
     return res.status(401).json({ detail: 'Numero ou mot de passe incorrect.' });
   }
 
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) {
+    await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,NULL,'auth.login_failed','session',$1,$2)`,[user.id,{reason:'invalid_password',client:req.headers['x-lotisec-client']||'api',ip:req.ip}]);
     return res.status(401).json({ detail: 'Numero ou mot de passe incorrect.' });
   }
 
   const profile=await ensureProfile(user.id);
   const session = await sessionFor(user.id);
+  await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.login_succeeded','session',$1,$3)`,[user.id,session.organizationId,{client:req.headers['x-lotisec-client']||'api',ip:req.ip}]);
   return res.json({
     status: 'success',
     token: signToken(user.id, session),
@@ -212,11 +216,30 @@ router.post('/realtime-token', requireAuth, async (req: AuthRequest, res) => {
   return res.json({ token, expires_in: 3600 });
 });
 
+router.post('/logout',requireAuth,async(req:AuthRequest,res)=>{
+  await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.logout','session',$1,$3)`,[req.userId,req.organizationId,{client:req.headers['x-lotisec-client']||'api',ip:req.ip}]);
+  return res.json({status:'logged_out'});
+});
+
+router.put('/password',requireAuth,async(req:AuthRequest,res)=>{
+  const parsed=z.object({current_password:z.string().min(8),new_password:z.string().min(8).regex(/[A-Z]/,'Une majuscule est requise').regex(/[0-9]/,'Un chiffre est requis')}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({detail:parsed.error.issues[0]?.message||'Mot de passe invalide'});
+  const account=await query<any>('SELECT password FROM users WHERE id=$1',[req.userId]);
+  if(!account.rows[0]||!await bcrypt.compare(parsed.data.current_password,account.rows[0].password)){
+    await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.password_change_failed','user',$1,$3)`,[req.userId,req.organizationId,{reason:'invalid_current_password'}]);
+    return res.status(403).json({detail:'Mot de passe actuel incorrect'});
+  }
+  const passwordHash=await bcrypt.hash(parsed.data.new_password,12);await query('UPDATE users SET password=$1 WHERE id=$2',[passwordHash,req.userId]);
+  await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.password_changed','user',$1,$3)`,[req.userId,req.organizationId,{client:req.headers['x-lotisec-client']||'api'}]);
+  return res.json({status:'updated'});
+});
+
 router.post('/switch-organization', requireAuth, async (req: AuthRequest, res) => {
   const parsed = z.object({ organization_id:z.string().uuid() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ detail:'Organisation invalide' });
   try {
     const session = await sessionFor(req.userId as string, parsed.data.organization_id);
+    await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'auth.organization_switched','organization',$2,$3)`,[req.userId,parsed.data.organization_id,{previous_organization_id:req.organizationId||null}]);
     return res.json({ token:signToken(req.userId as string,session), realtime_token:signRealtimeToken(req.userId as string,session), session });
   } catch {
     return res.status(403).json({ detail:'Organisation non autorisée' });

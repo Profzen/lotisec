@@ -12,6 +12,7 @@ export const api = async (
 ) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-LOTISEC-Client':'mobile',
   };
 
   const effectiveToken = token || await AsyncStorage.getItem('token');

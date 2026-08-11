@@ -8,6 +8,8 @@ import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import {api} from '../api/config';
+import {clearSession} from '../services/session';
 
 interface ProfilePanelProps {
   isDark:          boolean;
@@ -52,7 +54,7 @@ export default function ProfilePanel({
     rowBd:   isDark ? '#252525' : colors.border,
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setPwdError(null);
     setPwdSuccess(null);
     if (!currentPwd || !newPwd || !confirmPwd)
@@ -62,8 +64,7 @@ export default function ProfilePanel({
     if (newPwd.length < 8)
       return setPwdError('Le mot de passe doit faire au moins 8 caractères.');
 
-    // TODO Sprint 2 : appeler authService.changePassword(currentPwd, newPwd)
-    setPwdSuccess('Mot de passe modifié avec succès.');
+    try{await api('/auth/password','PUT',{current_password:currentPwd,new_password:newPwd});setPwdSuccess('Mot de passe modifié avec succès.');}catch(error:any){setPwdError(error.message||'Modification impossible.');return;}
     setTimeout(() => {
       setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
       setPwdSuccess(null);
@@ -77,10 +78,7 @@ export default function ProfilePanel({
       'Vous devrez vous reconnecter pour accéder à votre profil.',
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Déconnecter', style: 'destructive', onPress: () => {
-          // TODO : authService.logout() puis navigation vers Landing
-          onClose();
-        }},
+        { text: 'Déconnecter', style: 'destructive', onPress: async () => {await clearSession();onClose();}},
       ]
     );
   };

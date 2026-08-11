@@ -1032,3 +1032,41 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Identifiant EAS : `781e1e9a-07c7-4774-829d-66f0e93486d6`.
 - Suivi : `https://expo.dev/accounts/profzen/projects/lotisec/builds/781e1e9a-07c7-4774-829d-66f0e93486d6`.
 - État au lancement : `IN_QUEUE`. La même page fournira le téléchargement de l'APK dès que le statut sera `FINISHED`.
+
+## Plan — persistance CRUD et audit exhaustif multi-client (2026-08-11)
+- Objectif : garantir que toute mutation métier provenant du portail citoyen, de l'application mobile ou de la console passe par le backend, est persistée en PostgreSQL et laisse une trace exploitable sans stocker de mot de passe, PIN, jeton ou contenu vocal sensible dans l'audit.
+- Rendre l'upsert du profil médical et le remplacement de ses contacts atomiques : profil, constantes, médecin, véhicule, contacts et événement d'audit doivent réussir ou être annulés ensemble.
+- Journaliser les champs modifiés sans recopier les valeurs médicales sensibles dans `audit_logs`; conserver la donnée métier courante uniquement dans les tables protégées prévues à cet effet.
+- Ajouter une instrumentation Express transversale des requêtes mutantes (`POST`, `PUT`, `PATCH`, `DELETE`) avec acteur, organisation, méthode, route normalisée, statut HTTP, origine client, IP, user-agent et identifiant de corrélation.
+- Ajouter un audit explicite des connexions réussies/refusées et changements d'organisation; ne jamais inclure mots de passe, PIN, codes d'urgence, JWT ou corps complets des requêtes.
+- Conserver l'historique des positions des ambulances/unités dans une table append-only au lieu de seulement remplacer leur dernière position dans `response_units`.
+- Maintenir les événements métier spécialisés existants (`incident_events`, `ride_events`, `scan_access_events`, audit RBAC/admissions) en complément du journal transversal.
+- Ajouter un endpoint de suppression contrôlée de la fiche médicale permettant au propriétaire d'effacer ses données médicales et contacts après vérification du mot de passe, tout en conservant le minimum de compte et une trace non médicale de l'opération.
+- Étendre les tests de qualité, exécuter les builds backend/web/console/mobile, documenter les limites restantes, puis publier sur `main`.
+
+### Réalisation — persistance et traçabilité complète
+- La migration `backend/migrations/20260811_complete_activity_audit.sql` crée `api_activity_logs` et `response_unit_positions`, leurs index, RLS et la publication Realtime des positions autorisées.
+- Chaque requête mutante reçue par Express est maintenant journalisée après réponse avec un `request_id`, acteur, organisation, méthode, route normalisée, statut, succès, origine (`citizen_web`, `mobile`, `console_web` ou API), IP, user-agent, durée et uniquement les **noms** des champs transmis.
+- Les lectures sensibles de profil, scan, interventions, admissions, audit, utilisateurs et organisations sont également inscrites dans ce journal. Les lectures publiques ordinaires, ressources statiques et préférences d'interface ne génèrent pas de bruit inutile.
+- La liste d'exclusion interdit au middleware d'enregistrer mots de passe, PIN, codes, JWT, jetons Realtime ou jetons push. Les corps complets des requêtes ne sont jamais copiés dans l'audit transversal.
+- Les clients déclarent explicitement leur origine avec `X-LOTISEC-Client`; le journal permet donc de distinguer portail citoyen, application Expo et console institutionnelle.
+- Inscription, connexion réussie/refusée, déconnexion, changement d'organisation et changement de mot de passe possèdent en plus un événement métier explicite dans `audit_logs`.
+- La déconnexion web, mobile et console appelle maintenant `/auth/logout` avant d'effacer la session locale. Une panne réseau n'empêche toutefois pas la révocation locale de la session.
+- La mise à jour du profil est transactionnelle : profil principal, taille, poids, médecin, véhicule, PIN éventuel, suppression/remplacement des contacts et événement d'audit sont validés ensemble ou annulés ensemble.
+- L'audit de profil conserve les champs modifiés, le nombre de contacts et l'indication de renouvellement du PIN, mais pas les valeurs médicales elles-mêmes. Les valeurs courantes restent dans `profiles` et `emergency_contacts`.
+- Web citoyen : tous les contacts d'urgence existants sont conservés, modifiables, ajoutables et supprimables; le changement de mot de passe est relié au backend; l'effacement médical nécessite le mot de passe et une confirmation explicite.
+- Mobile : modification du mot de passe et déconnexion ne sont plus des simulations; l'effacement de la fiche est disponible avec mot de passe et confirmation native.
+- `DELETE /profil/medical-data` efface groupe sanguin, constantes, antécédents, traitements, médecin, véhicule, contacts et PIN. Le compte, l'identité minimale et le QR restent actifs afin que le citoyen puisse recréer sa fiche.
+- Chaque position envoyée par une unité continue de mettre à jour `response_units` pour la carte instantanée et crée maintenant une ligne append-only dans `response_unit_positions` pour l'historique opérationnel.
+- La console « Audit » présente les événements métier et les activités API web/mobile/console; l'API `/api/v1/activity-audit` applique le périmètre organisationnel et la permission `reports:read`.
+
+### Vérifications de cette phase
+- Backend : compilation réussie et **33/33 tests** réussis, dont transaction profil, exclusion des secrets, audit multi-client, authentification et historique des positions.
+- Portail citoyen : build TypeScript/Vite/PWA réussi; l'avertissement historique de taille du bundle reste non bloquant.
+- Console institutionnelle : build Vite et syntaxe réussis.
+- Mobile Expo : `npx tsc --noEmit` réussi.
+
+### Déploiement requis
+- Appliquer `20260811_complete_activity_audit.sql` **après** `20260811_profile_vitals.sql` et `20260811_secure_medical_access.sql`, puis déployer le backend.
+- Définir une politique légale de conservation/purge pour `api_activity_logs`, `audit_logs`, `scan_access_events` et les historiques GPS; la durée doit être validée selon les obligations locales de protection des données et de secours.
+- Les clics purement visuels (ouvrir un menu, changer le thème, modifier un filtre sans mutation serveur) restent volontairement locaux. Toutes les actions CRUD et décisions métier passant par l'API sont persistées et auditables.

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../database';
+import { pool, query } from '../database';
 import { AuthRequest, optionalAuth, requireAuth } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
@@ -70,22 +70,26 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
 
   const userId = req.userId as string;
   const data = parsed.data;
+  if(!pool)return res.status(503).json({detail:'Base de données indisponible'});
+  const client=await pool.connect();
+  try {
+  await client.query('BEGIN');
 
-  const existing = await query<{ id: string; qr_token: string; access_code_hash:string|null; access_code:string|null }>(
+  const existing = await client.query<{ id: string; qr_token: string; access_code_hash:string|null; access_code:string|null }>(
     'SELECT id, qr_token, access_code_hash, access_code FROM profiles WHERE user_id = $1 LIMIT 1',
     [userId]
   );
 
   let profileId: string;
   let qrToken: string;
-  if(existing.rows.length===0&&!data.access_pin)return res.status(400).json({detail:'Définissez un PIN personnel de 4 à 6 chiffres'});
+  if(existing.rows.length===0&&!data.access_pin){await client.query('ROLLBACK');return res.status(400).json({detail:'Définissez un PIN personnel de 4 à 6 chiffres'});}
   const accessCodeHash=data.access_pin ? await bcrypt.hash(data.access_pin,12) : null;
 
   if (existing.rows.length > 0) {
     profileId = existing.rows[0].id;
     qrToken = existing.rows[0].qr_token || uuidv4().slice(0, 8).toUpperCase();
 
-    await query(
+    await client.query(
       `UPDATE profiles SET
         profile_type = $1,
         first_name = $2,
@@ -133,12 +137,12 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
         profileId
       ]
     );
-    if(accessCodeHash)await query('UPDATE profiles SET access_code_hash=$1,access_code=NULL,pin_updated_at=NOW() WHERE id=$2',[accessCodeHash,profileId]);
+    if(accessCodeHash)await client.query('UPDATE profiles SET access_code_hash=$1,access_code=NULL,pin_updated_at=NOW() WHERE id=$2',[accessCodeHash,profileId]);
   } else {
     profileId = uuidv4();
     qrToken = uuidv4().slice(0, 8).toUpperCase();
 
-    await query(
+    await client.query(
       `INSERT INTO profiles (
         id, user_id, qr_token, profile_type, first_name, last_name, birth_date,
         gender, nationality, document_type, document_number, blood_type,
@@ -179,25 +183,31 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
     );
   }
 
-  await query(
+  await client.query(
     'UPDATE profiles SET height=$1, weight=$2, doctor_name=$3, doctor_phone=$4, updated_at=NOW() WHERE id=$5',
     [data.height, data.weight, data.doctor_name || null, data.doctor_phone || null, profileId]
   );
 
-  await query('DELETE FROM emergency_contacts WHERE profile_id = $1', [profileId]);
+  await client.query('DELETE FROM emergency_contacts WHERE profile_id = $1', [profileId]);
 
   for (const c of data.emergency_contacts) {
-    await query(
+    await client.query(
       'INSERT INTO emergency_contacts (id, profile_id, name, phone, relation) VALUES ($1, $2, $3, $4, $5)',
       [uuidv4(), profileId, c.name, c.phone, c.relation || 'Proche']
     );
   }
 
+  const changedFields=Object.keys(data).filter(key=>key!=='access_pin'&&key!=='emergency_contacts');
+  await client.query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,$3,'profile',$4,$5)`,[req.userId,req.organizationId,existing.rows.length?'medical_profile.updated':'medical_profile.created',profileId,{changed_fields:changedFields,emergency_contacts_count:data.emergency_contacts.length,pin_changed:Boolean(data.access_pin)}]);
+  await client.query('COMMIT');
   return res.json({
     status: existing.rows.length > 0 ? 'updated' : 'created',
     message: existing.rows.length > 0 ? 'Profil mis a jour avec succes' : 'Profil cree avec succes',
     qr_token: qrToken
   });
+  } catch(error) {
+    await client.query('ROLLBACK');throw error;
+  } finally {client.release();}
 });
 
 router.put('/pin',requireAuth,async(req:AuthRequest,res)=>{
@@ -208,6 +218,19 @@ router.put('/pin',requireAuth,async(req:AuthRequest,res)=>{
   if(!result.rows[0])return res.status(404).json({detail:'Profil introuvable'});
   await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_pin.updated','profile',$3,$4)`,[req.userId,req.organizationId,result.rows[0].id,{method:'authenticated_owner'}]);
   return res.json({status:'updated',pin_configured:true});
+});
+
+router.delete('/medical-data',requireAuth,async(req:AuthRequest,res)=>{
+  const parsed=z.object({password:z.string().min(8)}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({detail:'Mot de passe requis pour effacer la fiche médicale'});
+  const account=await query<any>('SELECT password FROM users WHERE id=$1',[req.userId]);
+  if(!account.rows[0]||!await bcrypt.compare(parsed.data.password,account.rows[0].password))return res.status(403).json({detail:'Mot de passe incorrect'});
+  if(!pool)return res.status(503).json({detail:'Base de données indisponible'});const client=await pool.connect();
+  try{await client.query('BEGIN');const profile=await client.query<any>('SELECT id FROM profiles WHERE user_id=$1 FOR UPDATE',[req.userId]);if(!profile.rows[0]){await client.query('ROLLBACK');return res.status(404).json({detail:'Profil introuvable'});}const profileId=profile.rows[0].id;
+    await client.query(`UPDATE profiles SET blood_type='NC',height=NULL,weight=NULL,allergies='',conditions='',medications='',surgeries='',disabilities='',doctor_name=NULL,doctor_phone=NULL,has_vehicle=false,vehicle_type='',plate='',brand='',model='',access_code=NULL,access_code_hash=NULL,pin_updated_at=NULL,updated_at=NOW() WHERE id=$1`,[profileId]);
+    await client.query('DELETE FROM emergency_contacts WHERE profile_id=$1',[profileId]);
+    await client.query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_profile.cleared','profile',$3,$4)`,[req.userId,req.organizationId,profileId,{owner_confirmed:true}]);await client.query('COMMIT');return res.json({status:'cleared',pin_configured:false});
+  }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 });
 
 router.get('/scan/:token', optionalAuth, async (req: AuthRequest, res) => {

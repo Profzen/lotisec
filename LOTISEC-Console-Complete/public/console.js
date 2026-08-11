@@ -10,7 +10,7 @@ let session = (() => { try { return JSON.parse(localStorage.getItem(AUTH_KEY) ||
 const CONSOLE_ROLES = new Set(["admin","supervisor","dispatcher","firefighter","ambulance_driver","hospital_manager","hospital_agent"]);
 
 function apiFetch(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  const headers = { "Content-Type": "application/json", "X-LOTISEC-Client":"console_web", ...(options.headers || {}) };
   if (session?.token) headers.Authorization = `Bearer ${session.token}`;
   return fetch(`${API_BASE}${path}`, { ...options, headers, cache: options.cache || "no-store" }).then(async (response) => {
     const body = await response.json().catch(() => ({}));
@@ -136,7 +136,8 @@ function applyRbac() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Se déconnecter
       </button>`;
-    card.querySelector(".logout-btn")?.addEventListener("click", () => {
+    card.querySelector(".logout-btn")?.addEventListener("click", async () => {
+      if(!session?.demo)await apiFetch('/auth/logout',{method:'POST',body:'{}'}).catch(()=>null);
       localStorage.removeItem(AUTH_KEY);
       session = null;
       location.reload();
@@ -298,6 +299,7 @@ const state = {
   organizations: [],
   zemApplications: [],
   auditLogs: [],
+  apiActivityLogs: [],
   responders: [],
   accidentGeojson: { features: [] },
   accidentStats: null,
@@ -755,14 +757,16 @@ async function loadOperationalData() {
   state.accidentGeojson = accidentGeoResult || {features:[]};
   state.accidentStats = accidentStatsResult;
   if ((session.user.roles || []).includes('admin')) {
-    const [usersResult, organizationsResult, auditResult] = await Promise.all([
+    const [usersResult, organizationsResult, auditResult,activityResult] = await Promise.all([
       apiFetch('/api/v1/admin/users').catch(() => ({ users:[] })),
       apiFetch('/api/v1/organizations').catch(() => ({ organizations:[] })),
-      apiFetch('/api/v1/audit').catch(() => ({ logs:[] }))
+      apiFetch('/api/v1/audit').catch(() => ({ logs:[] })),
+      apiFetch('/api/v1/activity-audit').catch(() => ({ activities:[] }))
     ]);
     state.adminUsers = usersResult.users || [];
     state.organizations = organizationsResult.organizations || [];
     state.auditLogs = auditResult.logs || [];
+    state.apiActivityLogs=activityResult.activities||[];
   }
   if ((session.user.permissions || []).includes('*') || (session.user.permissions || []).includes('zem:approve')) {
     const result = await apiFetch('/api/v1/zem/applications').catch(() => ({ applications:[] }));
@@ -1250,7 +1254,7 @@ function renderNotifications() {
 }
 
 function renderAudit() {
-  return `${moduleTop(moduleHeader("Traçabilité", "Journal d’audit", "Opérations sensibles enregistrées par le backend."))}<section class="module-card"><div class="compact-list">${state.auditLogs.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(item.action)}</strong><small>${escapeHtml(item.entity_type || '')} ${escapeHtml(item.entity_id || '')}</small></span><time>${new Date(item.created_at).toLocaleString('fr-FR')}</time></div>`).join('') || '<p>Aucune opération auditée.</p>'}</div></section>`;
+  return `${moduleTop(moduleHeader("Traçabilité", "Journal d’audit", "Opérations sensibles et requêtes multi-clients enregistrées par le backend."))}<section class="module-card"><header><div><small>ÉVÉNEMENTS MÉTIER</small><h2>Décisions et changements sensibles</h2></div></header><div class="compact-list">${state.auditLogs.map((item)=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(item.action)}</strong><small>${escapeHtml(item.entity_type || '')} ${escapeHtml(item.entity_id || '')}</small></span><time>${new Date(item.created_at).toLocaleString('fr-FR')}</time></div>`).join('') || '<p>Aucune opération auditée.</p>'}</div></section><section class="module-card"><header><div><small>ACTIVITÉ API</small><h2>Web, mobile et console</h2></div></header><div class="compact-list">${state.apiActivityLogs.map(item=>`<div class="notification-row"><i></i><span><strong>${escapeHtml(item.client_type)} · ${escapeHtml(item.method)} ${escapeHtml(item.route)}</strong><small>${item.success?'Succès':'Refus/erreur'} · HTTP ${item.status_code} · ${item.duration_ms} ms · acteur ${escapeHtml(item.actor_id||'anonyme')}</small></span><time>${new Date(item.created_at).toLocaleString('fr-FR')}</time></div>`).join('')||'<p>Aucune activité API enregistrée.</p>'}</div></section>`;
 }
 
 function renderSettings() {
