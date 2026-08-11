@@ -3,7 +3,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { colors, shadows } from '../theme/colors';
 import { fonts } from '../theme/typography';
 
@@ -27,6 +27,9 @@ import RidesScreen from '../screens/RidesScreen';
 import AssistantScreen from '../screens/AssistantScreen';
 import RideDetailScreen from '../screens/RideDetailScreen';
 import RideChatScreen from '../screens/RideChatScreen';
+import OperationalMissionsScreen from '../screens/OperationalMissionsScreen';
+import ProfessionalAccountScreen from '../screens/ProfessionalAccountScreen';
+import {hydrateSession} from '../services/session';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
 export type RootStackParamList = {
@@ -53,6 +56,11 @@ const Tab = createBottomTabNavigator();
 
 // 2. CONFIGURATION DES ONGLETS
 function TabNavigator() {
+  const [roles,setRoles]=React.useState<string[]|null>(null);
+  React.useEffect(()=>{hydrateSession(true).then(session=>setRoles(session?.user?.roles||[])).catch(()=>setRoles([]));},[]);
+  if(!roles)return <View style={{flex:1,alignItems:'center',justifyContent:'center'}}><ActivityIndicator color={colors.primary}/></View>;
+  const terrain=roles.some(role=>['admin','supervisor','dispatcher','firefighter','ambulance_driver'].includes(role));
+  const hospital=roles.some(role=>['hospital_manager','hospital_agent'].includes(role));
   return (
     <Tab.Navigator
       screenOptions={{
@@ -72,6 +80,11 @@ function TabNavigator() {
         tabBarItemStyle: { borderRadius:14, marginHorizontal:2 },
       }}
     >
+      {terrain ? <>
+      <Tab.Screen name="Missions" component={OperationalMissionsScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'navigate':'navigate-outline'} size={24} color={color}/>}}/>
+      <Tab.Screen name="Hôpitaux" component={HopitauxScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'medical':'medical-outline'} size={24} color={color}/>}}/>
+      <Tab.Screen name="Compte" component={ProfessionalAccountScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'person-circle':'person-circle-outline'} size={24} color={color}/>}}/>
+      </> : hospital ? <><Tab.Screen name="Hôpitaux" component={HopitauxScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'medical':'medical-outline'} size={24} color={color}/>}}/><Tab.Screen name="Compte" component={ProfessionalAccountScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'person-circle':'person-circle-outline'} size={24} color={color}/>}}/></> : <>
       <Tab.Screen 
         name="Accueil" 
         component={HomeScreen} 
@@ -120,6 +133,7 @@ function TabNavigator() {
           ),
         }}
       />
+      </>}
     </Tab.Navigator>
   );
 }

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../database';
+import { pool, query } from '../database';
 import { AuthRequest, requireAuth, requirePermission } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { canTransition, INCIDENT_TRANSITIONS, INTERVENTION_TRANSITIONS } from '../security/workflows';
+import { notifyUsers } from '../services/push';
 
 const router = Router();
 
@@ -57,37 +58,55 @@ router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
   }
 
   // Calcul du moyen de secours le plus proche (Sapeurs-Pompiers / Ambulance) et hôpital le plus proche
-  let closestUnit: any = {
-    name: d.requested_service === 'ambulance' ? 'Secours Abalo (8880)' : d.requested_service === 'samu' ? 'Togo Assistance SAMU (8200)' : 'Sapeurs-Pompiers Lomé (118)',
-    type: d.requested_service || 'fire',
-    phone: d.requested_service === 'ambulance' ? '8880' : d.requested_service === 'samu' ? '8200' : '118',
-    distance_km: 2.1,
-    eta_minutes: 5,
-    status: 'en_route'
-  };
+  let closestUnit: any = null;
+  let intervention: any = null;
 
   try {
     const unitRow = await query<any>(
-      `SELECT id, name, call_sign, registration, type,
+      `SELECT ru.id, ru.organization_id, ru.name, ru.call_sign, ru.registration, ru.type,
               ROUND((ST_Distance(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000)::numeric, 1) as distance_km
-       FROM response_units
-       WHERE status = 'available' AND latitude IS NOT NULL AND longitude IS NOT NULL
+       FROM response_units ru JOIN organizations o ON o.id=ru.organization_id
+       WHERE ru.status = 'available' AND ru.latitude IS NOT NULL AND ru.longitude IS NOT NULL
+         AND ($3::text[] IS NULL OR o.type=ANY($3::text[]))
        ORDER BY ST_Distance(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) ASC
        LIMIT 1`,
-      [d.longitude, d.latitude]
+      [d.longitude, d.latitude,d.requested_service ? ({fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']} as Record<string,string[]>)[d.requested_service] : null]
     );
     if (unitRow.rows[0]) {
       const u = unitRow.rows[0];
       const dist = Number(u.distance_km) || 2.1;
       closestUnit = {
         id: u.id,
+        organization_id: u.organization_id,
         name: u.name || `Unité ${u.call_sign || u.registration}`,
         type: u.type || 'ambulance',
         phone: '118',
         distance_km: dist,
         eta_minutes: Math.max(2, Math.round(dist * 2.2)),
-        status: 'en_route'
+        status: d.requested_service ? 'assigned' : 'recommended'
       };
+
+      if (d.requested_service && pool) {
+        const client=await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const locked=await client.query(`SELECT status FROM response_units WHERE id=$1 FOR UPDATE`,[u.id]);
+          if(locked.rows[0]?.status==='available') {
+            const assigned=await client.query(`INSERT INTO interventions(incident_id,organization_id,response_unit_id,status) VALUES($1,$2,$3,'assigned') RETURNING *`,[saved.rows[0].id,u.organization_id,u.id]);
+            intervention=assigned.rows[0];
+            await client.query(`UPDATE response_units SET status='assigned',updated_at=NOW() WHERE id=$1`,[u.id]);
+            await client.query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`,[saved.rows[0].id]);
+            await client.query(`INSERT INTO incident_events(incident_id,actor_id,type,from_status,to_status,metadata) VALUES($1,$2,'auto_assigned','new','assigned',$3)`,[saved.rows[0].id,req.userId,{response_unit_id:u.id,organization_id:u.organization_id}]);
+            await client.query(`INSERT INTO operational_notifications(organization_id,recipient_roles,type,title,message,entity_type,entity_id) VALUES($1,$2,'intervention.assigned','Nouvelle mission prioritaire',$3,'intervention',$4)`,[u.organization_id,d.requested_service==='fire'?['firefighter']:['ambulance_driver'],`${d.type} · position GPS disponible`,intervention.id]);
+            saved.rows[0].status='assigned';
+          }
+          await client.query('COMMIT');
+        } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+        if(intervention) {
+          const recipients=await query<{user_id:string}>(`SELECT DISTINCT ur.user_id FROM user_roles ur JOIN organization_members om ON om.user_id=ur.user_id AND om.organization_id=ur.organization_id WHERE ur.organization_id=$1 AND ur.role_key=ANY($2::text[]) AND om.status='active'`,[u.organization_id,d.requested_service==='fire'?['firefighter']:['ambulance_driver']]);
+          await notifyUsers(recipients.rows.map(row=>row.user_id),'Nouvelle mission prioritaire',`${d.type} · ouvrez LOTISEC pour accepter`,{type:'intervention.assigned',intervention_id:intervention.id});
+        }
+      }
     }
   } catch (e) {
     console.warn('Erreur recherche response_units:', e);
@@ -129,7 +148,9 @@ router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
   return res.status(201).json({
     incident: saved.rows[0],
     closest_unit: closestUnit,
-    closest_hospital: closestHospital
+    closest_hospital: closestHospital,
+    intervention,
+    dispatch_status: intervention ? 'assigned' : closestUnit ? 'recommended' : 'awaiting_dispatch'
   });
 });
 

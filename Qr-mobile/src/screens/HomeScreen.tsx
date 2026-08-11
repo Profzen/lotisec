@@ -82,6 +82,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [alerteEnvoyee, setAlerteEnvoyee] = useState(false);
   const [assignedUnit, setAssignedUnit] = useState<any>(null);
   const [assignedHospital, setAssignedHospital] = useState<any>(null);
+  const [dispatchStatus, setDispatchStatus] = useState<'assigned'|'recommended'|'awaiting_dispatch'>('awaiting_dispatch');
   const [panelVisible, setPanelVisible] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
@@ -224,12 +225,15 @@ export default function HomeScreen({ navigation }: Props) {
 
       setAssignedUnit(unit);
       setAssignedHospital(hospital);
+      setDispatchStatus(res?.dispatch_status || 'awaiting_dispatch');
       setSosActif(true);
       setAlerteEnvoyee(true);
 
       Alert.alert(
-        "SECOURS ENGAGÉS",
-        `L'unité la plus proche (${unit.name}) vous a été automatiquement attribuée.\n\nStatus : En route vers vous\nArrivée estimée : ~${unit.eta_minutes} min (${unit.distance_km} km)\n\nHôpital de référence : ${hospital.name}`,
+        res?.dispatch_status === 'assigned' ? "UNITÉ AFFECTÉE" : "ALERTE TRANSMISE",
+        res?.dispatch_status === 'assigned'
+          ? `La mission a été affectée à ${unit.name}.\n\nStatut : unité alertée\nETA indicative : ~${unit.eta_minutes} min (${unit.distance_km} km)\n\nHôpital de référence : ${hospital.name}`
+          : `Votre position a été transmise à la supervision. ${unit?.name ? `L'unité la plus proche identifiée est ${unit.name}, sous réserve de disponibilité.` : 'Une unité doit encore être affectée.'}`,
         [
           { text: "Appeler le 118", onPress: () => Linking.openURL(`tel:${unit.phone}`) },
           { text: "Compris", style: "cancel" }
@@ -339,12 +343,12 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={[styles.card, { backgroundColor: '#0D2033', borderColor: '#DC2626', borderWidth: 1.5, padding: 14 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' }} />
-              <Text style={{ color: '#F87171', fontWeight: 'bold', fontSize: 13, letterSpacing: 0.5 }}>SECOURS AUTOMATIQUEMENT ENGAGÉS</Text>
+              <Text style={{ color: '#F87171', fontWeight: 'bold', fontSize: 13, letterSpacing: 0.5 }}>{dispatchStatus === 'assigned' ? 'UNITÉ DE SECOURS AFFECTÉE' : 'ALERTE TRANSMISE · AFFECTATION EN ATTENTE'}</Text>
             </View>
             <View style={{ backgroundColor: '#11273C', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-              <Text style={{ color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', fontWeight: '600' }}>Unité la plus proche attribuée</Text>
+              <Text style={{ color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', fontWeight: '600' }}>{dispatchStatus === 'assigned' ? 'Unité affectée' : 'Unité recommandée'}</Text>
               <Text style={{ color: '#FFF', fontSize: 15, fontWeight: 'bold', marginVertical: 2 }}>{assignedUnit?.name || 'Sapeurs-Pompiers Lomé (118)'}</Text>
-              <Text style={{ color: '#4ADE80', fontSize: 12, fontWeight: '600' }}>En route vers votre position · Arrivée estimée : ~{assignedUnit?.eta_minutes || 5} min ({assignedUnit?.distance_km || 2.1} km)</Text>
+              <Text style={{ color: dispatchStatus === 'assigned' ? '#4ADE80' : '#FBBF24', fontSize: 12, fontWeight: '600' }}>{dispatchStatus === 'assigned' ? 'Mission reçue par le service' : 'Disponibilité et départ à confirmer'} · ETA indicative : ~{assignedUnit?.eta_minutes || 5} min</Text>
             </View>
             <View style={{ backgroundColor: '#11273C', borderRadius: 10, padding: 12, marginBottom: 10 }}>
               <Text style={{ color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', fontWeight: '600' }}>Hôpital récepteur d'urgence</Text>

@@ -519,13 +519,14 @@ function openDetail(id) {
       <p class="detail-description" style="margin-top:14px">${escapeHtml(incident.description || "Aucune observation complémentaire.")}</p>
     </section>
     <section class="detail-section">
-      <h3>Analyse Fog</h3>
+      <h3>Aide à la priorisation</h3>
       <div class="sync-timeline">
         <div class="sync-event"><i>✓</i><span><strong>Position reçue</strong><small>API mobile sécurisée</small></span><time>${formatTime(incident.createdAt)}</time></div>
-        <div class="sync-event"><i>✓</i><span><strong>Contrôle GPS et doublons</strong><small>Coordonnées exploitables</small></span><time>+ ${Math.max(8, incident.latency - 18)} ms</time></div>
-        <div class="sync-event"><i>✓</i><span><strong>Priorisation locale</strong><small>Score ${incident.score}/100</small></span><time>+ ${incident.latency} ms</time></div>
-        <div class="sync-event"><i>✓</i><span><strong>Ambulance recommandée</strong><small>Secours Abalo · ETA 6 min</small></span><time>Temps réel</time></div>
+        <div class="sync-event"><i>✓</i><span><strong>Contrôle des coordonnées</strong><small>Position exploitable par la supervision</small></span><time>Effectué</time></div>
+        <div class="sync-event"><i>✓</i><span><strong>Score de priorité</strong><small>Règle métier : gravité, victimes, véhicules et dangers</small></span><time>${incident.score}/100</time></div>
+        <div class="sync-event"><i>${incident.status === 'assigned' ? '✓' : '·'}</i><span><strong>${incident.status === 'assigned' ? 'Unité affectée' : 'Affectation à confirmer'}</strong><small>${incident.status === 'assigned' ? 'La mission est visible par le service concerné' : 'Aucune unité ne doit être annoncée en route avant affectation'}</small></span><time>${escapeHtml(statusLabel(incident.status))}</time></div>
       </div>
+      <p class="detail-description" style="margin-top:16px">Ce score assiste l'opérateur et ne remplace pas la validation humaine. Le nœud Fog terrain reste à déployer ; en production actuelle, le calcul est exécuté par la plateforme centrale.</p>
     </section>
     <div class="drawer-actions">
       <button class="button button-danger" type="button" data-detail-action="reject">Classer / doublon</button>
@@ -1199,10 +1200,10 @@ function renderFog() {
   if (!demoMode) return `${moduleTop(moduleHeader("Traitement", "Fog Computing", "Aucun nœud Fog physique n’est connecté à cet environnement."))}<section class="module-card"><p>La priorisation serveur est active. Les métriques de latence Fog de la maquette sont désactivées en production.</p></section>`;
   const { mission } = getMissionData();
   return `
-    ${moduleTop(moduleHeader("Traitement distribué", "Fog Computing", "Le nœud local rapproche incident, ambulance, trafic et hôpital avant synchronisation avec le Cloud.",
+    ${moduleTop(moduleHeader("Scénario de démonstration", "Fog Computing (simulation)", "Maquette fonctionnelle destinée à illustrer un futur nœud terrain ; ces latences ne sont pas des mesures de production.",
       '<button class="button button-primary" data-action="fog-recalculate">Relancer la géodécision</button>'))}
     <section class="fog-architecture">
-      <article class="fog-node"><i></i><small>NŒUD ACTIF</small><h2>FOG-LOMÉ-01</h2><strong>24 ms</strong><span>Latence de traitement</span></article>
+      <article class="fog-node"><i></i><small>NŒUD SIMULÉ</small><h2>FOG-LOMÉ-01</h2><strong>24 ms</strong><span>Valeur de démonstration</span></article>
       <div class="fog-pipeline">
         <span class="is-done"><i>1</i><b>Ingestion GPS</b><em>8 ms</em></span><span class="is-done"><i>2</i><b>Analyse trafic</b><em>6 ms</em></span><span class="is-done"><i>3</i><b>Disponibilités</b><em>4 ms</em></span><span class="is-active"><i>4</i><b>Géodécision</b><em>6 ms</em></span>
       </div>

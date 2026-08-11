@@ -38,7 +38,7 @@ export default function AssistantScreen({ navigation }: any) {
       : undefined;
   }, [sound]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, autoSpeak = false) => {
     if (!text.trim()) return;
 
     const userMsg: ChatMessage = { role: 'user', content: text };
@@ -60,8 +60,7 @@ export default function AssistantScreen({ navigation }: any) {
       const assistantMsg: ChatMessage = { role: 'assistant', content: data.response };
       setMessages([...newMessages, assistantMsg]);
       
-      // Auto-play TTS
-      playTTS(data.response);
+      if (autoSpeak) await playTTS(data.response);
       
     } catch (e) {
       console.log('Erreur chat', e);
@@ -102,8 +101,8 @@ export default function AssistantScreen({ navigation }: any) {
       const formData = new FormData();
       formData.append('file', {
         uri,
-        name: 'audio.wav',
-        type: 'audio/wav',
+        name: 'audio.m4a',
+        type: 'audio/mp4',
       } as any);
 
       const response = await fetch(`${AI_API_URL}/transcribe`, {
@@ -116,7 +115,7 @@ export default function AssistantScreen({ navigation }: any) {
       const data = await response.json();
 
       if (data.text) {
-        sendMessage(data.text);
+        sendMessage(data.text, true);
       }
     } catch (error) {
       console.error('Error uploading audio', error);

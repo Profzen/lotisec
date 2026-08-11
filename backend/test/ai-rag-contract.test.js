@@ -17,3 +17,11 @@ test('les routes IA unifiées exposent chat, transcription, voix et santé', () 
   const source = fs.readFileSync(path.join(root, 'src', 'routers', 'ai.ts'), 'utf8');
   for (const route of ['/health', '/chat', '/transcribe', '/tts']) assert.ok(source.includes(`'${route}'`));
 });
+
+test('appp.py est le service Python canonique texte et voix sans secret embarqué', () => {
+  const source = fs.readFileSync(path.join(root, '..', 'appp.py'), 'utf8');
+  for (const route of ['/health', '/chat', '/transcribe', '/tts', '/voice']) assert.ok(source.includes(`\"${route}\"`));
+  assert.match(source, /os\.getenv\("DEEPINFRA_API_KEY"/);
+  assert.doesNotMatch(source, /DEEPINFRA_API_KEY\s*=\s*["'][A-Za-z0-9]{20,}["']/);
+  assert.match(source, /audio_base64/);
+});

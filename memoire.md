@@ -669,6 +669,40 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Les accès rapides de la console utilisent un mode démonstration local explicite : aucun faux JWT n'est envoyé au backend, supprimant la boucle de retour vers la connexion. Les menus restent séparés entre supervision, secours et hôpital; les données réelles restent filtrées côté backend par permissions et organisation.
 - Validation locale : tests backend, TypeScript mobile, build frontend, syntaxe et build console réussis.
 
+### Revue de mise en exploitation : lisibilité, affectation terrain et vérité du Fog
+- Le mode clair de la console possède désormais une sidebar claire, des textes plus contrastés et un panneau incident restructuré visuellement. Le mode sombre conserve la charte marine sobre. Les cartes, libellés, valeurs, chronologies et actions du tiroir incident ont des tailles minimales et des couples fond/texte distincts.
+- Le terme « Analyse Fog » du détail incident est remplacé par « Aide à la priorisation ». Le score 0–100 est une règle métier centrale basée sur gravité, victimes, véhicules et dangers. Il assiste l'opérateur et ne remplace jamais la validation humaine.
+- État Fog réel : aucun nœud edge physique `FOG-LOMÉ-01` n'est actuellement déployé. En production, la priorité est calculée par le backend central. Les valeurs 24 ms, cache 98 %, trafic et journaux Fog visibles avec `?demo=1` sont explicitement marqués comme simulation et ne doivent pas être présentés comme des mesures terrain.
+- Une demande explicite pompier/ambulance cherche maintenant une `response_unit` réelle, disponible, géolocalisée et appartenant au bon type d'organisation. L'acceptation est verrouillée en transaction : création de l'intervention, passage de l'unité et de l'incident à `assigned`, événement d'audit, notification persistante et Expo Push aux membres actifs du service.
+- Un SOS générique sans unité effectivement affectée n'annonce plus faussement « secours en route ». Le citoyen voit « alerte transmise / affectation en attente » ou « unité affectée » selon la réponse canonique `dispatch_status`.
+- Le mobile est maintenant adapté au rôle : citoyen/Zem conservent leurs parcours; pompier, ambulancier, dispatcher, superviseur et admin obtiennent un espace Missions; les comptes hospitaliers n'obtiennent pas les actions citoyennes. L'espace terrain liste uniquement les interventions autorisées par le backend, permet accepter/démarrer/arriver/prendre en charge et publie la position GPS de l'unité pendant la mission.
+- Le filtrage n'est jamais confié uniquement à l'interface : interventions, ressources, admissions, capacités, notifications et mutations restent filtrées par permissions, utilisateur et `organization_id` dans le backend.
+
+#### Flux accident opérationnel couvert
+1. Le citoyen envoie position, précision, gravité, QR et service demandé.
+2. Le backend crée l'incident canonique et son audit. La supervision reçoit l'alerte.
+3. Pour une demande de service explicite, une unité compatible disponible est verrouillée et affectée; sinon le statut reste `awaiting_dispatch`.
+4. Les comptes terrain de l'organisation reçoivent notification persistante et push, ouvrent la mission mobile ou la console responsive et mettent à jour les étapes.
+5. La position GPS de l'unité alimente la console; l'hôpital n'est engagé qu'à la demande d'admission après prise en charge.
+6. L'hôpital accepte/refuse dans son périmètre; le service poursuit le transport et clôture l'intervention avec audit.
+
+#### Conditions restant obligatoires avant usage secours réel
+- Appliquer et vérifier les migrations Supabase, provisionner organisations/unités/comptes nominatifs et associer chaque appareil terrain à une unité.
+- Valider Expo Push sur appareils physiques, le fonctionnement en arrière-plan, les permissions GPS permanentes et la reprise après perte réseau.
+- Faire une recette terrain avec dispatch 24/7, pompier, ambulance, hôpital et citoyen; mesurer les vrais délais et ne publier aucun SLA avant cette campagne.
+- Ajouter un véritable nœud edge, stockage chiffré, file durable, supervision et tests de coupure avant de qualifier la fonction de Fog Computing.
+- L'espace hospitalier mobile complet (admissions et capacités) reste à développer; en attendant, la console web responsive hospitalière est l'interface canonique.
+
+### Migration de l'assistant Python vers `appp.py`
+- `appp.py`, fourni comme remplacement du prototype `lotisec.py`, devient le service Python canonique. L'interface Streamlit a été transformée en FastAPI pour respecter le contrat déjà consommé par le mobile et le web.
+- Routes disponibles : `POST /chat`, `POST /transcribe`, `POST /tts`, `POST /voice` et `GET /health`. `/voice` enchaîne transcription, réponse et synthèse et retourne l'audio MP3 en base64; les routes séparées restent compatibles avec les clients actuels.
+- Les améliorations du nouveau prototype sont conservées : détection d'urgence avec gestion de négations, rappel du 118, recherche géolocalisée de six établissements togolais et réponses courtes orientées sécurité.
+- La transcription utilise en priorité Whisper via DeepInfra, ce qui accepte les formats WebM du navigateur et M4A/MP4 d'Expo. Un repli `SpeechRecognition` existe pour WAV/FLAC/AIFF. La synthèse vocale utilise gTTS et renvoie `audio/mpeg` sans conserver de fichier utilisateur sur disque.
+- Une question écrite affiche la réponse et laisse l'utilisateur activer le bouton haut-parleur. Une question dictée lit automatiquement la réponse vocale. Le mobile envoie désormais correctement l'enregistrement Expo comme `audio.m4a` / `audio/mp4`.
+- Railway démarre `uvicorn appp:app`; les fichiers de déploiement existent à la racine et dans `ai_service/` pour la configuration monorepo historique.
+- Aucun secret IA ne doit être versionné. `DEEPINFRA_API_KEY`, `DEEPINFRA_MODEL`, `DEEPINFRA_STT_MODEL` et `CORS_ORIGINS` sont lus depuis l'environnement. Les anciennes clés trouvées dans `lotisec.py` et `appp.py` ont été retirées et doivent être révoquées chez DeepInfra.
+- En l'absence de clé, `/health` reste disponible et `/chat` retourne un message de continuité sûr; la transcription WebM/M4A signale explicitement que le fournisseur audio est requis.
+
 ### Rétablissement de l'Interactivité Console, Zéro Emoji & Déconnexion
 - **Correction d'erreur de syntaxe bloquante (`LOTISEC-Console-Complete/public/console.js`)** :
   - Suppression d'une accolade fermante prématurée dans `applyRbac` qui interrompait l'exécution du script, bloquait l'ensemble des écouteurs d'événements, le sélecteur de rôle, la déconnexion et l'initialisation de l'interface.
@@ -680,7 +714,5 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - *Admin / Superviseur National* : Accès complet à tous les modules + sélecteur d'espace dans la TopBar pour tester en direct chaque perspective.
   - *Hôpitaux (ex: CHU Sylvanus Olympio)* : Vue restreinte aux modules sanitaires (`Hôpitaux`, `Capacités & Lits` avec ajustement en 1 clic, `Fiches Patients` QR Code, `Notifications`), sans carte tactique de poursuite.
   - *Sapeurs-Pompiers (118) & Ambulanciers* : Vue opérationnelle avec file d'incidents, carte Leaflet temps réel, reroutage anti-bouchon et demandes d'admission hospitalière.
-
-
 
 

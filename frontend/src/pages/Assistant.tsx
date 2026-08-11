@@ -36,7 +36,7 @@ export function Assistant() {
     scrollToBottom();
   }, [messages]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, autoSpeak = false) => {
     if (!text.trim()) return;
     
     const userMsg: ChatMessage = { role: 'user', content: text };
@@ -57,8 +57,7 @@ export function Assistant() {
       const assistantMsg: ChatMessage = { role: 'assistant', content: data.response };
       setMessages([...newMessages, assistantMsg]);
       
-      // Auto-play TTS for assistant response
-      playTTS(data.response);
+      if (autoSpeak) await playTTS(data.response);
       
     } catch (e) {
       toast.error('Erreur lors de la communication avec l\'assistant');
@@ -117,7 +116,7 @@ export function Assistant() {
       const data = await response.json();
       
       if (data.text) {
-        sendMessage(data.text);
+        sendMessage(data.text, true);
       } else {
         toast.error('Aucune parole détectée');
       }
