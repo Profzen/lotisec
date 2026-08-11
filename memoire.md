@@ -1070,3 +1070,5 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Appliquer `20260811_complete_activity_audit.sql` **après** `20260811_profile_vitals.sql` et `20260811_secure_medical_access.sql`, puis déployer le backend.
 - Définir une politique légale de conservation/purge pour `api_activity_logs`, `audit_logs`, `scan_access_events` et les historiques GPS; la durée doit être validée selon les obligations locales de protection des données et de secours.
 - Les clics purement visuels (ouvrir un menu, changer le thème, modifier un filtre sans mutation serveur) restent volontairement locaux. Toutes les actions CRUD et décisions métier passant par l'API sont persistées et auditables.
+- Publication effectuée sur `main` au commit `21d35b8` (`Persist and audit all cross-client CRUD activity`).
+- Un nouvel APK Expo/EAS incluant ce commit a été envoyé avec le profil `preview`. Suivi et téléchargement après finalisation : `https://expo.dev/accounts/profzen/projects/lotisec/builds/af257a75-9c09-46a0-898e-56999cf68584`.
