@@ -939,3 +939,28 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - La vitrine et la console institutionnelle abandonnent l'ancien `favicon.svg`. Elles utilisent le PNG officiel pour le favicon, l'icône Apple, la navigation, le pied de page, l'écran de connexion et la console opérationnelle.
 - Le cache du service worker console est incrémenté à `lotisec-console-shell-v2` et inclut le nouveau favicon pour forcer le renouvellement du shell installé.
 - Après déploiement, si un onglet déjà ouvert affiche encore l'ancienne icône, fermer tous les onglets LOTISEC puis effectuer un rechargement forcé. Pour une PWA installée, la désinstaller/réinstaller peut être nécessaire selon le cache du système d'exploitation.
+
+## Correctif affectation ambulance et carte opérationnelle (2026-08-11)
+
+### Défauts constatés
+- Le bouton « Affecter » du module Ambulances sélectionnait parfois un incident au statut `new`, alors que le backend exige un incident `validated`; la requête était donc rejetée en `409`.
+- L'interface lançait l'affectation asynchrone sans attendre sa réponse, puis ouvrait immédiatement une autre page. La mission retournée n'était pas rechargée et la carte du tableau de bord restait absente.
+- Une unité déjà « En mission » pouvait encore présenter une action d'affectation et le mode démonstration tentait un appel backend avec un jeton fictif.
+- Le tableau de bord sans mission ne présentait qu'un état vide minimal, ce qui donnait l'impression que du contenu avait disparu.
+- Les écritures incident, intervention, unité, événement, audit et notification n'étaient pas regroupées dans une transaction unique pour l'affectation manuelle.
+
+### Corrections réalisées
+- L'affectation attend désormais la validation backend, ne prend qu'un incident `validated` et une unité `Disponible`, puis recharge les incidents, interventions et ressources avant d'ouvrir le tableau de bord.
+- La mission locale reprend l'identifiant réel de l'intervention, les statuts canoniques (`assigned`, `en_route`, etc.) et une distance calculée depuis les coordonnées GPS avec Haversine.
+- Après succès, le tableau de bord affiche automatiquement la carte Leaflet interactive, les marqueurs incident/ambulance/hôpital, le tracé OSRM quand il est disponible et les contrôles de suivi existants.
+- Sans mission, le tableau de bord affiche maintenant les indicateurs, la file des incidents prioritaires, l'état de la flotte et une explication claire sur la condition d'apparition de la carte.
+- Les boutons d'affectation sont désactivés pour toute unité non disponible; « Voir sur la carte » explique qu'une mission doit d'abord exister au lieu de provoquer une erreur JavaScript.
+- Le mode démonstration effectue une affectation locale cohérente sans appeler l'API réelle.
+- Le backend verrouille l'incident et l'unité avec `FOR UPDATE`, refuse une intervention active concurrente, puis crée intervention, changements de statuts, événement, audit et notification dans une transaction PostgreSQL atomique.
+- Après commit, les utilisateurs actifs de l'organisation ayant un rôle opérationnel reçoivent une notification push de nouvelle mission; l'application terrain peut ensuite accepter et faire progresser l'intervention.
+
+### Recette et conditions de production
+- Syntaxe de `public/console.js` validée avec `node --check` et build Vite de la console réussi.
+- Build TypeScript backend et suite complète réussis : **31/31 tests**.
+- Pour que la carte réelle s'affiche, l'incident doit être validé, l'ambulance doit exister dans `response_units`, être `available`, appartenir à l'organisation envoyée et disposer idéalement de coordonnées latitude/longitude.
+- Les tuiles cartographiques et le calcul routier restent dépendants du réseau (Leaflet/CartoDB-OSM et OSRM). Sans OSRM, les positions demeurent visibles mais le tracé routier peut ne pas être calculé.

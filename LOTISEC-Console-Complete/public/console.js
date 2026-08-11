@@ -538,20 +538,20 @@ function openDetail(id) {
   elements.detail.showModal();
 }
 
-function handleDetailAction(id, action) {
+async function handleDetailAction(id, action) {
   const incident = state.incidents.find((item) => item.id === id);
   if (!incident) return;
   if (action === "reject") {
     incident.status = "rejected";
-    updateIncidentStatus(incident, "rejected");
+    await updateIncidentStatus(incident, "rejected");
     toast("Signalement classé", "L'alerte a été retirée de la file active.");
   } else if (action === "validate") {
     incident.status = "validated";
-    updateIncidentStatus(incident, "validated");
+    await updateIncidentStatus(incident, "validated");
     toast("Incident validé", "Fog recommande Secours Abalo, à 2,4 km.");
   } else if (action === "assign") {
     const availableUnit = ambulances.find((item) => item.status === "Disponible");
-    if (availableUnit) assignMission(incident.id, availableUnit.id);
+    if (availableUnit) await assignMission(incident.id, availableUnit.id);
     else toast("Aucune unité disponible", "Ouvrez le module Ambulances pour consulter les ressources.");
   } else {
     switchModule("Interventions");
@@ -570,27 +570,47 @@ async function updateIncidentStatus(incident, status) {
 async function assignMission(incidentId, ambulanceId) {
   const incident = state.incidents.find((item) => item.id === incidentId);
   const ambulance = ambulances.find((item) => item.id === ambulanceId);
-  if (!incident || !ambulance) return;
-  try {
-    await apiFetch(`/api/v1/incidents/${incidentId}/assignments`, { method:"POST", body:JSON.stringify({
-      organization_id: ambulance.organizationId, response_unit_id: ambulance.id
-    }) });
-  } catch (error) { toast("Affectation refusée", error.message); return; }
+  if (!incident || !ambulance) { toast("Affectation impossible", "Incident ou unité introuvable."); return false; }
+  if (incident.status !== 'validated') { toast("Validation requise", "Validez d'abord l'incident avant d'affecter une ambulance."); return false; }
+  if (ambulance.status !== 'Disponible') { toast("Unité indisponible", `${ambulance.name} est déjà engagée ou indisponible.`); return false; }
+  let intervention = null;
+  if (!demoMode) {
+    if (!ambulance.organizationId) { toast("Affectation impossible", "L'ambulance n'est rattachée à aucune organisation."); return false; }
+    try {
+      const result = await apiFetch(`/api/v1/incidents/${incidentId}/assignments`, { method:"POST", body:JSON.stringify({
+        organization_id: ambulance.organizationId, response_unit_id: ambulance.id
+      }) });
+      intervention = result.intervention;
+    } catch (error) { toast("Affectation refusée", error.message); return false; }
+  }
   incident.status = "assigned";
   state.mission = {
-    incidentId, ambulanceId, hospitalId: null, progress: 1, phase: "Affectée",
-    totalDistance: ambulance.distance, speed: 0, routeBlocked: false, follow: true, startedAt: Date.now()
+    interventionId: intervention?.id || `demo-${incidentId}-${ambulanceId}`,
+    incidentId, ambulanceId, hospitalId: null, progress: 1, phase: "assigned",
+    totalDistance: Math.max(Number(ambulance.distance || 0), distanceKm(ambulance.lat, ambulance.lng, incident.lat, incident.lng)), speed: 0, routeBlocked: false, follow: true, startedAt: Date.now()
   };
   ambulances.forEach((item) => { if (item.id === ambulanceId) item.status = "En mission"; });
   saveIncidents();
   toast("Ambulance affectée", `${ambulance.name} reçoit la mission et apparaît sur la carte.`);
+  if (!demoMode) await loadOperationalData();
+  renderCurrentModule();
   window.setTimeout(() => {
+    if (!demoMode) return;
     if (state.mission.incidentId === incidentId) {
-      state.mission.phase = "En route";
+      state.mission.phase = "en_route";
       state.mission.speed = 42;
       incident.status = "enroute";
     }
   }, 1800);
+  return true;
+}
+
+function distanceKm(lat1, lng1, lat2, lng2) {
+  if (![lat1,lng1,lat2,lng2].every(Number.isFinite)) return 0;
+  const rad = (value) => value * Math.PI / 180;
+  const dLat = rad(lat2-lat1), dLng = rad(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLng/2)**2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
 function ingestIncident(incident, { announce = true } = {}) {
@@ -771,7 +791,7 @@ async function loadOperationalData() {
     state.mission = {
       interventionId:active.id, incidentId:active.incident_id, ambulanceId:active.response_unit_id,
       hospitalId:active.hospital_id, progress:{assigned:0,accepted:3,en_route:25,on_scene:55,patient_loaded:65,hospital_requested:70,to_hospital:82,arrived_hospital:96}[active.status] || 0,
-      phase:active.status, totalDistance:unit?.distance || 0, speed:0, routeBlocked:false, follow:true, startedAt:new Date(active.assigned_at).getTime()
+      phase:active.status, totalDistance:unit ? Math.max(Number(unit.distance || 0),distanceKm(unit.lat,unit.lng,Number(active.incident?.latitude),Number(active.incident?.longitude))) : 0, speed:0, routeBlocked:false, follow:true, startedAt:new Date(active.assigned_at).getTime()
     };
   } else if (!demoMode) state.mission = null;
 }
@@ -1041,7 +1061,7 @@ function liveMapMarkup({ compact = false } = {}) {
 function renderDashboard() {
   const active = state.incidents.filter((item) => item.status !== "rejected");
   const missionData = getMissionData();
-  if (!missionData) return `${moduleTop(moduleHeader("Vue opérationnelle", "Tableau de bord", "Données réelles issues du backend LOTISEC."), `<section class="module-metrics">${metricCard("Incidents actifs",active.length,"Données réelles","red")}${metricCard("Unités disponibles",ambulances.filter((item)=>item.status==="Disponible").length,`Sur ${ambulances.length} unités`,"blue")}${metricCard("Places hospitalières",hospitals.reduce((sum,item)=>sum+item.beds,0),"Capacités déclarées","green")}${metricCard("Interventions",state.interventions.length,"Périmètre autorisé","orange")}</section>`)}<section class="module-card"><h2>Aucune mission active</h2><p>Affectez une unité à un incident pour démarrer le suivi.</p></section>`;
+  if (!missionData) return `${moduleTop(moduleHeader("Vue opérationnelle", "Tableau de bord", "Données réelles issues du backend LOTISEC."), `<section class="module-metrics">${metricCard("Incidents actifs",active.length,"Données réelles","red")}${metricCard("Unités disponibles",ambulances.filter((item)=>item.status==="Disponible").length,`Sur ${ambulances.length} unités`,"blue")}${metricCard("Places hospitalières",hospitals.reduce((sum,item)=>sum+item.beds,0),"Capacités déclarées","green")}${metricCard("Interventions",state.interventions.length,"Périmètre autorisé","orange")}</section>`)}<section class="module-grid module-grid--dashboard"><article class="module-card"><header><div><small>FILE PRIORITAIRE</small><h2>Incidents à traiter</h2></div><button data-action="go-module" data-target="Incidents">Ouvrir</button></header><div class="compact-list">${state.incidents.filter(item=>['new','validated'].includes(item.status)).slice(0,5).map(item=>`<button data-action="open-incident" data-id="${item.id}"><i class="severity-${item.severity}"></i><span><strong>${escapeHtml(item.type)}</strong><small>${escapeHtml(statusLabel(item.status))} · ${escapeHtml(item.place||'GPS uniquement')}</small></span><em>${item.score}</em></button>`).join('')||'<p>Aucun incident en attente.</p>'}</div></article><article class="module-card"><header><div><small>RESSOURCES</small><h2>État de la flotte</h2></div><button data-action="go-module" data-target="Ambulances">Gérer</button></header><div class="compact-list">${ambulances.slice(0,5).map(item=>`<span><strong>${escapeHtml(item.name)}</strong><em>${escapeHtml(item.status)}${item.lat&&item.lng?' · GPS reçu':' · position inconnue'}</em></span>`).join('')||'<p>Aucune unité enregistrée.</p>'}</div><div class="empty-state"><strong>Carte en attente d'affectation</strong><p>Validez un incident puis affectez une unité disponible pour afficher le suivi interactif ici.</p></div></article></section>`;
   const { ambulance, mission } = missionData;
   return `
     ${moduleTop(moduleHeader("Vue opérationnelle", "Tableau de bord", "Situation réelle des incidents, moyens engagés et capacités hospitalières."), `<section class="module-metrics">
@@ -1072,7 +1092,7 @@ function renderAmbulances() {
       <article class="resource-card">
         <header><span class="resource-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg></span><div><small>${item.id}</small><h2>${escapeHtml(item.name)}</h2></div><em class="resource-status resource-status--${item.status === "Disponible" ? "ok" : item.status === "En mission" ? "busy" : "off"}">${item.status}</em></header>
         <div class="resource-facts"><span><small>Numéro d'urgence</small><strong>${item.number}</strong></span><span><small>Équipage</small><strong>${item.crew} pers.</strong></span><span><small>Distance estimée</small><strong>${item.distance} km</strong></span><span><small>ETA</small><strong>${item.eta} min</strong></span></div>
-        <div class="resource-actions"><button data-action="view-ambulance" data-id="${item.id}">Voir sur la carte</button><button ${item.status === "Maintenance" ? "disabled" : ""} data-action="assign-ambulance" data-id="${item.id}">Affecter</button></div>
+        <div class="resource-actions"><button data-action="view-ambulance" data-id="${item.id}">Voir sur la carte</button><button ${item.status !== "Disponible" ? "disabled" : ""} data-action="assign-ambulance" data-id="${item.id}">Affecter</button></div>
       </article>`).join("")}</section>
     <section class="module-card"><header><div><small>RÉPONDANTS HISTORIQUES</small><h2>Responders synchronisés</h2></div></header><div class="compact-list">${state.responders.map((item)=>`<span><strong>${escapeHtml(item.name || item.nom || item.id)}</strong><em>${item.disponible ? 'Disponible' : 'Indisponible'}${item.score != null ? ` · score ${item.score}` : ''}</em></span>`).join('') || '<p>Aucun responder historique.</p>'}</div></section>`;
 }
@@ -1740,14 +1760,13 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
   if (action === "open-mobile") openDialog(elements.mobileModal);
   if (action === "open-incident") openDetail(button.dataset.id);
   if (action === "view-ambulance") {
-    state.mission.ambulanceId = button.dataset.id;
-    switchModule("Carte en direct");
-    toast("Ambulance localisée", "Sa dernière position GPS est affichée.");
+    if (state.mission) { state.mission.ambulanceId = button.dataset.id; switchModule("Carte en direct"); toast("Ambulance localisée", "Sa dernière position GPS est affichée."); }
+    else toast("Aucune mission active", "Affectez d'abord cette ambulance à un incident validé pour ouvrir le suivi cartographique.");
   }
   if (action === "assign-ambulance") {
-    const incident = state.incidents.find((item) => ["new", "validated"].includes(item.status)) || state.incidents[0];
-    assignMission(incident.id, button.dataset.id);
-    switchModule("Interventions");
+    const incident = state.incidents.find((item) => item.status === "validated");
+    if (!incident) toast("Aucun incident validé", "Ouvrez Incidents et validez le signalement à traiter avant l'affectation.");
+    else if (await assignMission(incident.id, button.dataset.id)) switchModule("Tableau de bord");
   }
   if (action === "hospital-details") openHospital(button.dataset.id);
   if (action === "add-bed") openHospitalCapacity(button.dataset.id);

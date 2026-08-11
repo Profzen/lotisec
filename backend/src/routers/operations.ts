@@ -326,21 +326,42 @@ router.patch('/resources/:id/location',requireAuth,async(req:AuthRequest,res)=>{
 router.post('/incidents/:id/assignments', requireAuth, requirePermission('interventions:manage'), async (req: AuthRequest,res)=>{
   const parsed=z.object({organization_id:z.string().uuid(),response_unit_id:z.string().uuid().optional(),assigned_to:z.string().optional()}).safeParse(req.body);
   if(!parsed.success)return res.status(400).json({detail:'Affectation invalide'});
+  if(!pool)return res.status(503).json({detail:'Base de données indisponible'});
   const d=parsed.data;
-  const incident=await query<any>('SELECT status FROM incidents WHERE id=$1',[req.params.id]);
-  if(!incident.rows[0])return res.status(404).json({detail:'Incident introuvable'});
-  if(incident.rows[0].status!=='validated')return res.status(409).json({detail:'L’incident doit être validé avant affectation'});
-  if(d.response_unit_id){
-    const unit=await query<any>('SELECT organization_id,status FROM response_units WHERE id=$1',[d.response_unit_id]);
-    if(!unit.rows[0]||unit.rows[0].organization_id!==d.organization_id)return res.status(400).json({detail:'Unité incompatible avec l’organisation'});
-    if(unit.rows[0].status!=='available')return res.status(409).json({detail:'Unité indisponible'});
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const incident=await client.query<any>('SELECT status FROM incidents WHERE id=$1 FOR UPDATE',[req.params.id]);
+    if(!incident.rows[0]){await client.query('ROLLBACK');return res.status(404).json({detail:'Incident introuvable'});}
+    if(incident.rows[0].status!=='validated'){await client.query('ROLLBACK');return res.status(409).json({detail:'L’incident doit être validé avant affectation'});}
+    const active=await client.query<any>(`SELECT id FROM interventions WHERE incident_id=$1 AND status NOT IN ('completed','cancelled') LIMIT 1 FOR UPDATE`,[req.params.id]);
+    if(active.rows[0]){await client.query('ROLLBACK');return res.status(409).json({detail:'Une intervention est déjà active pour cet incident'});}
+    if(d.response_unit_id){
+      const unit=await client.query<any>('SELECT organization_id,status FROM response_units WHERE id=$1 FOR UPDATE',[d.response_unit_id]);
+      if(!unit.rows[0]||unit.rows[0].organization_id!==d.organization_id){await client.query('ROLLBACK');return res.status(400).json({detail:'Unité incompatible avec l’organisation'});}
+      if(unit.rows[0].status!=='available'){await client.query('ROLLBACK');return res.status(409).json({detail:'Unité indisponible'});}
+    }
+    const result=await client.query<any>(`INSERT INTO interventions (incident_id,organization_id,response_unit_id,assigned_to,status) VALUES ($1,$2,$3,$4,'assigned') RETURNING *`,[req.params.id,d.organization_id,d.response_unit_id||null,d.assigned_to||null]);
+    await client.query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`,[req.params.id]);
+    if(d.response_unit_id)await client.query(`UPDATE response_units SET status='assigned',updated_at=NOW() WHERE id=$1`,[d.response_unit_id]);
+    await client.query(`INSERT INTO incident_events(incident_id,actor_id,type,from_status,to_status,metadata) VALUES($1,$2,'assigned','validated','assigned',$3)`,[req.params.id,req.userId,{intervention_id:result.rows[0].id,response_unit_id:d.response_unit_id||null}]);
+    await client.query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'intervention.assigned','intervention',$3,$4)`,[req.userId||null,req.organizationId||null,result.rows[0].id,{incident_id:req.params.id,organization_id:d.organization_id,response_unit_id:d.response_unit_id||null}]);
+    await client.query(`INSERT INTO operational_notifications(organization_id,recipient_user_id,recipient_roles,type,title,message,entity_type,entity_id) VALUES($1,$2,$3,'intervention.assigned','Nouvelle mission affectée',$4,'intervention',$5)`,[d.organization_id,d.assigned_to||null,['admin','supervisor','dispatcher','firefighter','ambulance_driver'],`Intervention ${result.rows[0].id}`,result.rows[0].id]);
+    await client.query('COMMIT');
+    try {
+      const recipients=await query<any>(`SELECT DISTINCT ur.user_id FROM user_roles ur JOIN organization_members om ON om.user_id=ur.user_id AND om.organization_id=ur.organization_id WHERE ur.organization_id=$1 AND ur.role_key=ANY($2::text[]) AND om.status='active'`,[d.organization_id,['admin','supervisor','dispatcher','firefighter','ambulance_driver']]);
+      if(d.assigned_to&&!recipients.rows.some(row=>row.user_id===d.assigned_to))recipients.rows.push({user_id:d.assigned_to});
+      void notifyUsers(recipients.rows.map(row=>row.user_id),'Nouvelle mission affectée','Ouvrez LOTISEC pour accepter et suivre l’intervention.',{type:'intervention.assigned',intervention_id:result.rows[0].id});
+    } catch(notificationError) {
+      console.warn('Mission affectée, notification push différée:',notificationError);
+    }
+    return res.status(201).json({intervention:result.rows[0]});
+  } catch(error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-  const result=await query<any>(`INSERT INTO interventions (incident_id,organization_id,response_unit_id,assigned_to) VALUES ($1,$2,$3,$4) RETURNING *`,[req.params.id,d.organization_id,d.response_unit_id||null,d.assigned_to||null]);
-  await query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`,[req.params.id]);
-  if(d.response_unit_id)await query(`UPDATE response_units SET status='assigned',updated_at=NOW() WHERE id=$1`,[d.response_unit_id]);
-  await audit(req.userId,req.organizationId,'intervention.assigned','intervention',result.rows[0].id,{incident_id:req.params.id,organization_id:d.organization_id,response_unit_id:d.response_unit_id||null});
-  await createNotification({organizationId:d.organization_id,recipientUserId:d.assigned_to||null,roles:['admin','supervisor','dispatcher','firefighter','ambulance_driver'],type:'intervention.assigned',title:'Nouvelle mission affectée',message:`Intervention ${result.rows[0].id}`,entityType:'intervention',entityId:result.rows[0].id});
-  return res.status(201).json({intervention:result.rows[0]});
 });
 
 router.patch('/interventions/:id/status', requireAuth, async (req: AuthRequest,res)=>{
