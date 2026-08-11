@@ -1025,3 +1025,10 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 3. Reconnecter les comptes professionnels après déploiement afin que leur JWT contienne la permission `medical_access:manage` ajoutée à leur rôle.
 4. Recetter : propriétaire sans PIN, professionnel connecté sans code, tiers avec bon/mauvais PIN, six refus successifs, code organisationnel actif/expiré/révoqué et consultation du journal d'audit.
 5. Vérifier sur deux appareils physiques que les données modifiées sur web sont immédiatement retrouvées sur mobile et réciproquement, car les deux clients partagent le même profil backend.
+
+### Publication et build mobile
+- Publication GitHub effectuée sur `main` au commit `edd7de5` (`Secure medical QR access across clients`). Les déploiements Vercel raccordés à cette branche peuvent démarrer depuis ce commit.
+- Build Expo/EAS Android `preview` (APK interne) lancé sous le compte `profzen` pour le projet `lotisec`, SDK Expo 54, version applicative 1.1.0, build 1.
+- Identifiant EAS : `781e1e9a-07c7-4774-829d-66f0e93486d6`.
+- Suivi : `https://expo.dev/accounts/profzen/projects/lotisec/builds/781e1e9a-07c7-4774-829d-66f0e93486d6`.
+- État au lancement : `IN_QUEUE`. La même page fournira le téléchargement de l'APK dès que le statut sera `FINISHED`.
