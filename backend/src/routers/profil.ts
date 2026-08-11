@@ -22,11 +22,15 @@ const profilSchema = z.object({
   document_type: z.string().optional().default('Non renseigne'),
   document_number: z.string().optional().default('0000'),
   blood_type: z.string().optional().default('NC'),
+  height: z.number().positive().max(260).nullable().optional().default(null),
+  weight: z.number().positive().max(500).nullable().optional().default(null),
   allergies: z.string().optional().default(''),
   conditions: z.string().optional().default(''),
   medications: z.string().optional().default(''),
   surgeries: z.string().optional().default(''),
   disabilities: z.string().optional().default(''),
+  doctor_name: z.string().optional().default(''),
+  doctor_phone: z.string().optional().default(''),
   has_vehicle: z.boolean().optional().default(false),
   vehicle_type: z.string().optional().default(''),
   plate: z.string().optional().default(''),
@@ -168,6 +172,11 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
       ]
     );
   }
+
+  await query(
+    'UPDATE profiles SET height=$1, weight=$2, doctor_name=$3, doctor_phone=$4, updated_at=NOW() WHERE id=$5',
+    [data.height, data.weight, data.doctor_name || null, data.doctor_phone || null, profileId]
+  );
 
   await query('DELETE FROM emergency_contacts WHERE profile_id = $1', [profileId]);
 

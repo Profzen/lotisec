@@ -23,17 +23,22 @@ export default function Step3Medical({ navigation, route }: Props) {
   const { profile } = route.params;
 
   const [bloodType,       setBloodType]       = useState(profile.bloodType);
-
-  const isValid = bloodType !== '';
-
+  const [height, setHeight] = useState(profile.height ?? '');
+  const [weight, setWeight] = useState(profile.weight ?? '');
+  const [allergies, setAllergies] = useState(profile.allergies ?? '');
+  const [conditions, setConditions] = useState(profile.conditions ?? '');
+  const [medications, setMedications] = useState(profile.medications ?? '');
   const [disabilities, setDisabilities] = useState(profile.disabilities ?? '');
+  const [doctorName, setDoctorName] = useState(profile.doctorName ?? '');
+  const [doctorPhone, setDoctorPhone] = useState(profile.doctorPhone ?? '');
+  const isValid = bloodType !== '';
 
   const handleNext = () => {
     if (!isValid) return;
     navigation.navigate('Step4', {
       profile: {
         ...profile,
-        bloodType,
+        bloodType, height, weight, allergies, conditions, medications, disabilities, doctorName, doctorPhone,
       },
     });
   };
@@ -94,6 +99,18 @@ export default function Step3Medical({ navigation, route }: Props) {
               </View>
             </View>
 
+            <View style={styles.field}>
+              <Text style={styles.label}>Taille et poids</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput style={[styles.input, { flex: 1 }]} placeholder="Taille (cm)" placeholderTextColor={colors.textLight} keyboardType="numeric" value={height} onChangeText={setHeight} maxLength={3} />
+                <TextInput style={[styles.input, { flex: 1 }]} placeholder="Poids (kg)" placeholderTextColor={colors.textLight} keyboardType="decimal-pad" value={weight} onChangeText={setWeight} maxLength={5} />
+              </View>
+            </View>
+
+            <View style={styles.field}><Text style={styles.label}>Allergies</Text><TextInput style={styles.input} placeholder="Ex : pénicilline, arachides" placeholderTextColor={colors.textLight} value={allergies} onChangeText={setAllergies} /></View>
+            <View style={styles.field}><Text style={styles.label}>Maladies chroniques</Text><TextInput style={styles.input} placeholder="Ex : asthme, diabète" placeholderTextColor={colors.textLight} value={conditions} onChangeText={setConditions} /></View>
+            <View style={styles.field}><Text style={styles.label}>Traitements en cours</Text><TextInput style={styles.input} placeholder="Médicaments et dosage utile" placeholderTextColor={colors.textLight} value={medications} onChangeText={setMedications} /></View>
+
             {/* Handicap */}
             <View style={styles.field}>
               <Text style={styles.label}>Handicap ou condition particulière</Text>
@@ -105,6 +122,8 @@ export default function Step3Medical({ navigation, route }: Props) {
                 onChangeText={setDisabilities}
               />
             </View>
+
+            <View style={styles.field}><Text style={styles.label}>Médecin traitant</Text><TextInput style={styles.input} placeholder="Nom du médecin" placeholderTextColor={colors.textLight} value={doctorName} onChangeText={setDoctorName} /><TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Téléphone du médecin" placeholderTextColor={colors.textLight} keyboardType="phone-pad" value={doctorPhone} onChangeText={setDoctorPhone} /></View>
 
 
             {/* Note confidentialité */}

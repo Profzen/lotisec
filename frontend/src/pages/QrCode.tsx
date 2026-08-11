@@ -92,10 +92,10 @@ export function QrCode() {
         </button>
 
         <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '340px', marginBottom: '2rem' }}>
-          <button className="btn ghost" style={{ flex: 1, backgroundColor: 'white' }} onClick={handleShare} disabled={!qrToken}>
+          <button className="btn ghost" style={{ flex: 1, backgroundColor: 'var(--color-surface)' }} onClick={handleShare} disabled={!qrToken}>
             <Share2 size={18} /> Partager le lien
           </button>
-          <button className="btn ghost" style={{ flex: 1, backgroundColor: 'white', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} onClick={() => alert("En cas d'accident, ce code QR permet aux secours d'accéder instantanément à vos données médicales et d'alerter vos proches.")}>
+          <button className="btn ghost" style={{ flex: 1, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} onClick={() => alert("En cas d'accident, ce code QR permet aux secours d'accéder instantanément à vos données médicales et d'alerter vos proches.")}>
             <HelpCircle size={18} /> Aide
           </button>
         </div>

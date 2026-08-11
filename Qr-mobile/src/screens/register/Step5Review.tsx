@@ -105,10 +105,14 @@ export default function Step5Review({ navigation, route }: Props) {
 
         <Section title="Informations médicales">
           <Row label="Groupe sanguin" value={profile.bloodType} />
+          <Row label="Taille"         value={profile.height ? `${profile.height} cm` : ''} />
+          <Row label="Poids"          value={profile.weight ? `${profile.weight} kg` : ''} />
           <Row label="Allergies"      value={profile.allergies} />
           <Row label="Maladies"       value={profile.conditions} />
           <Row label="Médicaments"    value={profile.medications} />
           <Row label="Handicap"       value={profile.disabilities} />
+          <Row label="Médecin"        value={profile.doctorName} />
+          <Row label="Tél. médecin"   value={profile.doctorPhone} />
         </Section>
 
         <Section title="Contacts d'urgence">

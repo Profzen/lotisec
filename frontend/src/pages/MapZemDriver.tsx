@@ -169,7 +169,7 @@ export function MapZemDriver() {
       {/* Bouton retour */}
       <button 
         onClick={() => window.history.back()} 
-        style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1100, backgroundColor: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+        style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1100, backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)', cursor: 'pointer' }}
       >
         <ChevronLeft size={24} color="var(--color-primary)" />
       </button>
@@ -181,7 +181,7 @@ export function MapZemDriver() {
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000, backgroundColor: 'white', padding: '10px', borderRadius: '10px', fontWeight: 'bold' }}>
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: '10px', borderRadius: '10px', fontWeight: 'bold' }}>
         MODE CONDUCTEUR
       </div>
 

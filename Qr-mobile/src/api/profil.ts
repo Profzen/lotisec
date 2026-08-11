@@ -22,11 +22,15 @@ export const createProfil = async (profile: ProfileData, token: string) => {
     document_number: ensureString(profile.documentNumber, '0000'),
     
     blood_type: ensureString(profile.bloodType, 'A+'),
+    height: profile.height ? Number(profile.height) : null,
+    weight: profile.weight ? Number(profile.weight) : null,
     allergies: ensureString(profile.allergies),
     conditions: ensureString(profile.conditions),
     medications: ensureString(profile.medications),
     surgeries: ensureString(profile.surgeries),
     disabilities: ensureString(profile.disabilities),
+    doctor_name: ensureString(profile.doctorName),
+    doctor_phone: ensureString(profile.doctorPhone),
     
     // Le backend semble attendre un booléen pour has_vehicle (t ou f dans les logs)
     has_vehicle: !!profile.vehicle?.hasVehicle,

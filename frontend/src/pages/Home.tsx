@@ -18,12 +18,6 @@ const CONTACTS = [
   { id: '2', name: 'A prévenir', phone: '+22898000493', isPompiers: false, color: '#eab308', icon: <User size={20} /> },
 ];
 
-const DEMO_SCANS = [
-  { id: '1', date: "Aujourd'hui · 10h32", lieu: 'Université de Lomé', niveau: 'professionnel' },
-  { id: '2', date: '17 Avr · 09h15', lieu: 'Lomé, Bè', niveau: 'professionnel' },
-  { id: '3', date: '10 Avr · 17h40', lieu: 'Lomé, Tokoin', niveau: 'public' },
-];
-
 export function Home() {
   const navigate = useNavigate();
   const [user, setUser] = useState<UserData | null>(() => {
@@ -35,6 +29,8 @@ export function Home() {
   const [sosActif, setSosActif] = useState(false);
   const [showScans, setShowScans] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [scans, setScans] = useState<any[]>([]);
+  const [scansLoaded, setScansLoaded] = useState(false);
 
   useEffect(() => {
     const refreshUser = async () => {
@@ -51,6 +47,10 @@ export function Home() {
       }
     };
     refreshUser();
+    api.get('/scan/me', { headers: authHeaders() })
+      .then(({data}) => setScans(data?.items || []))
+      .catch(() => setScans([]))
+      .finally(() => setScansLoaded(true));
   }, []);
 
   const handleSOS = () => {
@@ -113,7 +113,7 @@ export function Home() {
   return (
     <>
       <div className="top-header" style={{ backgroundColor: sosActif ? 'var(--color-danger)' : 'var(--color-primary)' }}>
-        <div className="top-header-title">Safe<span style={{color: '#FFD100'}}>Life</span></div>
+        <div className="web-wordmark"><img src="/logo-118.png" alt="" /><span>LOTI<strong>SEC</strong></span></div>
         <div className="profile-avatar" onClick={() => document.getElementById('profile-drawer')?.classList.add('open')}>
           <User size={24} />
         </div>
@@ -246,20 +246,22 @@ export function Home() {
           
           {showScans && (
             <div className="contact-list" style={{ marginTop: '1rem' }}>
-              {DEMO_SCANS.map(scan => (
+              {scans.map(scan => (
                 <div className="contact-item" key={scan.id} style={{ padding: '0.5rem 0' }}>
                   <div style={{ padding: '0.5rem', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
-                    {scan.niveau === 'professionnel' ? <Lock size={16} /> : <Eye size={16} />}
+                    <Lock size={16} />
                   </div>
                   <div className="action-content">
-                    <div className="action-title" style={{ fontSize: '0.875rem' }}>{scan.date}</div>
-                    <div className="action-subtitle">{scan.lieu}</div>
+                    <div className="action-title" style={{ fontSize: '0.875rem' }}>{new Date(scan.created_at).toLocaleString('fr-TG')}</div>
+                    <div className="action-subtitle">{scan.authority || scan.actor_role || 'Accès autorisé'}</div>
                   </div>
-                  <div style={{ padding: '4px 8px', backgroundColor: scan.niveau === 'professionnel' ? 'rgba(0,106,78,0.1)' : '#f3f4f6', color: scan.niveau === 'professionnel' ? 'var(--color-primary)' : '#6b7280', fontSize: '0.7rem', borderRadius: '10px', fontWeight: 'bold' }}>
-                    {scan.niveau}
+                  <div style={{ padding: '4px 8px', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: '0.7rem', borderRadius: '10px', fontWeight: 'bold' }}>
+                    {scan.success ? 'autorisé' : 'refusé'}
                   </div>
                 </div>
               ))}
+              {scansLoaded && scans.length === 0 && <div className="empty-inline">Aucun accès à votre fiche n'a encore été enregistré.</div>}
+              {!scansLoaded && <div className="empty-inline">Chargement de l'historique…</div>}
             </div>
           )}
         </div>
@@ -307,7 +309,7 @@ export function Home() {
             <div id="print-qr-area" style={{ padding: '1rem', backgroundColor: 'white', borderRadius: '1rem', display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
                {user?.qr_token ? <QRCode value={`${window.location.origin}/scan/${user.qr_token}`} size={220} /> : <div>Chargement...</div>}
             </div>
-            <button className="btn primary" onClick={generatePDF}>📄 Imprimer / PDF</button>
+            <button className="btn primary" onClick={generatePDF}>Imprimer / PDF</button>
             <button className="btn ghost mt-4" onClick={() => setQrModalVisible(false)}>Fermer</button>
           </div>
         </div>

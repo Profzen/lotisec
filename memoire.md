@@ -870,3 +870,63 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 ### Critère de fin global
 - LOTISEC ne peut être déclaré prêt pour un usage secours réel qu'après : service IA rétabli ou retiré proprement, secrets renouvelés, migrations appliquées, comptes réels provisionnés, RBAC/API vérifiés, recette terrain multi-acteurs réussie, notifications/GPS validés sur appareils, sauvegarde/restauration testée et procédure humaine 118 documentée.
 - Tant que ces conditions ne sont pas réunies, la plateforme reste une version de démonstration/recette avancée et aucun score, ETA, disponibilité hospitalière ou capacité Fog simulée ne doit être présenté comme une garantie opérationnelle.
+
+## Plan de travail — Parité visuelle web/mobile et fiabilisation des parcours citoyens (2026-08-11)
+
+### Objectif
+- Refaire le portail citoyen `https://lotisec-frontend.vercel.app` pour qu'il utilise la même identité que l'application mobile LOTISEC actuelle : logos officiels, palette sobre, composants, typographie, iconographie, espacements et comportements cohérents.
+- Supprimer les anciens grands aplats verts et les effets décoratifs qui ne correspondent plus à la charte mobile, tout en conservant les couleurs fonctionnelles pour les succès, alertes et urgences.
+- Fournir un vrai thème clair et un vrai thème sombre, tous deux lisibles, accessibles et homogènes sur l'ensemble des écrans citoyens.
+- Vérifier et corriger de bout en bout le QR médical, le déverrouillage du scan et l'affichage des données vitales autorisées.
+- Vérifier et corriger le parcours Zem, notamment l'affichage de la carte, la sélection d'origine/destination, le calcul d'itinéraire et les états d'erreur réseau/GPS.
+
+### Séquence prévue
+1. Extraire les tokens et références visuelles réellement utilisés par `Qr-mobile/` et inventorier les divergences dans `frontend/`.
+2. Centraliser les couleurs et styles du portail, remplacer les verts décoratifs obsolètes, aligner logos, navigation, cartes, boutons, formulaires, modales et états système.
+3. Appliquer et vérifier les thèmes clair/sombre sur authentification, accueil, profil, QR, scan, hôpitaux, assistant, historique et Zem.
+4. Tracer le contrat QR depuis la génération du token jusqu'à `/scan/verify`; vérifier PIN personnel, codes institutionnels et champs taille, poids, groupe sanguin, allergies, maladies, traitements, médecin et contacts d'urgence.
+5. Tester les tuiles cartographiques, la recherche d'adresse, le choix de destination, le géocodage, OSRM, les marqueurs et les replis en cas d'indisponibilité.
+6. Exécuter build frontend, TypeScript mobile et tests backend ciblés/globaux; consigner les résultats, limites et éventuelles actions manuelles restantes.
+7. Commit et push unique sur `main` après validation locale.
+
+### Critères d'acceptation
+- Aucun écran citoyen principal ne conserve un fond vert décoratif dominant; le vert reste réservé aux états positifs et actions métier lorsque pertinent.
+- Les deux thèmes ont des contrastes suffisants, aucun texte ne disparaît sur son fond, et les interfaces restent sobres sans néons ni surbrillances excessives.
+- Le logo web est identique à l'actif officiel mobile et ne dépend pas d'un ancien asset SafeLife.
+- Un QR valide peut être affiché, partagé/imprimé, scanné puis déverrouillé avec les droits prévus; les champs médicaux disponibles sont rendus sans inventer de données absentes.
+- La carte Zem affiche un fond exploitable, permet de définir une destination et donne un retour clair si GPS, Nominatim, OSRM ou le backend ne répond pas.
+
+### Réalisation et constat technique
+- Le portail citoyen reprend maintenant les tokens actifs du mobile : bleu d'action `#1565D8`, marine `#071A2E`, cyan d'accent, surfaces claires neutres, fonds sombres `#061322`/`#0D2238`, bordures et textes à fort contraste. Les anciens aplats verts décoratifs et le wordmark `SafeLife` de l'accueil ont été retirés.
+- Le même fichier officiel `logo-118.png` est utilisé sur mobile et web; les empreintes SHA-256 des copies ont été comparées et sont identiques.
+- Un sélecteur clair/sombre persistant (`lotisec_theme`) suit d'abord la préférence système, puis le choix utilisateur. Il est disponible sur l'authentification, la navigation citoyenne et le scan public. Les cartes, boutons, formulaires, panneaux, assistant, QR et surfaces utilisent les variables de thème.
+- La présentation desktop n'impose plus un faux téléphone blanc étroit au centre : le contenu citoyen reste contenu et lisible, tandis que la navigation latérale et la surface principale occupent correctement l'écran.
+- L'historique factice de scans de l'accueil web a été supprimé. `/scan/me` fournit désormais les accès réellement journalisés pour le citoyen authentifié, avec date, autorité et succès.
+
+### QR et fiche médicale : état après correction
+- La génération QR web/mobile utilise le `qr_token` réel, rafraîchi via `/auth/me` si nécessaire. Le QR pointe vers `/scan/:token`; partage et impression/PDF restent disponibles.
+- `/scan/verify` accepte un professionnel authentifié, le PIN du citoyen ou les quatre codes institutionnels. Il journalise l'accès et retourne identité, groupe sanguin, taille, poids, allergies, maladies, traitements, handicap, médecin, contacts et véhicule lorsqu'ils sont renseignés.
+- Un défaut de bout en bout a été corrigé : taille, poids et médecin étaient affichables mais non saisissables/persistés par le tunnel actuel. L'étape médicale mobile contient maintenant ces champs ainsi que allergies, maladies et traitements; la revue les récapitule et le client les envoie au backend.
+- La migration additive `backend/migrations/20260811_profile_vitals.sql` ajoute `height`, `weight`, `doctor_name` et `doctor_phone`. **Cette migration doit être appliquée sur Supabase production avant d'utiliser le nouveau formulaire**, sinon l'enregistrement de profil échouera sur ces colonnes.
+- Le backend renvoie maintenant aussi `has_vehicle`, type, plaque, marque et modèle; les écrans web/mobile peuvent donc réellement afficher le véhicule au lieu de conserver une section toujours masquée.
+- Les valeurs absentes restent indiquées ou masquées sans être inventées. L'accès QR médical reste soumis à authentification/code et audit.
+
+### Parcours Zem : état après correction
+- La carte web passager conserve CartoDB Voyager/OSM, les marqueurs départ/destination et le tracé OSRM.
+- La boîte native `prompt()` utilisée pour changer le départ a été supprimée. Le panneau possède désormais un sélecteur explicite de point de départ, une recherche Nominatim, un bouton « Utiliser ma position GPS » et une recherche de destination distincte.
+- Une recherche vide affiche un message utile; un échec OSRM signale que l'itinéraire est indisponible au lieu de laisser croire que le prix est calculé. Le bouton de commande reste désactivé sans destination et route valides.
+- Le clic direct sur la carte, le repli GPS sur Lomé, le calcul distance/durée/prix et la commande `/zem/request` restent disponibles. Les surfaces du passager et du conducteur respectent le thème.
+
+### Vérifications automatiques réalisées
+- `frontend`: `npm run build` réussi avec TypeScript et Vite; seul l'avertissement historique de taille du bundle demeure.
+- `Qr-mobile`: `npx tsc --noEmit` réussi sans erreur.
+- `backend`: build TypeScript réussi et **31/31 tests** réussis. Les nouveaux garde-fous couvrent la migration des constantes vitales, le formulaire médical, la charte web, le logo officiel et l'absence de `prompt()` Zem.
+- Contrôle final : `git diff --check` doit rester sans erreur et la recherche de secrets ne doit retrouver aucune clé DeepInfra dans les fichiers modifiés avant publication.
+
+### Actions manuelles restantes après déploiement
+1. Appliquer `backend/migrations/20260811_profile_vitals.sql` sur Supabase production avant la recette profil.
+2. Créer ou mettre à jour un profil réel avec taille, poids, allergies, maladie, traitement, handicap, médecin, contacts et véhicule.
+3. Afficher puis scanner son QR depuis un autre appareil; tester PIN personnel, code institutionnel valide et code invalide, puis contrôler l'historique d'accès.
+4. Tester thème clair/sombre sur Chrome desktop, navigateur Android et PWA installée, notamment le scan public ouvert hors session.
+5. Tester une course Zem à Lomé avec GPS autorisé puis refusé, recherche de départ/destination, clic carte, réponse Nominatim, réponse OSRM, commande, annulation et suivi temps réel.
+6. Les services Nominatim, OSRM et CartoDB étant externes, conserver les messages de repli et prévoir à terme un proxy/cache respectant leurs politiques d'usage pour une exploitation à grande échelle.

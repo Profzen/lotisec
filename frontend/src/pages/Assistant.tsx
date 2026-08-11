@@ -147,7 +147,7 @@ export function Assistant() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f3f4f6' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--color-background)' }}>
       <div className="top-header" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
           <ArrowLeft size={24} />
@@ -168,8 +168,8 @@ export function Assistant() {
           <div key={idx} style={{
             alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
             maxWidth: '80%',
-            backgroundColor: msg.role === 'user' ? '#e2f5ea' : 'white',
-            color: '#1f2937',
+            backgroundColor: msg.role === 'user' ? 'var(--color-primary-light)' : 'var(--color-surface)',
+            color: 'var(--color-text)',
             padding: '12px 16px',
             borderRadius: '16px',
             borderBottomRightRadius: msg.role === 'user' ? 4 : 16,
@@ -188,14 +188,14 @@ export function Assistant() {
           </div>
         ))}
         {loading && (
-          <div style={{ alignSelf: 'flex-start', backgroundColor: 'white', padding: '12px 16px', borderRadius: '16px', borderBottomLeftRadius: 4, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+          <div style={{ alignSelf: 'flex-start', backgroundColor: 'var(--color-surface)', padding: '12px 16px', borderRadius: '16px', borderBottomLeftRadius: 4, boxShadow: 'var(--shadow-sm)' }}>
             <Loader2 size={20} className="animate-spin" color="var(--color-primary)" />
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ padding: '10px', backgroundColor: '#f0f2f5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ padding: '10px', backgroundColor: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <input 
           type="text" 
           value={input}

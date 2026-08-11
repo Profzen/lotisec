@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { ShieldAlert, Activity, Phone, Car } from 'lucide-react';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export function ScanResult() {
   const { token } = useParams();
@@ -34,7 +35,8 @@ export function ScanResult() {
 
   if (!unlockedData) {
     return (
-      <div className="app-content" style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="app-content scan-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="scan-theme"><ThemeToggle /></div>
         <div style={{ backgroundColor: 'var(--color-primary)', padding: '3rem 1rem', textAlign: 'center', color: 'white' }}>
           <ShieldAlert size={60} style={{ marginBottom: '1rem' }} />
           <h1 style={{ color: 'white', margin: 0 }}>LOTISEC</h1>
@@ -43,11 +45,11 @@ export function ScanResult() {
 
         <div style={{ padding: '1.5rem', flex: 1 }}>
           <div style={{ backgroundColor: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '1rem', textAlign: 'center', marginBottom: '1.5rem', color: '#dc2626', fontWeight: 'bold' }}>
-            ⚠️ En cas d'urgence, appelez le 118
+            En cas d'urgence, appelez le 118
           </div>
 
           <div className="lotisec-card" style={{ padding: '2rem', textAlign: 'center' }}>
-            <h3 style={{ marginBottom: '1rem' }}>🔐 Accès professionnel authentifié</h3>
+            <h3 style={{ marginBottom: '1rem' }}>Accès professionnel authentifié</h3>
             <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
               Saisissez le PIN du citoyen ou un code institutionnel autorisé.
             </p>
@@ -79,12 +81,13 @@ export function ScanResult() {
   const { identity, medical, vehicle, emergency_contacts, audit } = unlockedData;
 
   return (
-    <div className="app-content" style={{ backgroundColor: '#f1f5f9', minHeight: '100vh' }}>
+    <div className="app-content scan-page" style={{ minHeight: '100vh' }}>
+      <div className="scan-theme"><ThemeToggle /></div>
       <div style={{ backgroundColor: '#0f172a', padding: '3rem 1rem 2rem', textAlign: 'center', color: 'white' }}>
         <Activity size={50} color="#e11d48" style={{ marginBottom: '1rem' }} />
         <h2 style={{ color: 'white', margin: 0 }}>Données vitales</h2>
         <div style={{ backgroundColor: '#4ade80', color: '#0f172a', display: 'inline-block', padding: '4px 12px', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '1rem' }}>
-          ✅ {audit?.authority || 'Professionnel'}
+          Accès vérifié · {audit?.authority || 'Professionnel'}
         </div>
       </div>
 
@@ -131,8 +134,11 @@ export function ScanResult() {
                 <span style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '0.875rem' }}>{medical.medications}</span>
               </div>
             )}
+            {medical?.disabilities && medical.disabilities !== 'Aucun' && (
+              <div className="scan-info-row"><span>Handicap / besoins spécifiques</span><strong>{medical.disabilities}</strong></div>
+            )}
             {(medical?.doctor_name || medical?.doctor_phone) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem' }}>
                 <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Médecin traitant</span>
                 <span style={{ fontWeight: 'bold' }}>{[medical.doctor_name, medical.doctor_phone].filter(Boolean).join(' · ')}</span>
               </div>
@@ -177,6 +183,7 @@ export function ScanResult() {
                 <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Immatriculation</span>
                 <span style={{ fontWeight: '900', color: '#0f172a', fontSize: '1rem' }}>{vehicle.plate}</span>
               </div>
+              {(vehicle.brand || vehicle.model) && <div className="scan-info-row"><span>Marque / modèle</span><strong>{[vehicle.brand, vehicle.model].filter(Boolean).join(' ')}</strong></div>}
             </div>
           </div>
         )}

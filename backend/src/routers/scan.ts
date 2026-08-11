@@ -100,6 +100,13 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
       doctor_name: profile.doctor_name ?? profile.medecin_nom ?? null,
       doctor_phone: profile.doctor_phone ?? profile.medecin_telephone ?? null
     },
+    vehicle: profile.has_vehicle ? {
+      has_vehicle: true,
+      type: profile.vehicle_type || null,
+      plate: profile.plate || null,
+      brand: profile.brand || null,
+      model: profile.model || null
+    } : null,
     emergency_contacts: contacts.rows,
     audit: {
       authority: authorityName,

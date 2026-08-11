@@ -66,6 +66,8 @@ export function MapZem() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [searchTarget, setSearchTarget] = useState<'origin' | 'destination'>('destination');
+  const [searching, setSearching] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -155,23 +157,34 @@ export function MapZem() {
     }
 
     searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
       const res = await searchAddress(text);
       setSearchResults(res);
+      setSearching(false);
     }, 500);
   };
 
   const handleSelectResult = async (res: NominatimResult) => {
     const lat = parseFloat(res.lat);
     const lng = parseFloat(res.lon);
-    setDestination({ lat, lng });
-    setDestinationName(getShortName(res));
-    setSearchQuery(getShortName(res));
-    setShowResults(false);
-    
-    if (origin) {
-      const route = await getRoute({ latitude: origin.lat, longitude: origin.lng }, { latitude: lat, longitude: lng });
-      setRouteData(route);
+    const name = getShortName(res);
+    if (searchTarget === 'origin') {
+      setOrigin({ lat, lng });
+      setOriginName(name);
+    } else {
+      setDestination({ lat, lng });
+      setDestinationName(name);
     }
+    setSearchQuery('');
+    setShowResults(false);
+    const routeOrigin = searchTarget === 'origin' ? { lat, lng } : origin;
+    const routeDestination = searchTarget === 'destination' ? { lat, lng } : destination;
+    if (routeOrigin && routeDestination) {
+      const route = await getRoute({ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: routeDestination.lat, longitude: routeDestination.lng });
+      setRouteData(route);
+      if (!route) toast.error("Itinéraire indisponible. Réessayez ou choisissez un autre point.");
+    }
+    setSearchTarget('destination');
   };
 
   const handleMapClick = async (lat: number, lng: number) => {
@@ -234,9 +247,8 @@ export function MapZem() {
   return (
     <div className="map-container">
       {/* Bouton retour */}
-      <button 
+      <button className="map-back-button"
         onClick={() => window.history.back()} 
-        style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 1100, backgroundColor: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', cursor: 'pointer' }}
       >
         <ChevronLeft size={24} color="var(--color-primary)" />
       </button>
@@ -262,37 +274,21 @@ export function MapZem() {
       {/* Search Overlay */}
       {!activeRide && (
         <div className="map-search-overlay" style={{ top: '60px' }}>
-          <div className="search-input-wrapper" style={{ marginBottom: '8px', cursor: 'pointer' }} onClick={() => {
-            const newOrig = prompt("Saisissez l'adresse de départ (Laissez vide pour le GPS)");
-            if (newOrig && newOrig.trim() !== '') {
-              searchAddress(newOrig).then(res => {
-                if (res.length > 0) {
-                  setOrigin({ lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) });
-                  setOriginName(getShortName(res[0]));
-                  if (destination) {
-                    getRoute({ latitude: parseFloat(res[0].lat), longitude: parseFloat(res[0].lon) }, { latitude: destination.lat, longitude: destination.lng }).then(setRouteData);
-                  }
-                }
-              });
-            } else if (location) {
-              setOrigin(location);
-              setOriginName("Ma position (GPS)");
-              if (destination) {
-                getRoute({ latitude: location.lat, longitude: location.lng }, { latitude: destination.lat, longitude: destination.lng }).then(setRouteData);
-              }
-            }
-          }}>
+          <button type="button" className={`route-point ${searchTarget === 'origin' ? 'active' : ''}`} onClick={() => { setSearchTarget('origin'); setSearchQuery(''); setSearchResults([]); setShowResults(false); }}>
             <MapPin size={20} color="var(--color-success)" />
-            <div style={{ flex: 1, padding: '10px 0', fontSize: '0.9rem', color: originName.includes('GPS') ? 'var(--color-success)' : 'black' }}>
-              {originName}
-            </div>
-          </div>
+            <span><small>Départ</small>{originName}</span>
+          </button>
+
+          {searchTarget === 'origin' && location && <button type="button" className="use-gps-button" onClick={async () => {
+            setOrigin(location); setOriginName('Ma position (GPS)'); setSearchTarget('destination'); setSearchQuery(''); setShowResults(false);
+            if (destination) { const route = await getRoute({latitude:location.lat,longitude:location.lng},{latitude:destination.lat,longitude:destination.lng}); setRouteData(route); }
+          }}><Navigation size={15}/> Utiliser ma position GPS</button>}
 
           <div className="search-input-wrapper">
             <Search size={20} color="var(--color-danger)" />
             <input 
               type="text" 
-              placeholder="Rechercher une destination..." 
+              placeholder={searchTarget === 'origin' ? "Rechercher le point de départ..." : "Rechercher une destination..."}
               value={searchQuery}
               onChange={handleSearch}
               onFocus={() => setShowResults(true)}
@@ -302,8 +298,7 @@ export function MapZem() {
               <X size={20} className="text-secondary" style={{cursor: 'pointer'}} onClick={() => {
                 setSearchQuery('');
                 setShowResults(false);
-                setDestination(null);
-                setRouteData(null);
+                if (searchTarget === 'destination') { setDestination(null); setDestinationName(''); setRouteData(null); }
               }}/>
             )}
           </div>
@@ -320,6 +315,8 @@ export function MapZem() {
               ))}
             </div>
           )}
+          {showResults && searchQuery.trim().length >= 3 && !searching && searchResults.length === 0 && <div className="search-empty">Aucun lieu trouvé au Togo. Précisez le quartier ou la ville.</div>}
+          {searching && <div className="search-empty">Recherche de l'adresse…</div>}
         </div>
       )}
 

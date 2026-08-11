@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Shield, ArrowRight, UserPlus, LogIn } from 'lucide-react';
 import { configureRealtime } from '../api/session';
+import { ThemeToggle } from '../components/ThemeToggle';
+
+function AuthBrand() {
+  return <><div className="auth-theme"><ThemeToggle /></div><img src="/logo-118.png" alt="Logo LOTISEC" className="auth-logo" /><div className="auth-wordmark">LOTI<span>SEC</span></div></>;
+}
 
 export function Landing() {
   const navigate = useNavigate();
   return (
-    <div className="app-container justify-center items-center" style={{ backgroundColor: 'var(--color-primary)' }}>
-      <div className="lotisec-card text-center" style={{ maxWidth: '400px', width: '90%' }}>
-        <img src="/logo-118.png" alt="118 Logo" style={{ width: '120px', margin: '0 auto 1rem', borderRadius: '20px' }} />
-        <h1 style={{ color: 'var(--color-primary)' }}>LOTISEC</h1>
+    <div className="app-container auth-page justify-center items-center">
+      <div className="lotisec-card auth-card text-center">
+        <AuthBrand />
         <p className="text-secondary mb-4">Urgence routière, Secours et Réservation Zemidjan au Togo.</p>
         <div className="flex flex-col gap-4">
           <button className="btn primary" onClick={() => navigate('/login')}>
@@ -52,10 +56,11 @@ export function Login() {
   };
 
   return (
-    <div className="app-container justify-center items-center">
-      <form className="lotisec-card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
+    <div className="app-container auth-page justify-center items-center">
+      <form className="lotisec-card auth-card" onSubmit={onSubmit}>
         <div className="text-center mb-4">
-          <Shield size={48} className="text-primary mx-auto" />
+          <AuthBrand />
+          <Shield size={32} className="text-primary mx-auto" />
           <h2 className="mt-4">Connexion</h2>
         </div>
         
@@ -121,10 +126,11 @@ export function Register() {
   };
 
   return (
-    <div className="app-container justify-center items-center">
-      <form className="lotisec-card" style={{ maxWidth: '400px', width: '90%' }} onSubmit={onSubmit}>
+    <div className="app-container auth-page justify-center items-center">
+      <form className="lotisec-card auth-card" onSubmit={onSubmit}>
         <div className="text-center mb-4">
-          <Shield size={48} className="text-primary mx-auto" />
+          <AuthBrand />
+          <Shield size={32} className="text-primary mx-auto" />
           <h2 className="mt-4">Inscription</h2>
         </div>
         

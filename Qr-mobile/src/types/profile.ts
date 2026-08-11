@@ -61,11 +61,15 @@ export interface ProfileData {
 
   // Étape 3 — médical
   bloodType:       string;
+  height?:         string;
+  weight?:         string;
   allergies?:      string;
   conditions?:     string;
   medications?:    string;
   surgeries?:      string;
   disabilities?:   string;
+  doctorName?:     string;
+  doctorPhone?:    string;
 
   // Étape 4 — véhicule
   vehicle:         VehicleInfo;
@@ -85,6 +89,10 @@ export const emptyProfile: ProfileData = {
   documentNumber:    'Non renseigné', // Valeur par défaut pour éviter le NULL
   emergencyContacts: [{ name: '', phone: '', relation: '' }],
   bloodType:         '',
+  height:            '',
+  weight:            '',
   disabilities:      '',
+  doctorName:        '',
+  doctorPhone:       '',
   vehicle:           { hasVehicle: false },
 };

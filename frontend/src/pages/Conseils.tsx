@@ -51,7 +51,7 @@ const CONSEILS = [
   },
   {
     id: '4', icon: '🏍️', titre: 'Sécurité à moto',
-    categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
+    categorie: 'Prévention', couleur: '#1565D8', couleurBg: '#EAF2FF',
     imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80',
     imageCredit: 'Sécurité moto · Unsplash',
     etapes: [
@@ -67,7 +67,7 @@ const CONSEILS = [
   },
   {
     id: '5', icon: '🚦', titre: 'Respect du code de la route',
-    categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
+    categorie: 'Prévention', couleur: '#1565D8', couleurBg: '#EAF2FF',
     imageUrl: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80',
     imageCredit: 'Code de la route · Unsplash',
     etapes: [
@@ -83,7 +83,7 @@ const CONSEILS = [
   },
   {
     id: '6', icon: '🌧️', titre: 'Conduite par temps de pluie',
-    categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
+    categorie: 'Prévention', couleur: '#1565D8', couleurBg: '#EAF2FF',
     imageUrl: 'https://images.unsplash.com/photo-1519692933481-e162a57d6721?w=800&q=80',
     imageCredit: 'Conduite pluie · Unsplash',
     etapes: [
@@ -114,7 +114,7 @@ const CONSEILS = [
   },
   {
     id: '8', icon: '👶', titre: 'Sécurité des enfants en voiture',
-    categorie: 'Prévention', couleur: '#007A3D', couleurBg: '#F0F9F4',
+    categorie: 'Prévention', couleur: '#1565D8', couleurBg: '#EAF2FF',
     imageUrl: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800&q=80',
     imageCredit: 'Sécurité enfants · Unsplash',
     etapes: [
@@ -229,7 +229,7 @@ export function Conseils() {
               <div style={{ color: '#1565C0', fontSize: '1.25rem', fontWeight: 'bold' }}>3</div>
               <div style={{ color: '#1565C0', fontSize: '0.8rem', textAlign: 'center' }}>Premiers sec.</div>
             </div>
-            <div style={{ flex: 1, backgroundColor: '#E8F5E9', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ flex: 1, backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ color: '#2E7D32', fontSize: '1.25rem', fontWeight: 'bold' }}>4</div>
               <div style={{ color: '#2E7D32', fontSize: '0.8rem' }}>Prévention</div>
             </div>
