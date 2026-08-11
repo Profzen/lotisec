@@ -27,6 +27,8 @@
   --nav-height: 65px;
 }
 
+.profile-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.profile-form-grid>div{display:grid;gap:.4rem}@media(max-width:700px){.profile-form-grid{grid-template-columns:1fr}}
+
 * {
   box-sizing: border-box;
   margin: 0;

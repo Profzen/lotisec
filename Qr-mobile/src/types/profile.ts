@@ -70,6 +70,7 @@ export interface ProfileData {
   disabilities?:   string;
   doctorName?:     string;
   doctorPhone?:    string;
+  accessPin?:      string;
 
   // Étape 4 — véhicule
   vehicle:         VehicleInfo;

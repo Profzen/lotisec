@@ -71,7 +71,7 @@ function signRealtimeToken(userId: string, session: Awaited<ReturnType<typeof se
 
 async function ensureProfile(userId: string) {
   if(!pool)throw new Error('Base indisponible');const client=await pool.connect();
-  try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[userId]);const existing=(await client.query<any>('SELECT id,qr_token,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1 FOR UPDATE',[userId])).rows[0];if(existing?.qr_token){await client.query('COMMIT');return existing;}const qrToken=uuidv4().slice(0,8).toUpperCase();let profile;if(existing)profile=(await client.query<any>('UPDATE profiles SET qr_token=$1 WHERE id=$2 RETURNING id,qr_token,first_name,last_name',[qrToken,existing.id])).rows[0];else profile=(await client.query<any>(`INSERT INTO profiles(id,user_id,qr_token,profile_type,first_name,last_name,birth_date,gender,nationality,blood_type,access_code,has_vehicle) VALUES($1,$2,$3,'CITIZEN','Utilisateur','LOTISEC','01/01/2000','NC','Togo','NC',$4,false) RETURNING id,qr_token,first_name,last_name`,[uuidv4(),userId,qrToken,uuidv4().slice(0,8)])).rows[0];await client.query('COMMIT');return profile;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+  try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[userId]);const existing=(await client.query<any>('SELECT id,qr_token,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1 FOR UPDATE',[userId])).rows[0];if(existing?.qr_token){await client.query('COMMIT');return existing;}const qrToken=uuidv4().slice(0,8).toUpperCase();let profile;if(existing)profile=(await client.query<any>('UPDATE profiles SET qr_token=$1 WHERE id=$2 RETURNING id,qr_token,first_name,last_name',[qrToken,existing.id])).rows[0];else profile=(await client.query<any>(`INSERT INTO profiles(id,user_id,qr_token,profile_type,first_name,last_name,birth_date,gender,nationality,blood_type,has_vehicle) VALUES($1,$2,$3,'CITIZEN','Utilisateur','LOTISEC','01/01/2000','NC','Togo','NC',false) RETURNING id,qr_token,first_name,last_name`,[uuidv4(),userId,qrToken])).rows[0];await client.query('COMMIT');return profile;}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
 
 router.post('/register', async (req, res) => {
@@ -102,8 +102,8 @@ router.post('/register', async (req, res) => {
   await query(
     `INSERT INTO profiles (
       id, user_id, qr_token, profile_type, first_name, last_name, birth_date,
-      gender, nationality, blood_type, access_code, has_vehicle
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      gender, nationality, blood_type, has_vehicle
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       profileId,
       userId,
@@ -115,7 +115,6 @@ router.post('/register', async (req, res) => {
       'M',
       'Togo',
       'NC',
-      '1234',
       false
     ]
   );

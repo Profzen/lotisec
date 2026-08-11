@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest, optionalAuth, requireAuth, requirePermission } from '../middleware/auth';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -48,21 +49,45 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
 
   const profile = profileResult.rows[0];
   const professionalRole = req.roles?.find((role) => ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
-  let authorityName = professionalRole ? professionalRole : null;
-
-  if (!authorityName) {
-    authorityName = MASTER_CODES[cleanPin] || null;
+  const owner=req.userId===profile.user_id;
+  const scannerIp=req.ip||req.socket.remoteAddress||'unknown';
+  if(!professionalRole&&!owner){
+    const recentFailures=await query<{count:string}>(`SELECT COUNT(*)::text count FROM scan_access_events WHERE profile_id=$1 AND success=false AND scanner_ip=$2 AND created_at>NOW()-INTERVAL '10 minutes'`,[profile.id,scannerIp]);
+    if(Number(recentFailures.rows[0]?.count||0)>=5)return res.status(429).json({detail:'Trop de tentatives. Réessayez dans 10 minutes.'});
   }
+  let authorityName:string|null=owner?'Propriétaire':professionalRole||null;
+  let accessMethod=owner?'owner_session':professionalRole?'professional_session':'';
 
-  if (!authorityName) {
-    const userPin = String(profile.access_code || '').trim().toUpperCase();
-    if (cleanPin === userPin) {
-      authorityName = 'Acces Prive';
+  if(!authorityName&&cleanPin&&profile.access_code_hash&&await bcrypt.compare(cleanPin,profile.access_code_hash)){
+    authorityName='PIN citoyen';accessMethod='citizen_pin';
+  }
+  if(!authorityName&&cleanPin&&profile.access_code&&cleanPin===String(profile.access_code).trim().toUpperCase()){
+    authorityName='PIN citoyen';accessMethod='citizen_pin_legacy';
+    const migratedHash=await bcrypt.hash(cleanPin,12);
+    await query('UPDATE profiles SET access_code_hash=$1,access_code=NULL,pin_updated_at=NOW() WHERE id=$2',[migratedHash,profile.id]);
+  }
+  if(!authorityName&&cleanPin){
+    const emergencyCodes=await query<any>(`SELECT e.id,e.organization_id,e.code_hash,e.label,o.name organization_name
+      FROM organization_emergency_access_codes e JOIN organizations o ON o.id=e.organization_id
+      WHERE e.revoked_at IS NULL AND e.expires_at>NOW() AND o.active=true`);
+    for(const emergencyCode of emergencyCodes.rows){
+      if(await bcrypt.compare(cleanPin,emergencyCode.code_hash)){
+        authorityName=`${emergencyCode.label} · ${emergencyCode.organization_name}`;accessMethod='organization_emergency_code';
+        await query('UPDATE organization_emergency_access_codes SET last_used_at=NOW() WHERE id=$1',[emergencyCode.id]);
+        break;
+      }
     }
   }
+  if(!authorityName&&process.env.ENABLE_DEMO_MEDICAL_CODES==='true'&&MASTER_CODES[cleanPin]){
+    authorityName=MASTER_CODES[cleanPin];accessMethod='demo_master_code';
+  }
 
   if (!authorityName) {
-    return res.status(403).json({ detail: 'CODE INVALIDE' });
+    await query(`INSERT INTO scan_access_events(profile_id,actor_id,actor_role,organization_id,authority,access_level,latitude,longitude,success,access_method,denial_reason,scanner_ip)
+      VALUES($1,$2,$3,$4,'Refusé','none',$5,$6,false,'invalid_credential','invalid_or_missing_credential',$7)`,[
+        profile.id,req.userId||null,professionalRole||null,req.organizationId||null,parsed.data.latitude??null,parsed.data.longitude??null,scannerIp
+      ]);
+    return res.status(403).json({ detail: 'Accès refusé : authentification professionnelle ou PIN valide requis' });
   }
 
   const contacts = await query<any>(
@@ -73,10 +98,10 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
     await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_profile.read','profile',$3,$4)`,
       [req.userId,req.organizationId,profile.id,{authority:authorityName}]);
   }
-  await query(`INSERT INTO scan_access_events(profile_id,actor_id,actor_role,organization_id,authority,access_level,latitude,longitude,success)
-    VALUES($1,$2,$3,$4,$5,'medical_emergency',$6,$7,true)`,[
+  await query(`INSERT INTO scan_access_events(profile_id,actor_id,actor_role,organization_id,authority,access_level,latitude,longitude,success,access_method,scanner_ip)
+    VALUES($1,$2,$3,$4,$5,'medical_emergency',$6,$7,true,$8,$9)`,[
       profile.id,req.userId||null,professionalRole||null,req.organizationId||null,authorityName,
-      parsed.data.latitude??null,parsed.data.longitude??null
+      parsed.data.latitude??null,parsed.data.longitude??null,accessMethod,scannerIp
     ]);
 
   return res.json({
@@ -110,6 +135,7 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
     emergency_contacts: contacts.rows,
     audit: {
       authority: authorityName,
+      access_method:accessMethod,
       token: parsed.data.token.slice(0, 8)
     }
   });

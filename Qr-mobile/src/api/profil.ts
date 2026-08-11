@@ -31,6 +31,7 @@ export const createProfil = async (profile: ProfileData, token: string) => {
     disabilities: ensureString(profile.disabilities),
     doctor_name: ensureString(profile.doctorName),
     doctor_phone: ensureString(profile.doctorPhone),
+    access_pin: ensureString(profile.accessPin),
     
     // Le backend semble attendre un booléen pour has_vehicle (t ou f dans les logs)
     has_vehicle: !!profile.vehicle?.hasVehicle,

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, ActivityIndicator
+  StyleSheet, ScrollView, Alert, ActivityIndicator, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,9 +22,13 @@ export default function Step5Review({ navigation, route }: Props) {
   const { profile } = route.params;
   const [confirmed, setConfirmed] = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [pin,setPin]=useState('');
+  const [pinConfirmation,setPinConfirmation]=useState('');
 
   const handleGenerate = async () => {
     if (!confirmed) return;
+    if(!/^\d{4,6}$/.test(pin)){Alert.alert('PIN invalide','Choisissez un PIN personnel de 4 à 6 chiffres.');return;}
+    if(pin!==pinConfirmation){Alert.alert('PIN différent','La confirmation du PIN ne correspond pas.');return;}
 
     try {
       setLoading(true);
@@ -36,7 +40,7 @@ export default function Step5Review({ navigation, route }: Props) {
         return;
       }
 
-      const result = await createProfil(profile, token);
+      const result = await createProfil({...profile,accessPin:pin}, token);
 
       if (result.qr_token) {
         await AsyncStorage.setItem('qrToken', result.qr_token);
@@ -156,6 +160,12 @@ export default function Step5Review({ navigation, route }: Props) {
           </Text>
         </View>
 
+        <Section title="PIN personnel de secours">
+          <Text style={styles.pinHelp}>Choisissez 4 à 6 chiffres. Ce PIN n'est jamais inscrit dans le QR. Communiquez-le seulement à une personne de confiance lorsque cela est nécessaire.</Text>
+          <TextInput style={styles.pinInput} value={pin} onChangeText={value=>setPin(value.replace(/\D/g,'').slice(0,6))} placeholder="PIN (4 à 6 chiffres)" keyboardType="number-pad" secureTextEntry maxLength={6}/>
+          <TextInput style={styles.pinInput} value={pinConfirmation} onChangeText={value=>setPinConfirmation(value.replace(/\D/g,'').slice(0,6))} placeholder="Confirmer le PIN" keyboardType="number-pad" secureTextEntry maxLength={6}/>
+        </Section>
+
         {/* Case à cocher */}
         <TouchableOpacity
           style={styles.checkRow}
@@ -171,9 +181,9 @@ export default function Step5Review({ navigation, route }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.btnPrimary, (!confirmed || loading) && styles.btnDisabled]}
+          style={[styles.btnPrimary, (!confirmed || loading || pin.length<4 || pin!==pinConfirmation) && styles.btnDisabled]}
           onPress={handleGenerate}
-          disabled={!confirmed || loading}
+          disabled={!confirmed || loading || pin.length<4 || pin!==pinConfirmation}
         >
           {loading
             ? <ActivityIndicator color={colors.white} />
@@ -209,6 +219,8 @@ const styles = StyleSheet.create({
   noData:         { fontSize: fontSizes.sm, fontFamily: fonts.regular, color: colors.textLight, textAlign: 'center', paddingVertical: 8 },
   securityBox:    { backgroundColor: colors.primaryLight, borderRadius: 14, borderWidth: 1, borderColor: '#C8D9F2', padding: 14, marginBottom: 16 },
   securityText:   { fontSize: fontSizes.xs, fontFamily: fonts.regular, color: colors.primary, lineHeight: 18 },
+  pinHelp:        { fontSize:fontSizes.xs,fontFamily:fonts.regular,color:colors.textSecondary,lineHeight:18,marginBottom:6 },
+  pinInput:       { minHeight:50,borderWidth:1,borderColor:colors.borderStrong,borderRadius:12,paddingHorizontal:14,backgroundColor:colors.surfaceRaised,color:colors.text,fontSize:fontSizes.md,letterSpacing:3 },
   checkRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20, marginTop: 8 },
   checkbox: {
     width: 24, height: 24, borderRadius: 6,

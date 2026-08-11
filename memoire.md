@@ -964,3 +964,64 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Build TypeScript backend et suite complète réussis : **31/31 tests**.
 - Pour que la carte réelle s'affiche, l'incident doit être validé, l'ambulance doit exister dans `response_units`, être `available`, appartenir à l'organisation envoyée et disposer idéalement de coordonnées latitude/longitude.
 - Les tuiles cartographiques et le calcul routier restent dépendants du réseau (Leaflet/CartoDB-OSM et OSRM). Sans OSRM, les positions demeurent visibles mais le tracé routier peut ne pas être calculé.
+
+## Plan — PIN citoyen, accès professionnel RBAC et accès d'urgence (2026-08-11)
+
+### État constaté avant correction
+- Le QR identifie correctement un profil sans embarquer directement les données médicales, mais le code personnel n'est pas choisi par le citoyen : les nouveaux profils reçoivent encore la valeur provisoire `1234`.
+- Les codes partagés `POMP2626`, `AMBU1818`, `MEDC3737` et `POL1717` déverrouillent toutes les fiches. Ils conviennent à une recette contrôlée, pas à une exploitation réelle, car ils sont statiques, globaux, non expirants et difficiles à révoquer individuellement.
+- Le backend reconnaît déjà une session professionnelle autorisée, mais les écrans web/mobile imposent néanmoins un champ PIN non vide avant d'envoyer la vérification.
+- Les lectures réussies sont journalisées; les tentatives refusées et le contexte complet de la décision d'accès doivent également être audités.
+- Le propriétaire authentifié doit consulter et modifier sa propre fiche depuis son compte sans scanner son QR ni ressaisir son PIN.
+- Les champs médicaux enrichis sont communs au backend, au web et au mobile, sous réserve d'appliquer la migration de production des constantes vitales.
+
+### Modèle cible
+1. Le citoyen choisit un PIN personnel de 4 à 6 chiffres à la création ou à la modification de son profil. Le PIN n'est jamais placé dans le QR, ni renvoyé par les API, ni stocké en clair.
+2. Le propriétaire authentifié accède directement à sa propre fiche et peut renouveler son PIN après vérification appropriée de sa session.
+3. Un tiers non professionnel scanne le QR puis saisit le PIN que le citoyen lui communique volontairement.
+4. Un pompier, ambulancier, agent hospitalier ou responsable autorisé se connecte avec son compte professionnel; son JWT et son RBAC suffisent, sans code universel supplémentaire.
+5. Les anciens codes universels sont conservés uniquement derrière un commutateur explicite de recette, désactivé par défaut en production.
+6. Un accès de secours organisationnel utilise un code généré par organisation, stocké sous forme de hash, limité dans le temps, révocable et associé à des rôles/périmètres autorisés.
+7. Toute tentative, réussie ou refusée, produit un événement d'audit contenant le profil ciblé, l'acteur éventuel, l'organisation, le rôle, le mécanisme d'accès, l'horodatage et la position transmise si le consentement GPS est disponible.
+
+### Plan d'implémentation
+1. Ajouter une migration additive pour le hash du PIN citoyen, les codes d'urgence organisationnels temporaires et les champs d'audit nécessaires, sans exposer de secret existant.
+2. Étendre les routes profil pour définir/renouveler le PIN avec validation 4–6 chiffres et hash bcrypt, tout en gardant une transition contrôlée pour les profils historiques.
+3. Refondre `/scan/verify` autour de quatre décisions explicites : propriétaire, professionnel RBAC, PIN citoyen, accès d'urgence organisationnel; désactiver les codes de recette en production par défaut et journaliser succès comme refus.
+4. Adapter l'inscription et la gestion de profil mobile, ainsi que la gestion de profil citoyenne web, pour saisir et confirmer le PIN sans jamais le réafficher.
+5. Adapter les écrans de scan web/mobile : accès direct pour une session professionnelle autorisée, saisie PIN pour le public, et champ de code d'urgence uniquement lorsque nécessaire.
+6. Vérifier que la console institutionnelle et les comptes professionnels conservent leur périmètre RBAC et ne reçoivent aucune donnée médicale hors autorisation.
+7. Ajouter des tests couvrant hash du PIN, absence de secret dans les réponses/QR, propriétaire, professionnel, tiers, code expiré/révoqué, anciens codes de recette et journalisation des refus.
+8. Exécuter builds backend, portail, console et TypeScript mobile; mettre à jour ce mémoire avec les résultats et les actions de déploiement.
+9. Publier sur `main`, puis lancer un build Android Expo/EAS et consigner le lien de suivi/téléchargement.
+
+### Réalisation — accès médical sécurisé
+- La migration additive `backend/migrations/20260811_secure_medical_access.sql` ajoute `profiles.access_code_hash`, la date de renouvellement du PIN, la table `organization_emergency_access_codes`, les informations de méthode/refus/IP dans `scan_access_events` et active RLS sur la table des codes temporaires.
+- Le PIN citoyen est limité à 4–6 chiffres et hashé avec bcrypt (coût 12). Il n'est jamais renvoyé par `/profil/me`, jamais intégré au QR et remplace toute ancienne valeur en clair. Un ancien PIN historique encore valide est automatiquement migré vers bcrypt lors de sa première utilisation.
+- La valeur par défaut `1234` a été retirée de la création de comptes et de profils. Les nouveaux citoyens choisissent leur PIN lors de la finalisation mobile; les citoyens existants le définissent ou le renouvellent depuis « Profil » sur mobile ou web.
+- Le propriétaire authentifié consulte et modifie directement sa fiche via `/profil/me`, sans QR ni PIN. La route publique `/profil/scan/:token` ne transmet plus de données médicales, même à une session professionnelle : toute lecture complète passe obligatoirement par `/scan/verify` afin d'être auditée.
+- `/scan/verify` applique désormais l'ordre d'autorisation suivant : session du propriétaire, session professionnelle RBAC, PIN citoyen, code d'urgence organisationnel temporaire, puis anciens codes de recette uniquement si `ENABLE_DEMO_MEDICAL_CODES=true`.
+- Les quatre anciens codes globaux restent présents uniquement pour compatibilité de démonstration et sont inactifs par défaut. **Ne pas définir `ENABLE_DEMO_MEDICAL_CODES` en production.**
+- Toute lecture réussie enregistre la méthode d'accès. Toute information d'identification invalide enregistre également un refus, son contexte et l'adresse réseau. Après cinq refus sur le même profil et la même adresse en dix minutes, l'API répond `429`.
+- Les responsables autorisés (`supervisor`, `hospital_manager`, ou administrateur) disposent de `medical_access:manage`. Ils peuvent créer un code organisationnel valable de 5 minutes à 24 heures, le voir une seule fois, le révoquer et consulter sa date d'expiration/dernière utilisation.
+
+### Alignement des interfaces
+- Mobile citoyen : l'étape finale d'inscription exige le PIN et sa confirmation; un nouvel onglet « Profil » permet de consulter/modifier identité, constantes, antécédents, médecin, contact d'urgence et PIN.
+- Web citoyen : une page protégée « Mon profil médical » a été ajoutée à la navigation avec les mêmes champs et une zone distincte de renouvellement du PIN.
+- Scan web/mobile : une session propriétaire ou professionnelle autorisée tente automatiquement l'ouverture sans demander de code. Un tiers voit un champ « PIN citoyen ou code d'urgence ».
+- Console : les Paramètres exposent la génération d'un code de 60 minutes, sa copie à usage unique et sa révocation pour les rôles autorisés. Le module « Fiches Patients » ne contient plus les deux faux patients historiques; il affiche uniquement les admissions réelles du périmètre hospitalier.
+- Tous les clients utilisent le même QR opaque et le même endpoint canonique `/scan/verify`; aucune donnée médicale n'est encodée dans l'image QR.
+
+### Vérifications réalisées
+- Backend : build TypeScript réussi et **32/32 tests** réussis, incluant hash, expiration/révocation, RLS, audit des refus et limitation des tentatives.
+- Portail citoyen : build TypeScript/Vite/PWA réussi. L'avertissement non bloquant sur la taille du bundle principal demeure.
+- Console institutionnelle : syntaxe JavaScript validée et build Vite réussi.
+- Application Expo : `npx tsc --noEmit` réussi sans erreur.
+- `git diff --check` doit être relancé juste avant commit; aucun secret de PIN ou code d'urgence généré ne doit être ajouté au dépôt.
+
+### Actions obligatoires de déploiement et recette
+1. Appliquer dans Supabase production, dans l'ordre du dépôt, `20260811_profile_vitals.sql` puis `20260811_secure_medical_access.sql` avant de déployer le backend utilisant ces colonnes.
+2. Vérifier que `ENABLE_DEMO_MEDICAL_CODES` est absente ou différente de `true` sur le backend de production.
+3. Reconnecter les comptes professionnels après déploiement afin que leur JWT contienne la permission `medical_access:manage` ajoutée à leur rôle.
+4. Recetter : propriétaire sans PIN, professionnel connecté sans code, tiers avec bon/mauvais PIN, six refus successifs, code organisationnel actif/expiré/révoqué et consultation du journal d'audit.
+5. Vérifier sur deux appareils physiques que les données modifiées sur web sont immédiatement retrouvées sur mobile et réciproquement, car les deux clients partagent le même profil backend.

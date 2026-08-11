@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query } from '../database';
 import { AuthRequest, optionalAuth, requireAuth } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ const profilSchema = z.object({
   disabilities: z.string().optional().default(''),
   doctor_name: z.string().optional().default(''),
   doctor_phone: z.string().optional().default(''),
+  access_pin: z.string().regex(/^\d{4,6}$/,'Le PIN doit contenir 4 à 6 chiffres').optional(),
   has_vehicle: z.boolean().optional().default(false),
   vehicle_type: z.string().optional().default(''),
   plate: z.string().optional().default(''),
@@ -48,13 +50,13 @@ router.get(['/', '/me'], requireAuth, async (req: AuthRequest, res) => {
   if (existing.rows.length === 0) {
     return res.status(404).json({ detail: 'Profil introuvable' });
   }
-  const profile = existing.rows[0];
+  const {access_code,access_code_hash,...profile} = existing.rows[0];
   const contacts = await query<any>(
     'SELECT name, phone, relation FROM emergency_contacts WHERE profile_id = $1 ORDER BY name ASC',
     [profile.id]
   );
   return res.json({
-    profile,
+    profile:{...profile,pin_configured:Boolean(access_code_hash||access_code)},
     qr_token: profile.qr_token,
     emergency_contacts: contacts.rows
   });
@@ -69,13 +71,15 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId as string;
   const data = parsed.data;
 
-  const existing = await query<{ id: string; qr_token: string }>(
-    'SELECT id, qr_token FROM profiles WHERE user_id = $1 LIMIT 1',
+  const existing = await query<{ id: string; qr_token: string; access_code_hash:string|null; access_code:string|null }>(
+    'SELECT id, qr_token, access_code_hash, access_code FROM profiles WHERE user_id = $1 LIMIT 1',
     [userId]
   );
 
   let profileId: string;
   let qrToken: string;
+  if(existing.rows.length===0&&!data.access_pin)return res.status(400).json({detail:'Définissez un PIN personnel de 4 à 6 chiffres'});
+  const accessCodeHash=data.access_pin ? await bcrypt.hash(data.access_pin,12) : null;
 
   if (existing.rows.length > 0) {
     profileId = existing.rows[0].id;
@@ -129,6 +133,7 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
         profileId
       ]
     );
+    if(accessCodeHash)await query('UPDATE profiles SET access_code_hash=$1,access_code=NULL,pin_updated_at=NOW() WHERE id=$2',[accessCodeHash,profileId]);
   } else {
     profileId = uuidv4();
     qrToken = uuidv4().slice(0, 8).toUpperCase();
@@ -138,12 +143,12 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
         id, user_id, qr_token, profile_type, first_name, last_name, birth_date,
         gender, nationality, document_type, document_number, blood_type,
         allergies, conditions, medications, surgeries, disabilities,
-        has_vehicle, vehicle_type, plate, brand, model, access_code
+        has_vehicle, vehicle_type, plate, brand, model, access_code_hash, pin_updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12,
         $13, $14, $15, $16, $17,
-        $18, $19, $20, $21, $22, $23
+        $18, $19, $20, $21, $22, $23, $24
       )`,
       [
         profileId,
@@ -168,7 +173,8 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
         data.plate,
         data.brand,
         data.model,
-        '1234'
+        accessCodeHash,
+        new Date()
       ]
     );
   }
@@ -194,6 +200,16 @@ router.post(['/', ''], requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
+router.put('/pin',requireAuth,async(req:AuthRequest,res)=>{
+  const parsed=z.object({pin:z.string().regex(/^\d{4,6}$/,'Le PIN doit contenir 4 à 6 chiffres')}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({detail:parsed.error.issues[0]?.message||'PIN invalide'});
+  const hash=await bcrypt.hash(parsed.data.pin,12);
+  const result=await query<any>('UPDATE profiles SET access_code_hash=$1,access_code=NULL,pin_updated_at=NOW(),updated_at=NOW() WHERE user_id=$2 RETURNING id',[hash,req.userId]);
+  if(!result.rows[0])return res.status(404).json({detail:'Profil introuvable'});
+  await query(`INSERT INTO audit_logs(actor_id,organization_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'medical_pin.updated','profile',$3,$4)`,[req.userId,req.organizationId,result.rows[0].id,{method:'authenticated_owner'}]);
+  return res.json({status:'updated',pin_configured:true});
+});
+
 router.get('/scan/:token', optionalAuth, async (req: AuthRequest, res) => {
   const token = req.params.token;
 
@@ -211,12 +227,6 @@ router.get('/scan/:token', optionalAuth, async (req: AuthRequest, res) => {
   }
 
   const profile = result.rows[0];
-  const contacts = await query<any>(
-    'SELECT name, phone, relation FROM emergency_contacts WHERE profile_id = $1 ORDER BY name ASC',
-    [profile.id]
-  );
-
-  const professional = req.roles?.some((role) => ['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
   return res.json({
     id: profile.id,
     qr_token: profile.qr_token,
@@ -227,15 +237,9 @@ router.get('/scan/:token', optionalAuth, async (req: AuthRequest, res) => {
       gender: profile.gender,
       nationality: profile.nationality
     },
-    medical: professional ? {
-      blood_type: profile.blood_type,
-      allergies: profile.allergies,
-      conditions: profile.conditions,
-      medications: profile.medications,
-      disabilities: profile.disabilities
-    } : undefined,
-    emergency_contacts: professional ? contacts.rows : [],
-    access_level: professional ? 'professional' : 'public'
+    emergency_contacts: [],
+    access_level: 'public',
+    verification_required:true
   });
 });
 

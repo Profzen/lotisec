@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
@@ -12,13 +12,14 @@ export function ScanResult() {
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying, setVerifying] = useState(false);
   const [pin, setPin] = useState('');
+  const [sessionAccess,setSessionAccess]=useState(false);
 
-  const handleUnlock = async () => {
+  const handleUnlock = async (credential=pin.trim()) => {
     setVerifying(true);
     try {
       const response = await api.post('/scan/verify', {
         token: token,
-        pin: pin.trim(),
+        pin: credential,
         authority_type: 'emergency_unit',
       });
       setUnlockedData(response.data);
@@ -32,6 +33,15 @@ export function ScanResult() {
       setVerifying(false);
     }
   };
+
+  useEffect(()=>{
+    try{
+      const user=JSON.parse(localStorage.getItem('lotisec_user')||'{}');
+      const professional=(user.roles||[]).some((role:string)=>['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
+      const owner=user.qr_token===token;
+      if(professional||owner){setSessionAccess(true);void handleUnlock('');}
+    }catch{/* Le scan public reste disponible avec le PIN. */}
+  },[token]);
 
   if (!unlockedData) {
     return (
@@ -51,13 +61,13 @@ export function ScanResult() {
           <div className="lotisec-card" style={{ padding: '2rem', textAlign: 'center' }}>
             <h3 style={{ marginBottom: '1rem' }}>Accès professionnel authentifié</h3>
             <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
-              Saisissez le PIN du citoyen ou un code institutionnel autorisé.
+              {sessionAccess?'Vérification de votre session autorisée…':'Saisissez le PIN personnel communiqué par le citoyen ou un code d’urgence temporaire de votre organisation.'}
             </p>
 
             <input
               value={pin}
               onChange={(event) => setPin(event.target.value)}
-              placeholder="PIN ou code institutionnel"
+              placeholder="PIN citoyen ou code d’urgence"
               autoCapitalize="characters"
               autoComplete="one-time-code"
               type="password"
@@ -66,7 +76,7 @@ export function ScanResult() {
 
             <button 
               className="btn primary" 
-              onClick={handleUnlock} 
+              onClick={()=>handleUnlock()}
               disabled={verifying || !pin.trim()}
               style={{ width: '100%' }}
             >

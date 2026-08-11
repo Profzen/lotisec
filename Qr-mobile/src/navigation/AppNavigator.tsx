@@ -29,6 +29,7 @@ import RideDetailScreen from '../screens/RideDetailScreen';
 import RideChatScreen from '../screens/RideChatScreen';
 import OperationalMissionsScreen from '../screens/OperationalMissionsScreen';
 import ProfessionalAccountScreen from '../screens/ProfessionalAccountScreen';
+import CitizenProfileScreen from '../screens/CitizenProfileScreen';
 import {hydrateSession} from '../services/session';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
@@ -133,6 +134,7 @@ function TabNavigator() {
           ),
         }}
       />
+      <Tab.Screen name="Profil" component={CitizenProfileScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'person-circle':'person-circle-outline'} size={24} color={color}/>}}/>
       </>}
     </Tab.Navigator>
   );

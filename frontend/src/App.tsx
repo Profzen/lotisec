@@ -13,6 +13,7 @@ import { Rides } from './pages/Rides';
 import { Assistant } from './pages/Assistant';
 import {RideDetail} from './pages/RideDetail';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
+import {Profile} from './pages/Profile';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('lotisec_token');
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="conseils" element={<Conseils />} />
         <Route path="qr" element={<QrCode />} />
         <Route path="trajets" element={<Rides />} />
+        <Route path="profil" element={<Profile />} />
       </Route>
 
       {/* Assistant IA en plein écran */}

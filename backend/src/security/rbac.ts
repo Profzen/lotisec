@@ -3,11 +3,11 @@ export type RoleKey = typeof ROLE_KEYS[number];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, string[]> = {
   admin: ['*','admin:manage'],
-  supervisor: ['incidents:read','incidents:manage','interventions:read','interventions:manage','resources:read','facilities:read','reports:read','zem:approve'],
+  supervisor: ['incidents:read','incidents:manage','interventions:read','interventions:manage','resources:read','facilities:read','reports:read','zem:approve','medical_access:manage'],
   dispatcher: ['incidents:read','incidents:manage','interventions:read','interventions:manage','resources:read','facilities:read'],
   firefighter: ['interventions:assigned','interventions:update','facilities:read'],
   ambulance_driver: ['interventions:assigned','interventions:update','facilities:read'],
-  hospital_manager: ['admissions:organization','facilities:manage','organization:members'],
+  hospital_manager: ['admissions:organization','facilities:manage','organization:members','medical_access:manage'],
   hospital_agent: ['admissions:organization','facilities:read'],
   zem_driver: ['zem:drive'],
   citizen: ['profile:self','incidents:create','zem:ride']

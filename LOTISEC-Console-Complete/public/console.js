@@ -114,8 +114,10 @@ function applyRbac() {
   if (activePerspective === 'hospital') {
     ["Hôpitaux", "Capacités & Lits", "Fiches Patients", "Notifications"].forEach((x) => allowed.add(x));
     if (isAdmin) ["Statistiques", "Paramètres"].forEach((x) => allowed.add(x));
+    if (permissions.includes('medical_access:manage')) allowed.add('Paramètres');
   } else if (activePerspective === 'firefighter') {
     ["Tableau de bord", "Incidents", "Carte en direct", "Trafic en temps réel", "Interventions", "Ambulances", "Hôpitaux", "Notifications"].forEach((x) => allowed.add(x));
+    if (permissions.includes('medical_access:manage')) allowed.add('Paramètres');
   } else {
     document.querySelectorAll("[data-module]").forEach((el) => allowed.add(el.dataset.module));
   }
@@ -300,6 +302,7 @@ const state = {
   accidentGeojson: { features: [] },
   accidentStats: null,
   organizationMembers: [],
+  emergencyAccessCodes: [],
   mission: demoMode ? {
     incidentId: "INC-2026-0729-011",
     ambulanceId: "AMB-01",
@@ -768,6 +771,10 @@ async function loadOperationalData() {
   if (canPermission('organization:members') && session.user.organizationId) {
     const result = await apiFetch(`/api/v1/organizations/${session.user.organizationId}/members`).catch(()=>({members:[]}));
     state.organizationMembers = result.members || [];
+  }
+  if(canPermission('medical_access:manage')&&session.user.organizationId){
+    const result=await apiFetch(`/api/v1/organizations/${session.user.organizationId}/emergency-access-codes`).catch(()=>({codes:[]}));
+    state.emergencyAccessCodes=result.codes||[];
   }
   if (facilityResult.facilities.length) {
     hospitals.splice(0, hospitals.length, ...facilityResult.facilities.map((item) => {
@@ -1255,6 +1262,7 @@ function renderSettings() {
       <article class="module-card settings-card"><header><div><small>APPLICATIONS CLIENTES</small><h2>API de réception</h2></div></header><code>POST /api/v1/incidents</code><p>Canal canonique authentifié pour les SOS mobile, web et opérateur.</p><button data-action="copy-api">Copier l'URL de l'API</button><button data-action="open-citizen">Ouvrir le portail citoyen</button></article>
       <article class="module-card settings-card"><header><div><small>TEMPS RÉEL</small><h2>Synchronisation</h2></div></header><label class="setting-toggle"><span><strong>Réception automatique</strong><small>Supabase Realtime avec repli API toutes les 3 secondes</small></span><input type="checkbox" checked disabled></label><label class="setting-toggle"><span><strong>Priorisation serveur</strong><small>Score opérationnel calculé par le backend</small></span><input type="checkbox" checked disabled></label></article>
       <article class="module-card settings-card"><header><div><small>SÉCURITÉ</small><h2>Contrôle d'accès RBAC</h2></div></header><p>Session JWT, permissions et organisation : ${(session.user.roles || []).map(escapeHtml).join(', ')}.</p><button data-action="test-api">Tester la connexion API</button></article>
+      ${canPermission('medical_access:manage')?`<article class="module-card settings-card"><header><div><small>ACCÈS MÉDICAL D'URGENCE</small><h2>Codes temporaires</h2></div><button data-action="create-emergency-code">Créer (60 min)</button></header><p>Le code est affiché une seule fois, expire automatiquement et peut être révoqué.</p><div class="compact-list">${state.emergencyAccessCodes.map(item=>`<span><strong>${escapeHtml(item.label)}</strong><em>${item.revoked_at?'Révoqué':new Date(item.expires_at)<new Date()?'Expiré':`Actif jusqu'à ${new Date(item.expires_at).toLocaleString('fr-FR')}`}</em>${!item.revoked_at&&new Date(item.expires_at)>=new Date()?`<button data-action="revoke-emergency-code" data-id="${item.id}">Révoquer</button>`:''}</span>`).join('')||'<p>Aucun code temporaire.</p>'}</div></article>`:''}
     </section>`;
 }
 
@@ -1298,10 +1306,7 @@ function renderHospitalCapacities() {
 }
 
 function renderAdmittedPatients() {
-  const patients = [
-    { id: 'ADM-2026-001', name: 'Kouassi Mensah', age: 34, blood_type: 'O+', allergies: 'Pénicilline', incident_type: 'Collision moto', arrival_time: '12h40', status: 'En soins intensifs', emergency_contact: '+228 90 12 34 56 (Épouse)' },
-    { id: 'ADM-2026-002', name: 'Afiwa Lawson', age: 28, blood_type: 'A+', allergies: 'Aucune connue', incident_type: 'Accident voie publique', arrival_time: '13h15', status: 'Stabilisée', emergency_contact: '+228 91 88 44 22 (Père)' }
-  ];
+  const patients = state.admissions.filter(item=>['accepted','arrived','closed'].includes(item.status)).map(item=>({id:item.id,...(item.patient_summary||{}),arrival_time:item.responded_at||item.requested_at,status:item.status}));
   return `
     ${moduleTop(moduleHeader("Fiches Médicales d'Urgence", "Dossiers des Patients Admis", "Données vitales et contacts d'urgence transmis par QR Code (exclusivement réservées aux patients pris en charge par l'établissement)."))}
     <section class="module-card">
@@ -1310,16 +1315,16 @@ function renderAdmittedPatients() {
         ${patients.map((p) => `
           <div class="patient-record-card">
             <div class="patient-record-header">
-              <div><strong style="font-size:1rem;color:#FFF;">${escapeHtml(p.name)} (${p.age} ans)</strong><small style="display:block;color:#8FA3B8;margin-top:2px;">Arrivée : ${p.arrival_time} · Motif : ${escapeHtml(p.incident_type)}</small></div>
-              <span class="blood-badge">Groupe : ${escapeHtml(p.blood_type)}</span>
+              <div><strong>${escapeHtml(p.name||'Patient non identifié')}</strong><small>Admission ${escapeHtml(p.id)} · ${p.arrival_time?new Date(p.arrival_time).toLocaleString('fr-FR'):'horaire indisponible'}</small></div>
+              <span class="blood-badge">Groupe : ${escapeHtml(p.blood_type||'NC')}</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.75rem;margin-top:8px;">
-              <div><span style="color:#8FA3B8;">Allergies :</span> <strong style="color:#FFF;">${escapeHtml(p.allergies)}</strong></div>
-              <div><span style="color:#8FA3B8;">Statut :</span> <strong style="color:#4ADE80;">${escapeHtml(p.status)}</strong></div>
-              <div style="grid-column:1/-1;"><span style="color:#8FA3B8;">Contact d'urgence :</span> <strong style="color:#FFF;">${escapeHtml(p.emergency_contact)}</strong></div>
+              <div><span>Allergies :</span> <strong>${escapeHtml(p.allergies||'Non renseignées')}</strong></div>
+              <div><span>Statut :</span> <strong>${escapeHtml(p.status)}</strong></div>
+              <div style="grid-column:1/-1;"><span>Contact d'urgence :</span> <strong>${escapeHtml(p.emergency_contact||'Non transmis')}</strong></div>
             </div>
           </div>
-        `).join('')}
+        `).join('')||'<p>Aucun dossier patient réel transmis à cet établissement.</p>'}
       </div>
     </section>
   `;
@@ -1770,6 +1775,13 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
   }
   if (action === "hospital-details") openHospital(button.dataset.id);
   if (action === "add-bed") openHospitalCapacity(button.dataset.id);
+  if(action==='create-emergency-code'){
+    if(!session.user.organizationId)return toast('Organisation requise','Sélectionnez une organisation avant de générer un code.');
+    try{const result=await apiFetch(`/api/v1/organizations/${session.user.organizationId}/emergency-access-codes`,{method:'POST',body:JSON.stringify({label:"Accès terrain d'urgence",expires_in_minutes:60})});await navigator.clipboard?.writeText(result.code);toast('Code temporaire créé',`${result.code} · valable jusqu'à ${new Date(result.expires_at).toLocaleTimeString('fr-FR')} · copié dans le presse-papiers`);await loadOperationalData();renderCurrentModule();}catch(error){toast('Création refusée',error.message);}
+  }
+  if(action==='revoke-emergency-code'){
+    try{await apiFetch(`/api/v1/organizations/${session.user.organizationId}/emergency-access-codes/${button.dataset.id}`,{method:'DELETE'});toast('Code révoqué','Il ne permet plus aucun accès médical.');await loadOperationalData();renderCurrentModule();}catch(error){toast('Révocation refusée',error.message);}
+  }
   if (action === "export-stats") exportStatisticsCsv();
   if (action === "download-report") downloadStatisticsReport();
   if (action === "toggle-block" || action === "fog-recalculate") toggleRouteBlock();

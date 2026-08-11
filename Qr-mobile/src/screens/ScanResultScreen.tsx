@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, ScrollView, Linking, TextInput,
@@ -8,6 +8,7 @@ import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { api } from '../api/config';
+import { hydrateSession } from '../services/session';
 
 export default function ScanResultScreen({ route, navigation }: any) {
   const { profileId } = route.params;
@@ -15,11 +16,12 @@ export default function ScanResultScreen({ route, navigation }: any) {
   const [unlockedData, setUnlockedData] = useState<any>(null);
   const [verifying,    setVerifying]    = useState(false);
   const [pin, setPin] = useState('');
+  const [sessionAccess,setSessionAccess]=useState(false);
 
-  const handleUnlock = async () => {
+  const handleUnlock = async (credential=pin.trim()) => {
     setVerifying(true);
     try {
-      const data = await api('/scan/verify', 'POST', { token:profileId,pin:pin.trim(),authority_type:'emergency_unit' });
+      const data = await api('/scan/verify', 'POST', { token:profileId,pin:credential,authority_type:'emergency_unit' });
       setUnlockedData(data);
     } catch (e: any) {
       Alert.alert("Accès refusé", e?.message || "Un compte professionnel autorisé est requis.");
@@ -27,6 +29,13 @@ export default function ScanResultScreen({ route, navigation }: any) {
       setVerifying(false);
     }
   };
+
+  useEffect(()=>{hydrateSession().then(session=>{
+    const roles=session?.user?.roles||[];
+    const professional=roles.some((role:string)=>['admin','supervisor','dispatcher','firefighter','ambulance_driver','hospital_manager','hospital_agent'].includes(role));
+    const owner=session?.user?.qr_token===profileId;
+    if(professional||owner){setSessionAccess(true);void handleUnlock('');}
+  }).catch(()=>{});},[profileId]);
 
   // ── VUE VERROUILLÉE ──────────────────────────────────────────
   if (!unlockedData) {
@@ -45,13 +54,13 @@ export default function ScanResultScreen({ route, navigation }: any) {
         <View style={styles.lockBox}>
           <Text style={styles.lockTitle}><FontAwesome name="shield" size={24} /> Accès Médical Sécurisé</Text>
           <Text style={styles.lockSubtitle}>
-            Saisissez le PIN du citoyen ou un code institutionnel autorisé pour accéder aux données vitales.
+            {sessionAccess?'Votre session autorisée est en cours de vérification.':'Saisissez le PIN personnel communiqué par le citoyen ou un code d’urgence temporaire de votre organisation.'}
           </Text>
 
           <TextInput
             value={pin}
             onChangeText={setPin}
-            placeholder="PIN ou code institutionnel"
+            placeholder="PIN citoyen ou code d’urgence"
             placeholderTextColor={colors.textLight}
             autoCapitalize="characters"
             autoCorrect={false}
@@ -61,7 +70,7 @@ export default function ScanResultScreen({ route, navigation }: any) {
 
           <TouchableOpacity
             style={[styles.btn, verifying && styles.btnDisabled]}
-            onPress={handleUnlock}
+            onPress={()=>handleUnlock()}
             disabled={verifying || !pin.trim()}
           >
             {verifying

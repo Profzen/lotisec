@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { canTransition, INCIDENT_TRANSITIONS, INTERVENTION_TRANSITIONS } from '../security/workflows';
 import { notifyUsers } from '../services/push';
+import { randomInt } from 'crypto';
 
 const router = Router();
 
@@ -478,6 +479,31 @@ router.patch('/zem/applications/:id', requireAuth, requirePermission('zem:approv
 router.get('/audit', requireAuth, requirePermission('admin:manage'), async (_req,res)=>{
   const result=await query<any>('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500');
   return res.json({logs:result.rows});
+});
+
+router.get('/organizations/:id/emergency-access-codes',requireAuth,requirePermission('medical_access:manage'),async(req:AuthRequest,res)=>{
+  if(!req.permissions?.includes('*')&&req.organizationId!==req.params.id)return res.status(403).json({detail:'Organisation interdite'});
+  const result=await query<any>(`SELECT id,label,allowed_roles,expires_at,revoked_at,last_used_at,created_at FROM organization_emergency_access_codes WHERE organization_id=$1 ORDER BY created_at DESC`,[req.params.id]);
+  return res.json({codes:result.rows});
+});
+
+router.post('/organizations/:id/emergency-access-codes',requireAuth,requirePermission('medical_access:manage'),async(req:AuthRequest,res)=>{
+  if(!req.permissions?.includes('*')&&req.organizationId!==req.params.id)return res.status(403).json({detail:'Organisation interdite'});
+  const parsed=z.object({label:z.string().min(2).max(80).default("Accès d'urgence"),expires_in_minutes:z.number().int().min(5).max(1440).default(60),allowed_roles:z.array(z.enum(['firefighter','ambulance_driver','hospital_manager','hospital_agent'])).min(1).default(['firefighter','ambulance_driver','hospital_manager','hospital_agent'])}).safeParse(req.body);
+  if(!parsed.success)return res.status(400).json({detail:parsed.error.issues[0]?.message||'Paramètres invalides'});
+  const code=`LS${randomInt(100000,1000000)}`;
+  const hash=await bcrypt.hash(code,12);
+  const result=await query<any>(`INSERT INTO organization_emergency_access_codes(organization_id,code_hash,label,allowed_roles,created_by,expires_at) VALUES($1,$2,$3,$4,$5,NOW()+($6||' minutes')::interval) RETURNING id,label,allowed_roles,expires_at,created_at`,[req.params.id,hash,parsed.data.label,parsed.data.allowed_roles,req.userId,parsed.data.expires_in_minutes]);
+  await audit(req.userId,req.organizationId,'medical_emergency_code.created','organization',req.params.id,{code_id:result.rows[0].id,expires_at:result.rows[0].expires_at});
+  return res.status(201).json({code,...result.rows[0],warning:'Ce code ne sera affiché qu’une seule fois.'});
+});
+
+router.delete('/organizations/:organizationId/emergency-access-codes/:codeId',requireAuth,requirePermission('medical_access:manage'),async(req:AuthRequest,res)=>{
+  if(!req.permissions?.includes('*')&&req.organizationId!==req.params.organizationId)return res.status(403).json({detail:'Organisation interdite'});
+  const result=await query<any>('UPDATE organization_emergency_access_codes SET revoked_at=NOW() WHERE id=$1 AND organization_id=$2 AND revoked_at IS NULL RETURNING id',[req.params.codeId,req.params.organizationId]);
+  if(!result.rows[0])return res.status(404).json({detail:'Code actif introuvable'});
+  await audit(req.userId,req.organizationId,'medical_emergency_code.revoked','organization',req.params.organizationId,{code_id:req.params.codeId});
+  return res.json({status:'revoked'});
 });
 
 export default router;
