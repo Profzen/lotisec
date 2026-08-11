@@ -703,6 +703,68 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Aucun secret IA ne doit être versionné. `DEEPINFRA_API_KEY`, `DEEPINFRA_MODEL`, `DEEPINFRA_STT_MODEL` et `CORS_ORIGINS` sont lus depuis l'environnement. Les anciennes clés trouvées dans `lotisec.py` et `appp.py` ont été retirées et doivent être révoquées chez DeepInfra.
 - En l'absence de clé, `/health` reste disponible et `/chat` retourne un message de continuité sûr; la transcription WebM/M4A signale explicitement que le fournisseur audio est requis.
 
+#### Service Railway à mettre à jour
+- Le service IA actuellement consommé par le portail citoyen et l'application mobile est identifiable par son domaine public : `https://agile-trust-production-c862.up.railway.app`. Le nom affiché du service dans Railway peut être différent; le domaine public est l'identifiant fiable à comparer dans `Settings` / `Networking`.
+- Il ne faut pas créer un second service tant que ce service existe encore et que l'équipe veut conserver la même URL. La bonne opération est un déploiement sur place du nouveau `appp.py`, ce qui évite de republier une nouvelle URL dans le web et dans l'APK.
+- Le dépôt source attendu est `Profzen/lotisec`, branche de production `main`. Le commit de bascule initial est `9c05e85` (`Complete operational flows and voice assistant`).
+- Deux configurations de racine sont supportées :
+  - Root Directory vide ou `/` : Railway lit le `railway.json`, le `Procfile` et le `requirements.txt` de la racine; commande `uvicorn appp:app --host 0.0.0.0 --port $PORT`.
+  - Root Directory `/ai_service` : Railway lit les fichiers de `ai_service/`; commande `uvicorn appp:app --app-dir .. --host 0.0.0.0 --port $PORT` afin d'importer le fichier canonique situé à la racine.
+- Ne pas mélanger les deux modes. Si le service historique possède déjà Root Directory `/ai_service`, le conserver et utiliser la seconde commande. S'il n'a pas de Root Directory, utiliser la première.
+- Le healthcheck est `GET /health`. Un déploiement sain doit retourner HTTP 200 avec `status: "ok"`, `service: "lotisec-ai"`, `version: "2.0.0"` et `chat_ready: true` après installation de la clé.
+
+#### Procédure exacte de remise en service Railway
+1. Ouvrir le projet Railway existant et examiner les services sans les supprimer.
+2. Ouvrir chacun des services susceptibles d'être l'IA, puis comparer son domaine public avec `agile-trust-production-c862.up.railway.app`. Le service correspondant est le service à modifier.
+3. Dans les paramètres de source, vérifier GitHub `Profzen/lotisec` et la branche `main`. Corriger seulement si une autre branche ou un autre dépôt est sélectionné.
+4. Relever la valeur actuelle de Root Directory avant toute modification. Appliquer exactement l'un des deux modes documentés ci-dessus.
+5. Dans les variables du service, créer `DEEPINFRA_API_KEY` avec une nouvelle clé réelle générée dans le tableau de bord DeepInfra. Ne jamais écrire `ta_vraie_nouvelle_cle` ou `nouvelle_cle` comme valeur : ce ne sont que des exemples.
+6. Ajouter au besoin `CORS_ORIGINS=https://lotisec-frontend.vercel.app`. Plusieurs origines sont séparées par des virgules. Pour une recette limitée, éviter `*` en production.
+7. Les variables `DEEPINFRA_MODEL` et `DEEPINFRA_STT_MODEL` sont facultatives. Sans valeur, l'API utilise respectivement `meta-llama/Llama-3.3-70B-Instruct` et `openai/whisper-large-v3-turbo`.
+8. Déployer le dernier commit de `main`. Une modification de variable Railway doit être appliquée/déployée pour entrer dans le conteneur actif.
+9. Lire les logs de build et de déploiement. Vérifier l'installation des dépendances, l'import de `appp:app`, l'écoute sur `$PORT` et l'absence d'erreur d'authentification DeepInfra.
+10. Tester successivement `/health`, une question texte sur `/chat`, un enregistrement réel sur `/transcribe`, une réponse sur `/tts`, puis le parcours complet depuis le web et un appareil Expo.
+11. Si l'URL publique change, mettre à jour `VITE_AI_API_URL` sur le projet frontend Vercel et `EXPO_PUBLIC_AI_API_URL` dans les environnements/builds Expo. Une nouvelle URL mobile exige un nouveau build si elle est injectée au moment du build.
+
+#### Variables du service IA et responsabilité de chaque plateforme
+| Variable | Emplacement | Obligatoire | Secret | Fonction |
+|---|---|---:|---:|---|
+| `DEEPINFRA_API_KEY` | Railway, service IA `appp.py` | Oui pour l'IA réelle et Whisper | Oui | Autorise le chat et la transcription DeepInfra. |
+| `DEEPINFRA_MODEL` | Railway, service IA | Non | Non | Surcharge le modèle conversationnel. |
+| `DEEPINFRA_STT_MODEL` | Railway, service IA | Non | Non | Surcharge le modèle de transcription. |
+| `CORS_ORIGINS` | Railway, service IA | Recommandé | Non | Limite les origines web autorisées. |
+| `VITE_AI_API_URL` | Vercel, projet `frontend/` | Recommandé | Non, exposée au navigateur | Adresse publique du service IA. |
+| `EXPO_PUBLIC_AI_API_URL` | EAS/Expo, projet `Qr-mobile/` | Recommandé | Non, intégrée à l'application | Adresse publique du service IA mobile. |
+- `DEEPINFRA_API_KEY` ne doit pas être ajoutée au frontend Vercel, à la console Vercel, à Expo/EAS, dans une variable commençant par `VITE_` ou `EXPO_PUBLIC_`, ni dans GitHub : ces emplacements rendent la valeur accessible au client.
+- Le backend Node Vercel possède aussi une intégration IA `/api/v1/ai`, actuellement en veille tant que Railway reste le fournisseur actif. Une clé ajoutée au backend Vercel ne configure pas automatiquement `appp.py`; chaque service possède son propre environnement.
+
+#### Contrat fonctionnel complet de `appp.py`
+- `GET /health` : contrôle de disponibilité sans appeler DeepInfra. Il expose l'état du service, sa version, la présence de la clé, la stratégie de transcription et le moteur TTS. Il ne révèle jamais la clé.
+- `POST /chat` : reçoit le message, l'historique optionnel, la latitude, la longitude et le rayon. Il normalise le texte, détecte une urgence, calcule les établissements proches, prépare un contexte de sécurité routière togolais et appelle DeepInfra. En cas de clé absente ou de panne fournisseur, il retourne une réponse sûre de continuité au lieu de faire tomber l'API.
+- Détection d'urgence : reconnaît les formulations liées à accident, blessure, inconscience, saignement, feu et danger, tout en tenant compte des négations simples pour réduire les faux positifs. Une urgence rappelle d'appeler le 118, de sécuriser la zone et de ne pas déplacer une victime sauf danger immédiat.
+- Recherche locale : utilise un catalogue de six établissements togolais et la formule de Haversine pour calculer la distance depuis les coordonnées reçues. Elle ne dépend pas de Google Maps et ne prétend pas connaître en temps réel les lits disponibles.
+- `POST /transcribe` : accepte un fichier multipart jusqu'à 12 Mo. DeepInfra Whisper traite en priorité WebM, M4A, MP4 et autres formats courants. Le repli local `SpeechRecognition` est limité à WAV, FLAC et AIFF. Une erreur explicite est retournée si le format exige DeepInfra et que la clé est absente.
+- `POST /tts` : reçoit un texte non vide, le synthétise en français avec gTTS et diffuse un MP3 `audio/mpeg`. Aucun fichier vocal utilisateur permanent n'est conservé sur le serveur.
+- `POST /voice` : exécute le cycle complet transcription → réponse métier → synthèse; il retourne la transcription, la réponse, les indicateurs d'urgence et de lieux, ainsi que l'audio MP3 encodé en base64. Cette route permet à un futur client d'effectuer le parcours vocal en un seul appel.
+- CORS : la liste d'origines vient exclusivement de `CORS_ORIGINS`; les méthodes et en-têtes nécessaires aux appels web sont autorisés.
+- Confidentialité : les données vocales transitent vers DeepInfra pour transcription lorsque ce fournisseur est actif et le texte peut être envoyé au modèle conversationnel. Cette réalité doit figurer dans l'information utilisateur et la politique de confidentialité avant production publique.
+
+#### Comportement des clients web et mobile
+- Le web et le mobile utilisent actuellement les trois routes compatibles `/chat`, `/transcribe` et `/tts` sur l'URL Railway configurable.
+- Une question saisie au clavier produit une réponse texte. L'utilisateur choisit ensuite le bouton haut-parleur s'il veut l'entendre.
+- Une question enregistrée est transcrite, envoyée à `/chat`, puis la réponse est lue automatiquement; le bouton haut-parleur reste disponible pour la réécouter.
+- Le navigateur transmet l'enregistrement WebM produit par `MediaRecorder`. Expo transmet un fichier M4A avec le type MIME `audio/mp4`; le correctif empêche de présenter faussement ce fichier comme du WAV.
+- Les clients affichent une erreur contrôlée si le service Railway est arrêté, si le crédit DeepInfra est épuisé, si le microphone est refusé ou si la synthèse échoue. Les numéros d'urgence ne doivent jamais dépendre uniquement de l'IA.
+
+#### Sécurité, exploitation et limites connues
+- Toute ancienne clé autrefois écrite dans `lotisec.py` ou un prototype doit être révoquée dans DeepInfra. La suppression du dépôt n'annule pas une clé déjà divulguée dans l'historique Git ou copiée ailleurs.
+- La nouvelle clé doit avoir un nom permettant son audit, un budget/quotas adaptés et une surveillance de consommation. Ne jamais communiquer sa valeur dans une capture, un ticket ou `memoire.md`.
+- Les logs ne doivent contenir ni fichier audio, ni jeton d'autorisation, ni dossier médical complet. Les erreurs fournisseur sont journalisées sans la clé.
+- La limite applicative d'upload est 12 Mo; Railway peut appliquer ses propres limites et délais. Tester avec la durée maximale réellement autorisée dans l'interface.
+- gTTS dépend d'un service réseau externe et n'offre pas de garantie médicale ou opérationnelle. En cas d'indisponibilité TTS, le texte doit rester lisible.
+- Les réponses IA sont une aide d'information et non un diagnostic. En urgence, l'interface doit toujours privilégier l'appel direct au 118 et les instructions de sécurité déterministes.
+- Critères minimum avant validation production : `chat_ready=true`, test de français réel, test microphone Android et navigateur, test de négation d'urgence, test d'urgence positive, test sans crédit fournisseur, contrôle CORS et vérification qu'aucun secret n'est présent dans les bundles frontend/mobile.
+
 ### Rétablissement de l'Interactivité Console, Zéro Emoji & Déconnexion
 - **Correction d'erreur de syntaxe bloquante (`LOTISEC-Console-Complete/public/console.js`)** :
   - Suppression d'une accolade fermante prématurée dans `applyRbac` qui interrompait l'exécution du script, bloquait l'ensemble des écouteurs d'événements, le sélecteur de rôle, la déconnexion et l'initialisation de l'interface.
@@ -714,5 +776,4 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - *Admin / Superviseur National* : Accès complet à tous les modules + sélecteur d'espace dans la TopBar pour tester en direct chaque perspective.
   - *Hôpitaux (ex: CHU Sylvanus Olympio)* : Vue restreinte aux modules sanitaires (`Hôpitaux`, `Capacités & Lits` avec ajustement en 1 clic, `Fiches Patients` QR Code, `Notifications`), sans carte tactique de poursuite.
   - *Sapeurs-Pompiers (118) & Ambulanciers* : Vue opérationnelle avec file d'incidents, carte Leaflet temps réel, reroutage anti-bouchon et demandes d'admission hospitalière.
-
 
