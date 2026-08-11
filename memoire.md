@@ -777,3 +777,96 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - *Hôpitaux (ex: CHU Sylvanus Olympio)* : Vue restreinte aux modules sanitaires (`Hôpitaux`, `Capacités & Lits` avec ajustement en 1 clic, `Fiches Patients` QR Code, `Notifications`), sans carte tactique de poursuite.
   - *Sapeurs-Pompiers (118) & Ambulanciers* : Vue opérationnelle avec file d'incidents, carte Leaflet temps réel, reroutage anti-bouchon et demandes d'admission hospitalière.
 
+## Mise à jour de reprise — 2026-08-11
+
+### Blocage actuel confirmé : service IA Railway suspendu
+- Le projet Railway concerné est `ab795ad1-e019-4ac5-91c8-1398cfb0cc47` et le service IA `c5bed3ea-0be5-4194-b0cb-572f2c1d18e9`, affiché sous le nom `agile-trust`.
+- Source vérifiée : dépôt GitHub `Profzen/lotisec`, branche de production `main`, déploiement automatique activé et Root Directory `/ai_service`.
+- État observé le 2026-08-11 : `Trial expired`, accès limité, service hors ligne et aucun déploiement actif. Railway refuse donc le redéploiement même si le code et les variables sont corrects.
+- Conséquence immédiate : `https://agile-trust-production-c862.up.railway.app` ne fournit plus l'assistant. Les appels `/chat`, `/transcribe`, `/tts`, `/voice` et `/health` sont indisponibles tant qu'un hébergement Python n'est pas rétabli.
+- Le frontend et le mobile utilisent encore cette URL comme fournisseur IA temporaire. L'assistant texte et vocal doit donc être considéré **indisponible en production**, sans remettre en cause les autres fonctions LOTISEC servies par le backend Node Vercel.
+
+### Incident de sécurité à traiter avant toute remise en ligne
+- Une clé DeepInfra a été communiquée en clair pendant l'assistance. Elle doit être considérée compromise, révoquée dans le tableau de bord DeepInfra et remplacée par une nouvelle clé.
+- Ne pas réutiliser la clé exposée, même si elle semble encore fonctionner. Ne jamais recopier la nouvelle clé dans GitHub, un message, une capture, `memoire.md`, `appp.py`, `lotisec.py`, Vercel frontend ou une variable publique Expo/Vite.
+- La nouvelle valeur doit exister uniquement comme secret du serveur qui exécute l'IA : `DEEPINFRA_API_KEY` sur Railway ou sur l'hébergeur de remplacement. Après rotation, vérifier les journaux accessibles à l'équipe et surveiller la consommation DeepInfra.
+
+### Décision d'hébergement IA restant à prendre
+
+#### Option A — Réactiver Railway, chemin le plus court
+1. Souscrire un plan Railway permettant de reprendre les déploiements du projet existant.
+2. Conserver le service `agile-trust`, le dépôt `Profzen/lotisec`, la branche `main` et Root Directory `/ai_service`.
+3. Ajouter la nouvelle clé dans `Variables` sous `DEEPINFRA_API_KEY`, sans guillemets.
+4. Ajouter `CORS_ORIGINS=https://lotisec-frontend.vercel.app` et conserver les modèles par défaut sauf besoin explicite.
+5. Redéployer le dernier commit de `main`. Avec Root Directory `/ai_service`, la commande attendue est `uvicorn appp:app --app-dir .. --host 0.0.0.0 --port $PORT`.
+6. Vérifier que `/health` répond HTTP 200 avec `chat_ready=true`, puis effectuer la recette texte et voix.
+- Avantage : l'URL publique peut rester identique; aucune modification des clients ni nouveau build mobile n'est alors nécessaire.
+- Inconvénient : abonnement Railway et dépendance continue à ce service.
+
+#### Option B — Déployer `appp.py` chez un autre hébergeur Python
+1. Choisir un hébergeur acceptant FastAPI, les uploads multipart, les requêtes sortantes DeepInfra/gTTS, un healthcheck et une durée de requête suffisante pour la voix.
+2. Déployer la racine du dépôt avec `requirements.txt` et `uvicorn appp:app --host 0.0.0.0 --port $PORT`, ou adapter explicitement la commande à la racine choisie.
+3. Définir côté serveur `DEEPINFRA_API_KEY` et `CORS_ORIGINS`; ne jamais exposer la clé au navigateur ou à Expo.
+4. Obtenir une URL HTTPS stable et tester toutes les routes.
+5. Mettre cette URL dans `VITE_AI_API_URL` du frontend Vercel et redéployer le frontend.
+6. Mettre cette URL dans `EXPO_PUBLIC_AI_API_URL` pour les profils Expo/EAS. Une valeur intégrée au bundle impose un nouveau build APK/AAB.
+- Ne supprimer le service Railway historique qu'après validation complète du nouvel hébergement et bascule effective des deux clients.
+
+#### Option C — Finaliser la migration IA vers le backend Node Vercel
+- Le backend contient déjà une intégration IA et les routes `/api/v1/ai`, mais elle est volontairement en veille pendant l'utilisation du fournisseur Python Railway.
+- Pour supprimer le microservice Python, il reste à atteindre la parité : chat, contexte/RAG, transcription WebM/M4A, synthèse MP3, gestion d'urgence, limites d'upload, réponses de repli et contrat d'erreur identique.
+- Ajouter `DEEPINFRA_API_KEY` uniquement au projet **backend** Vercel, activer le service Node, tester `/api/v1/ai/health`, puis modifier les clients pour utiliser le backend canonique.
+- Cette option réduit le nombre de services, mais demande du développement et une validation audio serverless avant de retirer `appp.py`.
+
+### Ordre recommandé de reprise
+1. Révoquer immédiatement la clé DeepInfra exposée et générer une nouvelle clé secrète.
+2. Choisir l'option A, B ou C. Pour un rétablissement rapide sans changement d'URL, privilégier A; pour éviter Railway, évaluer B; pour simplifier durablement l'architecture, planifier C.
+3. Rétablir un endpoint `/health` accessible publiquement avant de modifier les applications.
+4. Tester les routes directement, puis le portail web, puis un appareil Android réel.
+5. Ne déclarer l'assistant disponible qu'après succès de la matrice de recette.
+
+### Matrice de recette IA restant à exécuter
+- Santé : `/health` HTTP 200, `version=2.0.0`, `chat_ready=true`, aucune information secrète retournée.
+- Texte nominal : question en français, réponse pertinente, courte et lisible; historique respecté.
+- Urgence positive : accident avec blessé/inconscience détecté, rappel du 118 et gestes de sécurité déterministes.
+- Négation : « il n'y a pas d'accident » ne doit pas être classé abusivement comme urgence.
+- Géolocalisation : coordonnées valides, établissements triés par distance; aucune promesse de lits en temps réel.
+- Audio navigateur : permission microphone, upload WebM, transcription, réponse et lecture MP3.
+- Audio Expo/Android : permission microphone, upload M4A avec MIME `audio/mp4`, transcription et lecture automatique.
+- Réécoute : bouton haut-parleur disponible après réponse écrite et dictée.
+- Erreurs : microphone refusé, fichier vide ou supérieur à 12 Mo, format non supporté, clé absente/invalide, crédits épuisés, timeout DeepInfra et panne gTTS.
+- Sécurité : contrôle CORS, absence de secret dans les bundles, absence d'audio ou de dossier médical dans les logs, limitation des abus et suivi des coûts.
+- Charge minimale : plusieurs conversations simultanées et temps de réponse mesurés avant toute promesse de disponibilité.
+
+### Travaux plateforme encore requis avant exploitation réelle
+
+#### Secours, dispatch et terrain
+- Appliquer toutes les migrations Supabase de production et vérifier tables, index, contraintes, politiques d'accès et données de référence.
+- Provisionner organisations réelles, unités de réponse, véhicules, hôpitaux, comptes nominatifs et associations utilisateur-unité; les comptes de démonstration ne doivent pas devenir des comptes d'exploitation.
+- Vérifier qu'une demande pompier/ambulance affecte une unité compatible disponible et que les conflits simultanés ne créent pas de double affectation.
+- Tester notifications persistantes et Expo Push sur appareils physiques : application fermée, arrière-plan, téléphone verrouillé et reprise réseau.
+- Valider le cycle complet : alerte, qualification, affectation, acceptation, départ, arrivée, prise en charge, demande hospitalière, admission/refus, transport et clôture avec audit.
+- Ajouter ou valider les procédures de réaffectation, refus, annulation, unité indisponible, absence d'hôpital, perte GPS et escalade humaine 118.
+
+#### RBAC, données et sécurité
+- Rejouer une matrice RBAC complète pour citoyen, Zem, pompier, ambulancier, dispatcher, superviseur, administrateur et gestionnaire hospitalier sur mobile, web, console et API directe.
+- Vérifier que modifier l'interface ou le `localStorage` ne permet jamais de contourner les permissions backend ou `organization_id`.
+- Remplacer les mots de passe uniformes de recette avant exploitation et désactiver le reset des comptes d'acceptation en production.
+- Définir rotation des JWT/secrets, expiration/révocation de session, audit, sauvegardes Supabase, restauration testée et conservation des données médicales/GPS/audio.
+- Réaliser une revue de sécurité des uploads, du scan QR/PIN, des codes maîtres, du CORS, des limites de débit et des dépendances.
+
+#### Mobile, web et console
+- Produire un nouveau build EAS après toute modification de variable publique mobile; tester installation propre, mise à niveau, permissions GPS/microphone/notifications et cartes sur plusieurs versions Android.
+- Vérifier modes clair/sombre, contrastes, tailles de texte, états vide/chargement/erreur et navigation clavier/responsive de la console.
+- Tester les connexions rapides et les six comptes de recette contre la production sans boucle de login, puis vérifier la séparation exacte des menus et données.
+- Recetter scan QR/PIN et codes institutionnels sur web/mobile, données médicales complètes et PDF QR hors dépendance externe.
+- Tester cartes CartoDB/OSM, GPS, itinéraires, suivi Zem et missions secours dans les conditions réseau réelles du Togo.
+
+#### Fog Computing et résilience
+- Ne pas présenter le score central de priorisation ou les données `?demo=1` comme du Fog Computing réel.
+- Pour revendiquer un Fog opérationnel, déployer un nœud edge physique, une file durable chiffrée, une synchronisation idempotente, une supervision, une horloge fiable, une politique de conflit et une alimentation/réseau de secours.
+- Exécuter des tests de coupure cloud/réseau, mesurer délai local et resynchronisation, puis publier uniquement des métriques observées.
+
+### Critère de fin global
+- LOTISEC ne peut être déclaré prêt pour un usage secours réel qu'après : service IA rétabli ou retiré proprement, secrets renouvelés, migrations appliquées, comptes réels provisionnés, RBAC/API vérifiés, recette terrain multi-acteurs réussie, notifications/GPS validés sur appareils, sauvegarde/restauration testée et procédure humaine 118 documentée.
+- Tant que ces conditions ne sont pas réunies, la plateforme reste une version de démonstration/recette avancée et aucun score, ETA, disponibilité hospitalière ou capacité Fog simulée ne doit être présenté comme une garantie opérationnelle.
