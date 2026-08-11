@@ -6,6 +6,6 @@
   "background_color": "#071827",
   "theme_color": "#071827",
   "icons": [
-    { "src": "/assets/logo-lotisec.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/assets/logo-lotisec.png?v=20260811", "sizes": "1254x1254", "type": "image/png", "purpose": "any maskable" }
   ]
 }

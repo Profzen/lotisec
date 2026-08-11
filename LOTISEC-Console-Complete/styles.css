@@ -51,9 +51,8 @@ svg { display: block; }
 }
 .nav-shell { display: flex; align-items: center; justify-content: space-between; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 850; letter-spacing: .12em; }
-.brand-mark { width: 34px; color: var(--cyan); }
-.brand-mark svg > path:first-child { fill: currentColor; }
-.brand-mark .brand-cross { fill: var(--navy-950); }
+.brand-mark { width: 38px; height: 38px; display:grid; place-items:center; overflow:hidden; border-radius:10px; background:#fff; }
+.brand-mark img { width:100%; height:100%; object-fit:contain; display:block; }
 .main-nav { display: flex; align-items: center; gap: 31px; font-size: .89rem; font-weight: 650; }
 .main-nav > a { color: rgba(255,255,255,.76); transition: color .2s; }
 .main-nav > a:hover { color: var(--white); }

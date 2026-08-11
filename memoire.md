@@ -930,3 +930,12 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 4. Tester thème clair/sombre sur Chrome desktop, navigateur Android et PWA installée, notamment le scan public ouvert hors session.
 5. Tester une course Zem à Lomé avec GPS autorisé puis refusé, recherche de départ/destination, clic carte, réponse Nominatim, réponse OSRM, commande, annulation et suivi temps réel.
 6. Les services Nominatim, OSRM et CartoDB étant externes, conserver les messages de repli et prévoir à terme un proxy/cache respectant leurs politiques d'usage pour une exploitation à grande échelle.
+
+### Uniformisation finale des logos et icônes navigateur
+- Le logo officiel canonique reste `Qr-mobile/assets/logo-118.png`. Les copies utilisées dans `frontend/public/logo-118.png` et `LOTISEC-Console-Complete/public/assets/logo-lotisec.png` ont la même empreinte SHA-256.
+- Le titre de l'onglet citoyen passe de `118` à `LOTISEC`; le manifeste PWA utilise également `LOTISEC`, la couleur marine `#071A2E` et le fond clair neutre de la charte actuelle.
+- Des favicons 32×32 et icônes PWA 192×192/512×512 ont été générés par recadrage déterministe du même logo. Ce recadrage retire seulement la marge blanche excessive afin que le symbole reste identifiable à la taille d'un onglet; il ne redessine pas le logo.
+- Le portail citoyen utilise un paramètre de version `v=20260811` sur le favicon et l'icône Apple afin de contourner les anciens caches navigateur/PWA.
+- La vitrine et la console institutionnelle abandonnent l'ancien `favicon.svg`. Elles utilisent le PNG officiel pour le favicon, l'icône Apple, la navigation, le pied de page, l'écran de connexion et la console opérationnelle.
+- Le cache du service worker console est incrémenté à `lotisec-console-shell-v2` et inclut le nouveau favicon pour forcer le renouvellement du shell installé.
+- Après déploiement, si un onglet déjà ouvert affiche encore l'ancienne icône, fermer tous les onglets LOTISEC puis effectuer un rechargement forcé. Pour une PWA installée, la désinstaller/réinstaller peut être nécessaire selon le cache du système d'exploitation.

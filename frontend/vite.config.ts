@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo-118.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: '118',
-        short_name: '118',
+        name: 'LOTISEC',
+        short_name: 'LOTISEC',
         description: 'Urgence routière, Secours et Réservation Zemidjan au Togo.',
-        theme_color: '#006A4E',
-        background_color: '#ffffff',
+        theme_color: '#071A2E',
+        background_color: '#F3F6FA',
         display: 'standalone',
         icons: [
           {
