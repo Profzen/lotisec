@@ -1,0 +1,11 @@
+const fs=require('fs');const path=require('path');const crypto=require('crypto');const {Pool}=require('pg');require('dotenv').config({path:path.join(__dirname,'.env')});
+const files=['20260811_profile_vitals.sql','20260811_secure_medical_access.sql','20260811_complete_activity_audit.sql'];
+if(!process.env.DATABASE_URL){console.error('DATABASE_URL absente');process.exit(1);}
+const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.NODE_ENV==='production'?{rejectUnauthorized:false}:false,connectionTimeoutMillis:15000});
+(async()=>{const client=await pool.connect();try{await client.query(`CREATE TABLE IF NOT EXISTS lotisec_schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`);for(const name of files){const sql=fs.readFileSync(path.join(__dirname,'migrations',name),'utf8');const checksum=crypto.createHash('sha256').update(sql).digest('hex');const applied=(await client.query('SELECT checksum FROM lotisec_schema_migrations WHERE name=$1',[name])).rows[0];if(applied){if(applied.checksum!==checksum)throw new Error(`Migration déjà appliquée mais modifiée: ${name}`);console.log(`déjà appliquée: ${name}`);continue;}await client.query('BEGIN');try{await client.query(sql);await client.query('INSERT INTO lotisec_schema_migrations(name,checksum) VALUES($1,$2)',[name,checksum]);await client.query('COMMIT');console.log(`appliquée: ${name}`);}catch(error){await client.query('ROLLBACK');throw error;}}
+const checks=await client.query(`SELECT
+  EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='height') profile_vitals,
+  EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='access_code_hash') secure_pin,
+  to_regclass('public.organization_emergency_access_codes') IS NOT NULL emergency_codes,
+  to_regclass('public.api_activity_logs') IS NOT NULL activity_audit,
+  to_regclass('public.response_unit_positions') IS NOT NULL unit_position_history`);console.log('vérification:',checks.rows[0]);}finally{client.release();await pool.end();}})().catch(async error=>{console.error('Échec migration:',error.message);await pool.end().catch(()=>{});process.exit(1);});

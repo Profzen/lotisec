@@ -1072,3 +1072,10 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Les clics purement visuels (ouvrir un menu, changer le thème, modifier un filtre sans mutation serveur) restent volontairement locaux. Toutes les actions CRUD et décisions métier passant par l'API sont persistées et auditables.
 - Publication effectuée sur `main` au commit `21d35b8` (`Persist and audit all cross-client CRUD activity`).
 - Un nouvel APK Expo/EAS incluant ce commit a été envoyé avec le profil `preview`. Suivi et téléchargement après finalisation : `https://expo.dev/accounts/profzen/projects/lotisec/builds/af257a75-9c09-46a0-898e-56999cf68584`.
+
+### Mise en production effective des migrations
+- La base configurée dans `backend/.env` a été migrée avec succès. La dépendance additive `20260802_mobile_zem_complete.sql` a d'abord été appliquée parce que la table `scan_access_events` manquait encore sur cet environnement.
+- `20260811_profile_vitals.sql`, `20260811_secure_medical_access.sql` et `20260811_complete_activity_audit.sql` sont maintenant appliquées. Les contrôles SQL confirment : constantes vitales, hash du PIN, codes d'urgence, journal d'activité et historique des positions.
+- `backend/run-security-migrations.js` fournit désormais un exécuteur reproductible : registre `lotisec_schema_migrations`, checksum SHA-256, transaction par fichier, refus d'une migration déjà appliquée mais modifiée et vérification finale sans affichage de secret.
+- Le backend public répond `{"ok":true,"db":"up"}` sur `/health` après migration.
+- Le build EAS `af257a75-9c09-46a0-898e-56999cf68584`, basé sur le commit fonctionnel `21d35b8`, est `FINISHED`. APK : `https://expo.dev/artifacts/eas/Ofb603SU0Eyk8dTGentKDKW1wH7yCer_OQj4vpjCbas.apk` (artefact interne soumis à la durée de conservation Expo indiquée sur la page du build).
