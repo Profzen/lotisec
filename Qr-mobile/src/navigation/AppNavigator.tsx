@@ -30,6 +30,7 @@ import RideChatScreen from '../screens/RideChatScreen';
 import OperationalMissionsScreen from '../screens/OperationalMissionsScreen';
 import ProfessionalAccountScreen from '../screens/ProfessionalAccountScreen';
 import CitizenProfileScreen from '../screens/CitizenProfileScreen';
+import QRCodeScreen from '../screens/QRCodeScreen';
 import {hydrateSession} from '../services/session';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
@@ -49,6 +50,7 @@ export type RootStackParamList = {
   Assistant: undefined;
   RideDetail: {rideId:string};
   RideChat: {rideId:string};
+  CitizenProfile:undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -114,16 +116,7 @@ function TabNavigator() {
           ),
         }} 
       />
-      <Tab.Screen 
-        name="AssistantTab" 
-        component={AssistantScreen} 
-        options={{
-          tabBarLabel: 'Assistant',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={24} color={color} />
-          ),
-        }}
-      />
+      <Tab.Screen name="Mon QR" component={QRCodeScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'qr-code':'qr-code-outline'} size={24} color={color}/>}}/>
       <Tab.Screen 
         name="Rides" 
         component={RidesScreen} 
@@ -134,7 +127,6 @@ function TabNavigator() {
           ),
         }}
       />
-      <Tab.Screen name="Profil" component={CitizenProfileScreen} options={{tabBarIcon:({color,focused})=><Ionicons name={focused?'person-circle':'person-circle-outline'} size={24} color={color}/>}}/>
       </>}
     </Tab.Navigator>
   );
@@ -164,6 +156,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Assistant"    component={AssistantScreen} />
         <Stack.Screen name="RideDetail" component={RideDetailScreen}/>
         <Stack.Screen name="RideChat" component={RideChatScreen}/>
+        <Stack.Screen name="CitizenProfile" component={CitizenProfileScreen}/>
 
         {/* Une fois connecté, on charge le TabNavigator. 
           Les écrans Hôpitaux, Conseils et QRCode sont déjà dedans !

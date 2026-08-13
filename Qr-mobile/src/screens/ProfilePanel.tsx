@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar,
@@ -9,12 +9,13 @@ import { fontSizes, fonts } from '../theme/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {api} from '../api/config';
-import {clearSession} from '../services/session';
+import {clearSession, hydrateSession} from '../services/session';
 
 interface ProfilePanelProps {
   isDark:          boolean;
   onClose:         () => void;
   onToggleTheme:   (val: boolean) => void;
+  onOpenProfile:   () => void;
 }
 
 type ActiveSection = null | 'password' | 'notifications';
@@ -23,9 +24,12 @@ export default function ProfilePanel({
   isDark,
   onClose,
   onToggleTheme,
+  onOpenProfile,
 }: ProfilePanelProps) {
 
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
+  const [user, setUser] = useState<any>({});
+  useEffect(() => { void hydrateSession().then((value) => setUser(value?.user || {})); }, []);
 
   // Changement mot de passe
   const [currentPwd,  setCurrentPwd]  = useState('');
@@ -90,7 +94,7 @@ export default function ProfilePanel({
       iconBg: isDark ? '#1B3A2D' : '#E8F5E9',
       label: 'Mon profil',
       sub:   'Modifier mes informations',
-      onPress: () => onClose(), // TODO : naviguer vers l'écran profil
+      onPress: onOpenProfile,
     },
     {
       icon: 'key-outline',
@@ -154,8 +158,8 @@ export default function ProfilePanel({
             <Ionicons name="person" size={25} color={colors.primaryDark}/>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.userName}>BOTRE-LARE Abdou</Text>
-            <Text style={styles.userEmail}>+228 97 83 92 88</Text>
+            <Text style={styles.userName}>{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Utilisateur LOTISEC'}</Text>
+            <Text style={styles.userEmail}>{user.phone || 'Compte sécurisé'}</Text>
             <View style={styles.userBadge}>
               <Text style={styles.userBadgeText}>Adulte</Text>
             </View>

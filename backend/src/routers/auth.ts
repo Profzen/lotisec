@@ -9,6 +9,7 @@ import { permissionsFor, rolesForOrganization } from '../security/rbac';
 import { jwtSecret } from '../security/jwt';
 
 const router = Router();
+const normalizePhone=(value:string)=>{const compact=value.replace(/[\s().-]/g,'');return /^\d{8}$/.test(compact)?`+228${compact}`:compact.startsWith('228')&&/^228\d{8}$/.test(compact)?`+${compact}`:compact;};
 
 const registerSchema = z.object({
   phone: z.string().min(6),
@@ -80,7 +81,7 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
   }
 
-  const { phone, password, account_type, zem_application } = parsed.data;
+  const { password, account_type, zem_application } = parsed.data;const phone=normalizePhone(parsed.data.phone);
   if (account_type === 'zem_driver' && !zem_application) {
     return res.status(400).json({ detail: 'Les informations d’accréditation Zem sont requises.' });
   }
@@ -153,7 +154,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
   }
 
-  const { phone, password } = parsed.data;
+  const { password } = parsed.data;const phone=normalizePhone(parsed.data.phone);
   const result = await query<{
     id: string;
     phone: string;

@@ -112,14 +112,14 @@ export function Home() {
 
   return (
     <>
-      <div className="top-header" style={{ backgroundColor: sosActif ? 'var(--color-danger)' : 'var(--color-primary)' }}>
+      <div className="top-header" style={{ backgroundColor: sosActif ? 'var(--color-danger)' : 'var(--color-header)' }}>
         <div className="web-wordmark"><img src="/logo-118.png" alt="" /><span>LOTI<strong>SEC</strong></span></div>
         <div className="profile-avatar" onClick={() => document.getElementById('profile-drawer')?.classList.add('open')}>
           <User size={24} />
         </div>
       </div>
 
-      <div className="sos-container" style={{ backgroundColor: sosActif ? 'var(--color-danger)' : 'var(--color-primary)' }}>
+      <div className="sos-container" style={{ backgroundColor: sosActif ? 'var(--color-danger)' : 'var(--color-header)' }}>
         <div className="sos-radar">
           <div className="sos-ring sos-ring-1" style={{ backgroundColor: sosActif ? 'rgba(255,255,255,0.4)' : 'rgba(255, 255, 255, 0.15)' }}></div>
           <div className="sos-ring sos-ring-2" style={{ backgroundColor: sosActif ? 'rgba(255,255,255,0.3)' : 'rgba(255, 255, 255, 0.2)' }}></div>
@@ -285,6 +285,7 @@ export function Home() {
             </div>
             
             <div className="lotisec-card">
+              <button className="btn primary" style={{width:'100%',marginBottom:'1rem'}} onClick={()=>navigate('/profil')}>Modifier mon profil médical</button>
               <div className="contact-item">
                 <div style={{ flex: 1 }}>
                   <div className="action-title">Déconnexion</div>

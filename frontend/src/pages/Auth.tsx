@@ -43,7 +43,8 @@ export function Login() {
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.post('/auth/login', { phone, password });
+      const normalizedPhone=/^\d{8}$/.test(phone.replace(/\s/g,''))?`+228${phone.replace(/\s/g,'')}`:phone.replace(/\s/g,'');
+      const { data } = await api.post('/auth/login', { phone:normalizedPhone, password });
       localStorage.setItem('lotisec_token', data.token);
       localStorage.setItem('lotisec_user', JSON.stringify(data.user));
       await configureRealtime();
@@ -107,8 +108,9 @@ export function Register() {
     setLoading(true);
     setError('');
     try {
+      const normalizedPhone=/^\d{8}$/.test(phone.replace(/\s/g,''))?`+228${phone.replace(/\s/g,'')}`:phone.replace(/\s/g,'');
       const { data } = await api.post('/auth/register', {
-        phone, password, account_type: accountType,
+        phone:normalizedPhone, password, account_type: accountType,
         ...(accountType === 'zem_driver' ? { zem_application: {
           identity_document: identityDocument, license_number: licenseNumber, motorcycle_make: motorcycleMake,
           plate, work_zone: workZone

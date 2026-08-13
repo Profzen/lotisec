@@ -471,7 +471,7 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* MODALS */}
       <Modal visible={panelVisible} animationType="slide">
-        <ProfilePanel isDark={isDark} onClose={() => setPanelVisible(false)} onToggleTheme={(val) => setIsDark(val)} />
+        <ProfilePanel isDark={isDark} onClose={() => setPanelVisible(false)} onToggleTheme={(val) => setIsDark(val)} onOpenProfile={()=>{setPanelVisible(false);navigation.navigate('CitizenProfile' as any);}} />
       </Modal>
 
       <Modal visible={qrModalVisible} transparent animationType="fade">

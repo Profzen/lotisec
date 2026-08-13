@@ -301,6 +301,7 @@ const state = {
   auditLogs: [],
   apiActivityLogs: [],
   responders: [],
+  fieldResponders: [],
   accidentGeojson: { features: [] },
   accidentStats: null,
   organizationMembers: [],
@@ -555,9 +556,8 @@ async function handleDetailAction(id, action) {
     await updateIncidentStatus(incident, "validated");
     toast("Incident validé", "Fog recommande Secours Abalo, à 2,4 km.");
   } else if (action === "assign") {
-    const availableUnit = ambulances.find((item) => item.status === "Disponible");
-    if (availableUnit) await assignMission(incident.id, availableUnit.id);
-    else toast("Aucune unité disponible", "Ouvrez le module Ambulances pour consulter les ressources.");
+    switchModule("Ambulances");
+    toast("Affectation nominative", "Choisissez une unité disponible puis le secouriste responsable de la mission.");
   } else {
     switchModule("Interventions");
     toast("Suivi opérationnel", "La mission synchronisée est affichée.");
@@ -572,7 +572,7 @@ async function updateIncidentStatus(incident, status) {
   catch (error) { toast("Synchronisation refusée", error.message); }
 }
 
-async function assignMission(incidentId, ambulanceId) {
+async function assignMission(incidentId, ambulanceId, assignedTo) {
   const incident = state.incidents.find((item) => item.id === incidentId);
   const ambulance = ambulances.find((item) => item.id === ambulanceId);
   if (!incident || !ambulance) { toast("Affectation impossible", "Incident ou unité introuvable."); return false; }
@@ -582,8 +582,9 @@ async function assignMission(incidentId, ambulanceId) {
   if (!demoMode) {
     if (!ambulance.organizationId) { toast("Affectation impossible", "L'ambulance n'est rattachée à aucune organisation."); return false; }
     try {
+      if (!assignedTo) { toast("Secouriste requis", "Choisissez l'agent terrain qui recevra cette mission sur son application."); return false; }
       const result = await apiFetch(`/api/v1/incidents/${incidentId}/assignments`, { method:"POST", body:JSON.stringify({
-        organization_id: ambulance.organizationId, response_unit_id: ambulance.id
+        organization_id: ambulance.organizationId, response_unit_id: ambulance.id, assigned_to: assignedTo
       }) });
       intervention = result.intervention;
     } catch (error) { toast("Affectation refusée", error.message); return false; }
@@ -591,7 +592,7 @@ async function assignMission(incidentId, ambulanceId) {
   incident.status = "assigned";
   state.mission = {
     interventionId: intervention?.id || `demo-${incidentId}-${ambulanceId}`,
-    incidentId, ambulanceId, hospitalId: null, progress: 1, phase: "assigned",
+    incidentId, ambulanceId, assignedTo: assignedTo || null, hospitalId: null, progress: 1, phase: "assigned",
     totalDistance: Math.max(Number(ambulance.distance || 0), distanceKm(ambulance.lat, ambulance.lng, incident.lat, incident.lng)), speed: 0, routeBlocked: false, follow: true, startedAt: Date.now()
   };
   ambulances.forEach((item) => { if (item.id === ambulanceId) item.status = "En mission"; });
@@ -794,6 +795,13 @@ async function loadOperationalData() {
       number:item.call_sign || item.registration || '—', crew:0, distance:0, eta:0,
       status:item.status === 'available' ? 'Disponible' : item.status === 'maintenance' ? 'Maintenance' : 'En mission',
       lat:Number(item.latitude || 0), lng:Number(item.longitude || 0) })));
+  }
+  if (canPermission('interventions:manage')) {
+    const organizationIds = [...new Set(ambulances.map((item) => item.organizationId).filter(Boolean))];
+    const teams = await Promise.all(organizationIds.map((organizationId) =>
+      apiFetch(`/api/v1/organizations/${organizationId}/responders`).catch(() => ({ responders:[] }))
+    ));
+    state.fieldResponders = teams.flatMap((result) => result.responders || []);
   }
   const active = state.interventions.find((item) => !['completed','cancelled'].includes(item.status));
   if (active) {
@@ -1090,6 +1098,10 @@ function renderDashboard() {
 }
 
 function renderAmbulances() {
+  const responderSelect = (item) => {
+    const responders = state.fieldResponders.filter((responder) => responder.organization_id === item.organizationId);
+    return `<label class="field-label">Secouriste responsable<select data-responder-for="${item.id}"><option value="">Choisir un agent terrain</option>${responders.map((responder) => `<option value="${responder.id}">${escapeHtml(`${responder.first_name || ''} ${responder.last_name || ''}`.trim() || responder.phone)} · ${responder.role === 'firefighter' ? 'Pompier' : 'Ambulancier'}</option>`).join('')}</select></label>`;
+  };
   if (!ambulances.length) return `${moduleTop(moduleHeader("Ressources", "Ambulances", "Unités accessibles selon votre organisation."))}<section class="module-card"><p>Aucune unité de réponse enregistrée.</p></section>`;
   return `
     ${moduleTop(moduleHeader("Flotte connectée", "Ambulances", "Disponibilité, coordonnées d'urgence, position GPS et affectation des moyens.",
@@ -1103,6 +1115,7 @@ function renderAmbulances() {
       <article class="resource-card">
         <header><span class="resource-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v5h-7V10z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M6 10v4M4 12h4"/></svg></span><div><small>${item.id}</small><h2>${escapeHtml(item.name)}</h2></div><em class="resource-status resource-status--${item.status === "Disponible" ? "ok" : item.status === "En mission" ? "busy" : "off"}">${item.status}</em></header>
         <div class="resource-facts"><span><small>Numéro d'urgence</small><strong>${item.number}</strong></span><span><small>Équipage</small><strong>${item.crew} pers.</strong></span><span><small>Distance estimée</small><strong>${item.distance} km</strong></span><span><small>ETA</small><strong>${item.eta} min</strong></span></div>
+        ${item.status === "Disponible" ? responderSelect(item) : ''}
         <div class="resource-actions"><button data-action="view-ambulance" data-id="${item.id}">Voir sur la carte</button><button ${item.status !== "Disponible" ? "disabled" : ""} data-action="assign-ambulance" data-id="${item.id}">Affecter</button></div>
       </article>`).join("")}</section>
     <section class="module-card"><header><div><small>RÉPONDANTS HISTORIQUES</small><h2>Responders synchronisés</h2></div></header><div class="compact-list">${state.responders.map((item)=>`<span><strong>${escapeHtml(item.name || item.nom || item.id)}</strong><em>${item.disponible ? 'Disponible' : 'Indisponible'}${item.score != null ? ` · score ${item.score}` : ''}</em></span>`).join('') || '<p>Aucun responder historique.</p>'}</div></section>`;
@@ -1775,7 +1788,10 @@ elements.dynamicPage?.addEventListener("click", async (event) => {
   if (action === "assign-ambulance") {
     const incident = state.incidents.find((item) => item.status === "validated");
     if (!incident) toast("Aucun incident validé", "Ouvrez Incidents et validez le signalement à traiter avant l'affectation.");
-    else if (await assignMission(incident.id, button.dataset.id)) switchModule("Tableau de bord");
+    else {
+      const assignedTo = elements.dynamicPage.querySelector(`[data-responder-for="${button.dataset.id}"]`)?.value;
+      if (await assignMission(incident.id, button.dataset.id, assignedTo)) switchModule("Tableau de bord");
+    }
   }
   if (action === "hospital-details") openHospital(button.dataset.id);
   if (action === "add-bed") openHospitalCapacity(button.dataset.id);

@@ -457,6 +457,8 @@ dialog::backdrop { background: rgba(2,9,15,.78); backdrop-filter: blur(5px); }
 .resource-actions button, .settings-card > button { min-height: 39px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; color: #77b7ff; background: var(--panel-2); font-size: .61rem; font-weight: 750; }
 .resource-actions button:hover, .settings-card > button:hover { border-color: var(--blue); }
 .resource-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.field-label { display: grid; gap: 7px; padding: 13px 16px 0; color: var(--muted); font-size: .62rem; font-weight: 750; }
+.field-label select { min-height: 41px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--panel-2); font: inherit; }
 .capacity { height: 5px; margin: 15px 17px 0; overflow: hidden; border-radius: 5px; background: rgba(140,168,185,.13); }
 .capacity span { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg,var(--green),var(--orange)); }
 

@@ -2,6 +2,17 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Mise à jour — alignement citoyen et affectation nominative terrain (2026-08-13)
+- Le bandeau d'accueil du portail citoyen utilise désormais le bleu nuit canonique `#071A2E`, identique aux en-têtes de l'application mobile. Le bleu vif reste réservé aux actions.
+- La navigation citoyenne web et mobile est harmonisée sur cinq entrées : Accueil, Hôpitaux, Conseils, Mon QR et Trajets. Le profil médical s'ouvre depuis l'avatar/tiroir de compte, et non depuis un sixième onglet.
+- Sur mobile, « Mon profil » ouvre l'écran complet des informations personnelles et médicales. Le panneau affiche l'identité et le téléphone de la session réelle, sans identité fictive codée en dur.
+- Les téléphones togolais sont normalisés côté web et backend : `99000001`, `22899000001` et `+22899000001` convergent vers `+22899000001`. Un compte utilisable sur mobile avec huit chiffres peut donc aussi se connecter sur le portail web.
+- L'affectation secours devient nominative : la console charge les pompiers et ambulanciers actifs de l'organisation de chaque unité, impose le choix du responsable terrain, puis transmet `assigned_to` avec l'unité.
+- Le backend vérifie dans la transaction que l'agent est actif, appartient à l'organisation ciblée et possède le rôle `firefighter` ou `ambulance_driver`. Une affectation croisée ou vers un compte non terrain est refusée.
+- L'agent désigné retrouve la mission dans l'écran mobile professionnel « Missions », reçoit la notification, peut l'accepter et faire avancer ses états tout en alimentant le suivi GPS. Les missions nominatives d'un collègue ne sont plus exposées; les anciennes missions non nominatives restent visibles dans l'organisation.
+- Les superviseurs disposent de `organization:members` dans leur propre organisation. L'administration globale conserve le provisioning complet des comptes et rôles.
+- Vérifications : backend compilé et 33/33 tests réussis; portail web compilé; TypeScript Expo sans erreur; syntaxe JavaScript de la console valide. L'avertissement Vite sur la taille du bundle reste non bloquant.
+
 Statut de référence: **2026-07-31**. Les sections antérieures sont conservées comme historique; la mise à jour opérationnelle finale et `docs/OPERATIONAL_PLATFORM.md` font foi en cas de contradiction.
 
 ## 1. Contexte produit et périmètre

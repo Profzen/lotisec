@@ -247,6 +247,16 @@ router.get('/organizations/:id/members',requireAuth,async(req:AuthRequest,res)=>
   return res.json({members:result.rows});
 });
 
+router.get('/organizations/:id/responders',requireAuth,async(req:AuthRequest,res)=>{
+  const allowed=req.permissions?.includes('*')||req.permissions?.includes('interventions:manage')||(req.permissions?.includes('interventions:assigned')&&req.organizationId===req.params.id);
+  if(!allowed)return res.status(403).json({detail:'Organisation interdite'});
+  const result=await query<any>(`SELECT DISTINCT u.id,u.phone,p.first_name,p.last_name,ur.role_key role,om.organization_id
+    FROM organization_members om JOIN users u ON u.id=om.user_id JOIN user_roles ur ON ur.user_id=u.id AND ur.organization_id=om.organization_id
+    LEFT JOIN profiles p ON p.user_id=u.id WHERE om.organization_id=$1 AND om.status='active' AND u.active=true
+    AND ur.role_key IN ('firefighter','ambulance_driver') ORDER BY p.last_name,p.first_name,u.phone`,[req.params.id]);
+  return res.json({responders:result.rows});
+});
+
 router.post('/organizations/:id/agents',requireAuth,async(req:AuthRequest,res)=>{
   const allowed=req.permissions?.includes('*')||(req.permissions?.includes('organization:members')&&req.organizationId===req.params.id);
   if(!allowed)return res.status(403).json({detail:'Organisation interdite'});
@@ -300,7 +310,7 @@ router.get('/interventions', requireAuth, async (req: AuthRequest, res) => {
   const assigned=req.permissions?.includes('interventions:assigned');
   if (!global && !assigned) return res.status(403).json({detail:'Permission insuffisante'});
   const result=global ? await query<any>(`SELECT i.*, row_to_json(inc) incident FROM interventions i JOIN incidents inc ON inc.id=i.incident_id ORDER BY i.updated_at DESC LIMIT 200`)
-    : await query<any>(`SELECT i.*, row_to_json(inc) incident FROM interventions i JOIN incidents inc ON inc.id=i.incident_id WHERE i.assigned_to=$1 OR i.organization_id=$2 ORDER BY i.updated_at DESC LIMIT 100`,[req.userId,req.organizationId]);
+    : await query<any>(`SELECT i.*, row_to_json(inc) incident FROM interventions i JOIN incidents inc ON inc.id=i.incident_id WHERE i.assigned_to=$1 OR (i.assigned_to IS NULL AND i.organization_id=$2) ORDER BY i.updated_at DESC LIMIT 100`,[req.userId,req.organizationId]);
   return res.json({interventions:result.rows});
 });
 
@@ -327,7 +337,7 @@ router.patch('/resources/:id/location',requireAuth,async(req:AuthRequest,res)=>{
 });
 
 router.post('/incidents/:id/assignments', requireAuth, requirePermission('interventions:manage'), async (req: AuthRequest,res)=>{
-  const parsed=z.object({organization_id:z.string().uuid(),response_unit_id:z.string().uuid().optional(),assigned_to:z.string().optional()}).safeParse(req.body);
+  const parsed=z.object({organization_id:z.string().uuid(),response_unit_id:z.string().uuid().optional(),assigned_to:z.string().uuid().optional()}).safeParse(req.body);
   if(!parsed.success)return res.status(400).json({detail:'Affectation invalide'});
   if(!pool)return res.status(503).json({detail:'Base de données indisponible'});
   const d=parsed.data;
@@ -343,6 +353,10 @@ router.post('/incidents/:id/assignments', requireAuth, requirePermission('interv
       const unit=await client.query<any>('SELECT organization_id,status FROM response_units WHERE id=$1 FOR UPDATE',[d.response_unit_id]);
       if(!unit.rows[0]||unit.rows[0].organization_id!==d.organization_id){await client.query('ROLLBACK');return res.status(400).json({detail:'Unité incompatible avec l’organisation'});}
       if(unit.rows[0].status!=='available'){await client.query('ROLLBACK');return res.status(409).json({detail:'Unité indisponible'});}
+    }
+    if(d.assigned_to){
+      const responder=await client.query<any>(`SELECT ur.role_key FROM organization_members om JOIN users u ON u.id=om.user_id JOIN user_roles ur ON ur.user_id=u.id AND ur.organization_id=om.organization_id WHERE om.organization_id=$1 AND om.user_id=$2 AND om.status='active' AND u.active=true AND ur.role_key IN ('firefighter','ambulance_driver') LIMIT 1 FOR UPDATE OF om`,[d.organization_id,d.assigned_to]);
+      if(!responder.rows[0]){await client.query('ROLLBACK');return res.status(400).json({detail:'Secouriste absent, inactif ou non autorisé dans cette organisation'});}
     }
     const result=await client.query<any>(`INSERT INTO interventions (incident_id,organization_id,response_unit_id,assigned_to,status) VALUES ($1,$2,$3,$4,'assigned') RETURNING *`,[req.params.id,d.organization_id,d.response_unit_id||null,d.assigned_to||null]);
     await client.query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`,[req.params.id]);
