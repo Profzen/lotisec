@@ -2,6 +2,14 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Mise à jour — cartes Zem sans clé Google et comptes de recette complets (2026-08-14)
+- Cause racine du fond gris mobile identifiée : `app.json` embarquait une fausse clé Google Maps. L'adaptateur natif ne repose plus sur Google Maps; il affiche Leaflet et Carto Voyager dans une WebView, avec clic de destination, marqueurs, tracés, recentrage et ajustement des limites.
+- Le portail web Zem utilise Carto Voyager et bascule automatiquement sur OpenStreetMap après trois erreurs de tuiles. Le conteneur Leaflet dispose d'une hauteur minimale et d'un fond de chargement explicites.
+- `react-native-webview` a été ajouté avec la version compatible Expo SDK 54. La fausse clé Google a été supprimée de la configuration Android.
+- Le seeder de recette couvre désormais deux comptes pour chacun des neuf rôles RBAC : citoyen, conducteur Zem, pompier, ambulancier, administrateur, superviseur, répartiteur, responsable hospitalier et agent hospitalier.
+- Les 18 comptes ont été créés/régénérés dans la base configurée et chacun a été authentifié avec succès contre l'API publique; les rôles renvoyés correspondent au seeder.
+- Vérifications : TypeScript mobile sans erreur, build Vite/PWA réussi et 33/33 tests backend réussis.
+
 ## Mise à jour — alignement citoyen et affectation nominative terrain (2026-08-13)
 - Le bandeau d'accueil du portail citoyen utilise désormais le bleu nuit canonique `#071A2E`, identique aux en-têtes de l'application mobile. Le bleu vif reste réservé aux actions.
 - La navigation citoyenne web et mobile est harmonisée sur cinq entrées : Accueil, Hôpitaux, Conseils, Mon QR et Trajets. Le profil médical s'ouvre depuis l'avatar/tiroir de compte, et non depuis un sixième onglet.

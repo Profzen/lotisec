@@ -9,6 +9,19 @@ import { getRoute, RouteData } from '../utils/osrm';
 import { api } from '../api/client';
 import { supabase } from '../api/supabase';
 
+const TILE_SOURCES = [
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+];
+
+function ReliableTiles() {
+  const [source, setSource] = useState(0);
+  const failures = useRef(0);
+  return <TileLayer key={source} url={TILE_SOURCES[source]} subdomains={source === 0 ? 'abcd' : 'abc'} maxZoom={19}
+    attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+    eventHandlers={{tileerror: () => { failures.current += 1; if (failures.current >= 3 && source < TILE_SOURCES.length - 1) setSource(source + 1); }}} />;
+}
+
 // Fix Leaflet icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -327,10 +340,7 @@ export function MapZem() {
         style={{ height: '100%', width: '100%', zIndex: 0 }}
         zoomControl={false}
       >
-        <TileLayer
-          url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        />
+        <ReliableTiles />
         <MapController destination={destination} onMapClick={handleMapClick} />
         
         {/* Origin Location */}

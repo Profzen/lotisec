@@ -453,9 +453,12 @@ p { margin-bottom: 1rem; line-height: 1.5; color: var(--color-text-secondary); }
 /* Map Screen Specifics */
 .map-container {
   height: 100vh;
+  min-height: 520px;
   width: 100%;
   position: relative;
+  background: #EAF1F7;
 }
+.map-container > .leaflet-container { height: 100% !important; width: 100% !important; background: #EAF1F7; }
 
 .map-search-overlay {
   position: absolute;

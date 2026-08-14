@@ -3,13 +3,29 @@ const bcrypt=require('bcryptjs');
 const {randomUUID}=require('crypto');
 require('dotenv').config();
 
+const fireOrg={name:'Caserne LOTISEC Recette',type:'fire_station',code:'LOTISEC-FIRE-RECETTE'};
+const ambulanceOrg={name:'Ambulances LOTISEC Recette',type:'ambulance_service',code:'LOTISEC-AMB-RECETTE'};
+const hqOrg={name:'Administration LOTISEC',type:'lotisec',code:'LOTISEC-HQ'};
+const hospitalOrg={name:'CHU Sylvanus Olympio',type:'hospital',code:'CHU-SO'};
 const accounts=[
-  {key:'citizen',phone:'+22800001001',legacyPhone:'00001001',role:'citizen',first:'Afi',last:'Citoyenne'},
-  {key:'zem',phone:'+22800001002',legacyPhone:'00001002',role:'zem_driver',first:'Kossi',last:'Zem'},
-  {key:'firefighter',phone:'+22800001003',legacyPhone:'00001003',role:'firefighter',first:'Yao',last:'Pompier',org:{name:'Caserne LOTISEC Recette',type:'fire_station',code:'LOTISEC-FIRE-RECETTE'}},
-  {key:'ambulance',phone:'+22800001004',legacyPhone:'00001004',role:'ambulance_driver',first:'Ama',last:'Ambulancière',org:{name:'Ambulances LOTISEC Recette',type:'ambulance_service',code:'LOTISEC-AMB-RECETTE'}},
-  {key:'admin',phone:'+22800001005',legacyPhone:'00001005',role:'admin',first:'Admin',last:'Recette',org:{name:'Administration LOTISEC',type:'lotisec',code:'LOTISEC-HQ'}},
-  {key:'hospital',phone:'+22800001006',legacyPhone:'00001006',role:'hospital_manager',first:'Kossi',last:'Gestionnaire',org:{name:'CHU Sylvanus Olympio',type:'hospital',code:'CHU-SO'}}
+  {key:'citizen-1',phone:'+22800001001',legacyPhone:'00001001',role:'citizen',first:'Afi',last:'Citoyenne'},
+  {key:'citizen-2',phone:'+22800002001',legacyPhone:'00002001',role:'citizen',first:'Komi',last:'Citoyen'},
+  {key:'zem-1',phone:'+22800001002',legacyPhone:'00001002',role:'zem_driver',first:'Kossi',last:'Zem'},
+  {key:'zem-2',phone:'+22800002002',legacyPhone:'00002002',role:'zem_driver',first:'Kodjo',last:'Zem'},
+  {key:'firefighter-1',phone:'+22800001003',legacyPhone:'00001003',role:'firefighter',first:'Yao',last:'Pompier',org:fireOrg},
+  {key:'firefighter-2',phone:'+22800002003',legacyPhone:'00002003',role:'firefighter',first:'Essi',last:'Pompier',org:fireOrg},
+  {key:'ambulance-1',phone:'+22800001004',legacyPhone:'00001004',role:'ambulance_driver',first:'Ama',last:'Ambulancière',org:ambulanceOrg},
+  {key:'ambulance-2',phone:'+22800002004',legacyPhone:'00002004',role:'ambulance_driver',first:'Koffi',last:'Ambulancier',org:ambulanceOrg},
+  {key:'admin-1',phone:'+22800001005',legacyPhone:'00001005',role:'admin',first:'Admin',last:'Recette Un',org:hqOrg},
+  {key:'admin-2',phone:'+22800002005',legacyPhone:'00002005',role:'admin',first:'Admin',last:'Recette Deux',org:hqOrg},
+  {key:'hospital-manager-1',phone:'+22800001006',legacyPhone:'00001006',role:'hospital_manager',first:'Kossi',last:'Gestionnaire',org:hospitalOrg},
+  {key:'hospital-manager-2',phone:'+22800002006',legacyPhone:'00002006',role:'hospital_manager',first:'Akou',last:'Gestionnaire',org:hospitalOrg},
+  {key:'supervisor-1',phone:'+22800001007',legacyPhone:'00001007',role:'supervisor',first:'Mawuli',last:'Superviseur',org:hqOrg},
+  {key:'supervisor-2',phone:'+22800002007',legacyPhone:'00002007',role:'supervisor',first:'Dédé',last:'Superviseure',org:hqOrg},
+  {key:'dispatcher-1',phone:'+22800001008',legacyPhone:'00001008',role:'dispatcher',first:'Kossi',last:'Répartiteur',org:hqOrg},
+  {key:'dispatcher-2',phone:'+22800002008',legacyPhone:'00002008',role:'dispatcher',first:'Afi',last:'Répartitrice',org:hqOrg},
+  {key:'hospital-agent-1',phone:'+22800001009',legacyPhone:'00001009',role:'hospital_agent',first:'Sena',last:'Agent CHU',org:hospitalOrg},
+  {key:'hospital-agent-2',phone:'+22800002009',legacyPhone:'00002009',role:'hospital_agent',first:'Elom',last:'Agent CHU',org:hospitalOrg}
 ];
 
 const ACCEPTANCE_PASSWORD='Ls!Pass2026!';

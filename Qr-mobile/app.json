@@ -30,11 +30,6 @@
         "backgroundColor": "#071A2E"
       },
       "package": "com.lotisec.togo",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSy_FAKE_KEY_FOR_OPENSTREETMAP_BYPASS"
-        }
-      },
       "splash": {
         "image": "./assets/logo-118.png",
         "resizeMode": "contain",
