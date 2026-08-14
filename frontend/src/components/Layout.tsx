@@ -1,6 +1,6 @@
 import React, {useEffect} from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Asterisk, Lightbulb, QrCode, Map as MapIcon } from 'lucide-react';
+import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Home, Asterisk, Lightbulb, QrCode, Map as MapIcon, Bot } from 'lucide-react';
 import {configureRealtime} from '../api/session';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -61,6 +61,9 @@ export function Layout() {
               </NavLink>
             ))}
           </nav>
+          <Link to="/assistant" className="ai-floating-avatar" aria-label="Ouvrir l’assistant IA LOTISEC" title="Assistant IA">
+            <Bot size={27} strokeWidth={1.9}/><span>IA</span>
+          </Link>
         </div>
       </main>
     </div>

@@ -2,6 +2,11 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Mise à jour — accès flottant à l'assistant IA (2026-08-14)
+- L'espace citoyen web et mobile conserve cinq onglets lisibles. Un avatar IA circulaire bleu nuit flotte juste au-dessus de l'onglet Trajets et ouvre directement l'assistant texte/vocal.
+- Le bouton possède un libellé d'accessibilité, un badge IA, une zone tactile de 58 px et un contraste blanc/bleu nuit. Sur le web desktop, il reste accessible en bas à droite; il est absent des interfaces professionnelles terrain et hospitalières.
+- Vérifications : build Vite/PWA réussi et contrôle TypeScript Expo sans erreur.
+
 ## Mise à jour — cartes Zem sans clé Google et comptes de recette complets (2026-08-14)
 - Cause racine du fond gris mobile identifiée : `app.json` embarquait une fausse clé Google Maps. L'adaptateur natif ne repose plus sur Google Maps; il affiche Leaflet et Carto Voyager dans une WebView, avec clic de destination, marqueurs, tracés, recentrage et ajustement des limites.
 - Le portail web Zem utilise Carto Voyager et bascule automatiquement sur OpenStreetMap après trois erreurs de tuiles. Le conteneur Leaflet dispose d'une hauteur minimale et d'un fond de chargement explicites.

@@ -3,7 +3,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { colors, shadows } from '../theme/colors';
 import { fonts } from '../theme/typography';
 
@@ -65,6 +65,7 @@ function TabNavigator() {
   const terrain=roles.some(role=>['admin','supervisor','dispatcher','firefighter','ambulance_driver'].includes(role));
   const hospital=roles.some(role=>['hospital_manager','hospital_agent'].includes(role));
   return (
+    <View style={{flex:1}}>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -129,6 +130,8 @@ function TabNavigator() {
       />
       </>}
     </Tab.Navigator>
+    {!terrain&&!hospital&&<TouchableOpacity accessibilityRole="button" accessibilityLabel="Ouvrir l'assistant IA LOTISEC" activeOpacity={.86} onPress={()=>navigationRef.navigate('Assistant')} style={{position:'absolute',right:15,bottom:Platform.OS==='ios'?98:80,width:58,height:58,borderRadius:29,backgroundColor:colors.primaryDark,borderWidth:2,borderColor:colors.white,alignItems:'center',justifyContent:'center',...shadows.floating}}><Ionicons name="chatbubble-ellipses-outline" size={27} color={colors.white}/><View style={{position:'absolute',right:-2,bottom:-2,minWidth:22,height:22,paddingHorizontal:4,borderRadius:11,backgroundColor:colors.primary,borderWidth:2,borderColor:colors.white,alignItems:'center',justifyContent:'center'}}><Text style={{fontFamily:fonts.bold,fontSize:9,color:colors.white}}>IA</Text></View></TouchableOpacity>}
+    </View>
   );
 }
 
