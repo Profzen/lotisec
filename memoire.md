@@ -2,6 +2,14 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Mise à jour — header Conseils et APK GitHub autonome (2026-08-14)
+- L'en-tête de l'écran mobile « Conseils de sécurité » et sa barre d'état utilisent désormais le bleu nuit canonique `#071A2E` (`colors.primaryDark`). Le bleu `#1565D8` reste réservé aux filtres actifs et aux actions.
+- Un pipeline GitHub Actions `.github/workflows/android-apk.yml` construit un APK Android installable à chaque `push` et à la demande (`workflow_dispatch`). Il ne consomme aucun quota EAS : le runner effectue localement le prebuild Expo puis `assembleDebug` avec Gradle.
+- L'APK est publié comme artifact `LOTISEC-Android-<commit>` dans la page de l'exécution GitHub Actions, avec une conservation de 30 jours. Le téléchargement nécessite d'ouvrir l'exécution terminée puis la section « Artifacts ».
+- Les variables publiques du build mobile sont reprises du profil `preview` de `Qr-mobile/eas.json`. Aucun secret DeepInfra n'est inclus dans l'APK; la clé reste uniquement sur FastAPI Cloud.
+- Ce pipeline produit un APK de recette signé avec la clé debug générée par Android. Pour une publication Play Store, il faudra ajouter un keystore de production chiffré dans les secrets GitHub et générer un AAB signé.
+- Vérifications locales avant publication : contrôle TypeScript Expo sans erreur, configuration publique Expo résolue correctement et `git diff --check` sans anomalie.
+
 ## État de référence prioritaire — 2026-08-14
 Cette section remplace les affirmations historiques contradictoires conservées plus bas. Railway n'est plus le fournisseur IA actif, les cartes mobiles ne reposent plus sur Google Maps et la recette comprend désormais 18 comptes.
 

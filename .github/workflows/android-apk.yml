@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Generate installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Qr-mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Qr-mobile/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install mobile dependencies
+        run: npm ci
+
+      - name: Load preview public configuration
+        shell: bash
+        run: |
+          node -e "const env=require('./eas.json').build.preview.env; for (const [key,value] of Object.entries(env)) console.log(key+'='+value)" >> "$GITHUB_ENV"
+
+      - name: Generate Android native project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Prepare downloadable APK
+        shell: bash
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "LOTISEC-${GITHUB_SHA:0:7}.apk"
+
+      - name: Upload APK to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: LOTISEC-Android-${{ github.sha }}
+          path: Qr-mobile/LOTISEC-*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

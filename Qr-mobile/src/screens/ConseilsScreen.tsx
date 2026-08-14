@@ -371,7 +371,7 @@ export default function ConseilsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
 
       {/* ── HEADER FIXE — reste en haut au défilement ── */}
       <View style={styles.header}>
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
 
   // ── Header fixe ──
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryDark,
   },
   flagBar:   { flexDirection: 'row', height: 3 },
   flagStripe:{ flex: 1 },
