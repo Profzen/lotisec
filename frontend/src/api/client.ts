@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-export const API_URL = (import.meta.env.VITE_API_URL || 'https://lotisec-backend.vercel.app').replace(/\/$/, '');
+const BACKEND_FALLBACK = 'https://lotisec-backend.vercel.app';
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
+// FastAPI Cloud ne sert que l'assistant IA. Une variable Vercel mal renseignée
+// ne doit jamais détourner l'authentification et les données métier vers /chat.
+export const API_URL = configuredApiUrl && !configuredApiUrl.includes('fastapicloud.dev')
+  ? configuredApiUrl
+  : BACKEND_FALLBACK;
 
 export const api = axios.create({
   baseURL: API_URL,
