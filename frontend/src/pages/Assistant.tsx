@@ -8,11 +8,11 @@ type ChatMessage = {
   content: string;
 };
 
-// Railway reste le fournisseur actif temporaire. VITE_AI_API_URL permet une
-// future bascule vers le backend Node sans nouvelle livraison du frontend.
+// FastAPI Cloud héberge le service canonique texte et voix. La variable permet
+// de changer d'environnement sans nouvelle modification du code.
 const AI_API_URL = (
   import.meta.env.VITE_AI_API_URL ||
-  'https://agile-trust-production-c862.up.railway.app'
+  'https://lotisec-ai.fastapicloud.dev'
 ).replace(/\/$/, '');
 
 export function Assistant() {

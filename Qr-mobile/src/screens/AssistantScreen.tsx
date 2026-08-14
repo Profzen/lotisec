@@ -15,11 +15,11 @@ type ChatMessage = {
   content: string;
 };
 
-// Railway reste le fournisseur actif temporaire. La variable permettra de
-// rebasculer vers `${EXPO_PUBLIC_API_URL}/ai` sans modifier l'écran.
+// FastAPI Cloud héberge le service canonique texte et voix. La variable permet
+// de changer d'environnement sans nouvelle modification du code.
 const AI_API_URL = (
   process.env.EXPO_PUBLIC_AI_API_URL ||
-  'https://agile-trust-production-c862.up.railway.app'
+  'https://lotisec-ai.fastapicloud.dev'
 ).replace(/\/$/, '');
 
 export default function AssistantScreen({ navigation }: any) {

@@ -1,0 +1,23 @@
+[project]
+name = "lotisec-ai"
+version = "2.0.0"
+description = "Service IA texte et voix de LOTISEC"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi[standard]>=0.115,<1",
+  "python-multipart>=0.0.20,<1",
+  "requests>=2.32,<3",
+  "SpeechRecognition>=3.14,<4",
+  "gTTS>=2.5,<3",
+  "pydantic>=2.10,<3",
+]
+
+[tool.fastapi]
+entrypoint = "appp:app"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["appp"]
