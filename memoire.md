@@ -2,6 +2,56 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## État de référence prioritaire — 2026-08-14
+Cette section remplace les affirmations historiques contradictoires conservées plus bas. Railway n'est plus le fournisseur IA actif, les cartes mobiles ne reposent plus sur Google Maps et la recette comprend désormais 18 comptes.
+
+### Assistant IA actif
+- Service canonique : `appp.py`, FastAPI 2.0, déployé sur FastAPI Cloud à `https://lotisec-ai.fastapicloud.dev`.
+- Déploiement configuré par le `pyproject.toml` racine : point d'entrée `appp:app`, Python `>=3.11,<3.14`, dépendances chat, multipart, transcription et synthèse vocale.
+- `GET /health` a été vérifié en production : `status=ok`, `chat_ready=true`, transcription `deepinfra_or_wav_fallback`, TTS `gtts`.
+- `POST /chat` a été testé avec le champ canonique `question` et a retourné une réponse DeepInfra réelle. Le contrat consommé par les clients reste `/chat`, `/transcribe` et `/tts`.
+- `DEEPINFRA_API_KEY` existe uniquement comme secret FastAPI Cloud. Ne jamais la mettre dans Vercel frontend, EAS, Git ou ce document. Toute clé précédemment exposée doit rester révoquée.
+- Variables publiques : `VITE_AI_API_URL=https://lotisec-ai.fastapicloud.dev` sur le projet Vercel frontend et `EXPO_PUBLIC_AI_API_URL=https://lotisec-ai.fastapicloud.dev` dans les profils EAS.
+- Variables backend citoyen à ne pas confondre : `VITE_API_URL=https://lotisec-backend.vercel.app`. Le client web refuse défensivement un domaine `fastapicloud.dev` comme backend d'authentification et revient au backend LOTISEC.
+- Backend Vercel et console : aucune variable FastAPI Cloud supplémentaire. L'intégration IA Node `/api/v1/ai` reste conservée mais n'est pas le chemin actif des clients.
+- L'avatar IA flottant de 58 px, bleu nuit, avec badge `IA`, apparaît sur tous les écrans principaux citoyens web/mobile et ouvre l'assistant texte/vocal. Il ne crée pas de sixième onglet et n'est pas affiché dans les espaces professionnels.
+
+### Navigation, responsive et charte actuelle
+- Navigation citoyenne web/mobile : Accueil, Hôpitaux, Conseils, Mon QR, Trajets. Le profil médical s'ouvre depuis l'avatar utilisateur.
+- Bleu nuit canonique des grands bandeaux : `#071A2E`; bleu action : `#1565D8`. Le profil web est fluide à partir de 320 px et le profil mobile possède le même bandeau sombre.
+- Si six onglets ou un grand fond bleu ciel réapparaissent, le navigateur sert un ancien bundle/PWA : vérifier le commit Vercel, le Root Directory `frontend`, puis forcer la mise à jour du service worker/cache.
+
+### Cartographie Zem actuelle
+- Cause du fond gris Android : fausse clé Google Maps anciennement embarquée dans `app.json`. Cette clé a été supprimée.
+- Mobile : `PlatformMap.native.tsx` utilise désormais Leaflet/Carto Voyager dans `react-native-webview`, sans Google Maps ni clé Google. Clic de destination, marqueurs, itinéraire, recentrage et ajustement des limites sont conservés.
+- Web : Carto Voyager est la source principale et OpenStreetMap le repli automatique après trois erreurs de tuiles. Le conteneur possède une hauteur minimale explicite.
+- Le flux destination conserve Nominatim pour la recherche/reverse geocoding et OSRM pour l'itinéraire, la distance et l'estimation tarifaire.
+
+### Comptes de recette réellement provisionnés
+- Mot de passe uniforme de recette : `Ls!Pass2026!`. Ces comptes sont réservés à la démonstration et doivent être désactivés ou renouvelés avant exploitation réelle.
+- Citoyens : `+22800001001`, `+22800002001`.
+- Conducteurs Zem approuvés (avec rôle citoyen cumulé) : `+22800001002`, `+22800002002`.
+- Pompiers : `+22800001003`, `+22800002003`.
+- Ambulanciers : `+22800001004`, `+22800002004`.
+- Administrateurs : `+22800001005`, `+22800002005`.
+- Responsables hospitaliers : `+22800001006`, `+22800002006`.
+- Superviseurs : `+22800001007`, `+22800002007`.
+- Répartiteurs/dispatchers : `+22800001008`, `+22800002008`.
+- Agents hospitaliers : `+22800001009`, `+22800002009`.
+- Les 18 comptes ont été régénérés dans la base configurée et testés un par un contre `https://lotisec-backend.vercel.app/auth/login`; chaque connexion a retourné le rôle attendu.
+- Citoyen/Zem : portail citoyen et mobile. Pompier/ambulancier : console et mobile Missions. Hôpital : console et espace mobile professionnel. Admin/superviseur/dispatcher : console prioritaire; pas de supervision mobile complète.
+
+### Publication et builds récents
+- `4693c20` : migration des clients vers FastAPI Cloud et ajout du `pyproject.toml`.
+- `a7cb0a5` : URL FastAPI Cloud explicite dans les profils EAS.
+- `bd4ed66` : cartes Zem sans Google Maps et deux comptes par rôle.
+- `4f3cd02` : séparation défensive URL backend/URL IA pour l'authentification web.
+- `a26d861` : profil responsive et bandeaux bleu nuit web/mobile.
+- `5a39b11` : avatar IA flottant web/mobile.
+- Build APK `535a5d20-6a20-4f83-b024-fcfde441561a` terminé sur `bd4ed66`, carte Zem corrigée : `https://expo.dev/accounts/profzen/projects/lotisec/builds/535a5d20-6a20-4f83-b024-fcfde441561a`.
+- Build APK de référence courant `3d6ade08-291d-43d7-b4c1-99ee0a070458`, basé sur `5a39b11`, état observé `IN_PROGRESS` le 2026-08-14 : `https://expo.dev/accounts/profzen/projects/lotisec/builds/3d6ade08-291d-43d7-b4c1-99ee0a070458`. La même page fournira l'APK à `FINISHED`.
+- Vérifications du dernier code : build Vite/PWA réussi, TypeScript Expo sans erreur et 33/33 tests backend réussis. L'avertissement de taille du bundle Vite reste non bloquant.
+
 ## Mise à jour — accès flottant à l'assistant IA (2026-08-14)
 - L'espace citoyen web et mobile conserve cinq onglets lisibles. Un avatar IA circulaire bleu nuit flotte juste au-dessus de l'onglet Trajets et ouvre directement l'assistant texte/vocal.
 - Le bouton possède un libellé d'accessibilité, un badge IA, une zone tactile de 58 px et un contraste blanc/bleu nuit. Sur le web desktop, il reste accessible en bas à droite; il est absent des interfaces professionnelles terrain et hospitalières.
@@ -26,7 +76,7 @@ Document de reprise opérationnelle. Ce fichier centralise l'état réel du proj
 - Les superviseurs disposent de `organization:members` dans leur propre organisation. L'administration globale conserve le provisioning complet des comptes et rôles.
 - Vérifications : backend compilé et 33/33 tests réussis; portail web compilé; TypeScript Expo sans erreur; syntaxe JavaScript de la console valide. L'avertissement Vite sur la taille du bundle reste non bloquant.
 
-Statut de référence: **2026-07-31**. Les sections antérieures sont conservées comme historique; la mise à jour opérationnelle finale et `docs/OPERATIONAL_PLATFORM.md` font foi en cas de contradiction.
+Statut de référence: **2026-08-14**. Les sections antérieures sont conservées comme historique; la section « État de référence prioritaire » ci-dessus et `docs/OPERATIONAL_PLATFORM.md` font foi en cas de contradiction.
 
 ## 1. Contexte produit et périmètre
 - Produit: LOTISEC (Anciennement SafeLife). Mission: localisation, transmission, identification, sécurité, cartographie.
@@ -51,7 +101,7 @@ Statut de référence: **2026-07-31**. Les sections antérieures sont conservée
 - Frontend web citoyen (React + Vite) déployable séparément.
 - Mobile Expo consommant les APIs backend Node via variable d'environnement.
 - Temps réel mobile: **Supabase Realtime** (contournement des limitations WebSocket Vercel Serverless).
-- Cartographie mobile: **react-native-maps** + tuiles OpenStreetMap (gratuit, sans clé Google Maps).
+- Cartographie mobile actuelle : **Leaflet + Carto Voyager dans `react-native-webview`**, sans clé Google Maps; OpenStreetMap sert de repli web.
 - Routage/tarification: **OSRM** (API publique `router.project-osrm.org`).
 - Déploiement en 3 projets Vercel séparés:
   - projet frontend (root `frontend/`)
@@ -428,7 +478,7 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - Refonte des écrans Landing, connexion, choix de compte/inscription, accueil, navigation inférieure et harmonisation des écrans existants par tokens.
 - Les actions « Sapeurs-Pompiers » et « Service ambulancier » créent désormais un incident géolocalisé `requested_service` avant de proposer l’appel téléphonique.
 - Les organisations concernées reçoivent une notification ciblée; après affectation, leurs comptes voient la mission et le suivi GPS sur la console responsive, même avant la sélection d’un hôpital.
-- Cinq comptes de recette ont été provisionnés en base : citoyen, Zem approuvé, pompier, ambulancier et administrateur. Les mots de passe ne sont pas versionnés.
+- Historique : cinq comptes existaient à cette étape. L'état courant est de 18 comptes, deux pour chacun des neuf rôles, détaillés dans la section de référence du 2026-08-14.
 - Recette réelle réussie : cinq connexions, deux demandes de service, deux notifications ciblées, deux affectations, visibilité professionnelle, deux mises à jour GPS et refus console citoyen.
 - Déploiement `ec00fdd` vérifié sur `https://lotisec-delta.vercel.app/console` : la carte suit désormais l’unité vers l’incident avant toute sélection hospitalière.
 - Recette Vercel réussie : `requested_service=ambulance` accepté par le backend de production et notification ciblée reçue par le compte ambulancier.
@@ -686,10 +736,10 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 ## Mise à jour produit — 2026-08-10
 
 ### Finalisation comptes de recette, scan médical et cartes Zem
-- Les six comptes de recette couvrent citoyen, Zem, pompier, ambulancier, administrateur et gestionnaire du CHU Sylvanus Olympio; le script protégé par `ALLOW_ACCEPTANCE_ACCOUNT_RESET=true` utilise le mot de passe de recette uniforme documenté dans le code.
+- Historique : six comptes existaient à cette étape. Le seeder protégé par `ALLOW_ACCEPTANCE_ACCOUNT_RESET=true` couvre maintenant deux comptes pour chacun des neuf rôles RBAC.
 - Les codes institutionnels `POMP2626`, `AMBU1818`, `MEDC3737` et `POL1717`, ainsi que le PIN personnel, ouvrent `/scan/verify` en production. La réponse inclut taille, poids et coordonnées du médecin lorsqu'ils existent.
 - Les écrans de scan mobile et web proposent un champ PIN/code et affichent la fiche médicale enrichie. Le PDF QR mobile embarque désormais le QR en base64 sans dépendre d'un service QR externe.
-- Les cartes Zem natives utilisent CartoDB Voyager avec conservation du fond standard afin d'éviter l'écran gris sur Android/iOS.
+- Historique remplacé : la conservation du fond natif n'a pas suffi car une fausse clé Google Maps bloquait encore le rendu. L'adaptateur actuel utilise Leaflet/Carto dans une WebView, sans Google Maps.
 - Les accès rapides de la console utilisent un mode démonstration local explicite : aucun faux JWT n'est envoyé au backend, supprimant la boucle de retour vers la connexion. Les menus restent séparés entre supervision, secours et hôpital; les données réelles restent filtrées côté backend par permissions et organisation.
 - Validation locale : tests backend, TypeScript mobile, build frontend, syntaxe et build console réussis.
 
@@ -882,7 +932,7 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 #### Mobile, web et console
 - Produire un nouveau build EAS après toute modification de variable publique mobile; tester installation propre, mise à niveau, permissions GPS/microphone/notifications et cartes sur plusieurs versions Android.
 - Vérifier modes clair/sombre, contrastes, tailles de texte, états vide/chargement/erreur et navigation clavier/responsive de la console.
-- Tester les connexions rapides et les six comptes de recette contre la production sans boucle de login, puis vérifier la séparation exacte des menus et données.
+- Rejouer périodiquement les 18 connexions de recette contre la production sans boucle de login, puis vérifier la séparation exacte des menus et données pour les neuf rôles.
 - Recetter scan QR/PIN et codes institutionnels sur web/mobile, données médicales complètes et PDF QR hors dépendance externe.
 - Tester cartes CartoDB/OSM, GPS, itinéraires, suivi Zem et missions secours dans les conditions réseau réelles du Togo.
 
