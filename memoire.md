@@ -4,10 +4,11 @@ Document de reprise opérationnelle. Ce fichier centralise l'état réel du proj
 
 ## Mise à jour — header Conseils et APK GitHub autonome (2026-08-14)
 - L'en-tête de l'écran mobile « Conseils de sécurité » et sa barre d'état utilisent désormais le bleu nuit canonique `#071A2E` (`colors.primaryDark`). Le bleu `#1565D8` reste réservé aux filtres actifs et aux actions.
-- Un pipeline GitHub Actions `.github/workflows/android-apk.yml` construit un APK Android installable à chaque `push` et à la demande (`workflow_dispatch`). Il ne consomme aucun quota EAS : le runner effectue localement le prebuild Expo puis `assembleDebug` avec Gradle.
+- Un pipeline GitHub Actions `.github/workflows/android-apk.yml` construit un APK Android autonome à chaque `push` et à la demande (`workflow_dispatch`). Il ne consomme aucun quota EAS : le runner effectue localement le prebuild Expo puis `assembleRelease` avec Gradle, ce qui embarque le bundle JavaScript dans l'APK.
 - L'APK est publié comme artifact `LOTISEC-Android-<commit>` dans la page de l'exécution GitHub Actions, avec une conservation de 30 jours. Le téléchargement nécessite d'ouvrir l'exécution terminée puis la section « Artifacts ».
 - Les variables publiques du build mobile sont reprises du profil `preview` de `Qr-mobile/eas.json`. Aucun secret DeepInfra n'est inclus dans l'APK; la clé reste uniquement sur FastAPI Cloud.
-- Ce pipeline produit un APK de recette signé avec la clé debug générée par Android. Pour une publication Play Store, il faudra ajouter un keystore de production chiffré dans les secrets GitHub et générer un AAB signé.
+- Incident corrigé : le premier pipeline exécutait `assembleDebug`. Cet APK attendait Metro au démarrage et pouvait rester figé sur le splash lorsqu'il était installé seul. Les artifacts issus du commit `32a7ec4` et des builds antérieurs doivent être ignorés et désinstallés.
+- Le pipeline produit désormais un APK `release` autonome de recette. La configuration Android générée le signe pour l'installation interne; pour une publication Play Store, il faudra ajouter un keystore de production chiffré dans les secrets GitHub et générer un AAB signé.
 - Vérifications locales avant publication : contrôle TypeScript Expo sans erreur, configuration publique Expo résolue correctement et `git diff --check` sans anomalie.
 
 ## État de référence prioritaire — 2026-08-14

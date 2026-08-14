@@ -51,21 +51,21 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Build standalone release APK
         shell: bash
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew :app:assembleDebug --no-daemon
+          ./gradlew :app:assembleRelease --no-daemon
 
       - name: Prepare downloadable APK
         shell: bash
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "LOTISEC-${GITHUB_SHA:0:7}.apk"
+        run: cp android/app/build/outputs/apk/release/app-release.apk "LOTISEC-${GITHUB_SHA:0:7}-release.apk"
 
       - name: Upload APK to GitHub
         uses: actions/upload-artifact@v4
         with:
-          name: LOTISEC-Android-${{ github.sha }}
+          name: LOTISEC-Android-Release-${{ github.sha }}
           path: Qr-mobile/LOTISEC-*.apk
           if-no-files-found: error
           retention-days: 30
