@@ -27,7 +27,7 @@ import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, p
 import { api, getAuthToken, setAuthToken } from './services/api'
 import { subscribeToRealtime } from './services/realtime'
 import { useFogEngine } from './hooks/useFogEngine'
-import { announceAmbulanceAssignment, announceCongestion, announceMissionStage, announceNewIncident, announcePreDepartureDecision, getSoundsEnabled, playTargetLock, setSoundsEnabled as persistSounds, stopOperationalAudio, unlockSound } from './lib/sound'
+import { announceAmbulanceAssignment, announceCongestion, announceMissionStage, announceNewIncident, announceOrientationConfirmation, announcePreDepartureDecision, getSoundsEnabled, playTargetLock, setSoundsEnabled as persistSounds, speakOperational, stopOperationalAudio, unlockSound } from './lib/sound'
 
 const MISSION_STAGES=['Analyse trafic','Affectée','En route','Sur place','Orientation hospitalière','Vers le centre de santé','Pris en charge','Terminée']
 const DEMO_STEPS=[
@@ -390,6 +390,7 @@ export default function App(){
     if(!options.silent) notify(status==='Rejetée'?'Alerte classée comme rejetée':`Alerte ${status.toLowerCase()}` ,status==='Rejetée'?'red':'green')
     recordAudit(`Alerte ${status.toLowerCase()}`,`Le statut du signalement ${id} a été modifié par validation humaine.`,{category:'security',tone:status==='Rejetée'?'red':'green',reference:id,actor:options.actor||operator.name})
     publishRealtime('incident:status:update',{incidentId:id,status,operatorId:operator.id,operatorRole:operator.role})
+    if(status==='Validée') speakOperational('Alerte validée. Recherche de l’ambulance la plus proche.',{delay:150,rate:.95})
 
     if (dataModeRef.current === 'real') {
       try {
@@ -494,7 +495,11 @@ export default function App(){
         preDeparture:{state:congestionDetected?'rerouted':'clear',congestedRoad,originalRouteName:originalMeta.name,selectedRouteName:selectedMeta.name,detectedAt:new Date().toISOString(),departureDelay},
         ...(hospitalPlan?{hospitalRoute:hospitalPlan.coordinates,hospitalRouteMeta:hospitalPlan}:{}),
       }:current)
-      if(congestionDetected) announcePreDepartureDecision({ambulanceId:chosenAmbulance.id,road:congestedRoad,route:selectedMeta.name,eta:selectedMeta.eta})
+      if(congestionDetected) {
+        announcePreDepartureDecision({ambulanceId:chosenAmbulance.id,road:congestedRoad,route:selectedMeta.name,eta:selectedMeta.eta})
+      } else {
+        announceAmbulanceAssignment({ambulanceId:chosenAmbulance.id,location:alert.location,eta:selectedMeta.eta})
+      }
       recordAudit(congestionDetected?'Congestion détectée avant départ':'Axes vérifiés avant départ',congestionDetected?`${congestedRoad} écarté · ${selectedMeta.name} retenu · ambulance encore à l'arrêt.`:`${plan.engine} · ${plan.distance} km · aucun blocage détecté.`,{category:'mission',tone:congestionDetected?'red':'green',reference:missionId,actor:'Moteur trafic'})
       recordMetric('Analyse trafic pré-départ',performance.now()-routingStarted,'ms','Moteur trafic',congestionDetected?'Axe dense identifié et alternative sélectionnée avant mouvement':'Aucun axe bloquant identifié')
       if(nearestHospital&&hospitalPlan) recordAudit('Hôpital le plus proche identifié',`${nearestHospital.name} · ${hospitalPlan.distance} km depuis l’incident · ETA ${hospitalPlan.eta} min.`,{category:'mission',tone:'green',reference:missionId,actor:'Moteur de routage'})
@@ -502,6 +507,7 @@ export default function App(){
     }).catch(error=>{
       const departureAt=Date.now()+4000
       setMission(current=>current?.id===missionId?{...current,status:'Affectée',routeState:'fallback',routeError:error.message||'Service de routage indisponible',departureAt,ambulanceRoute:fallback.coordinates,ambulanceRouteMeta:fallback,preDeparture:{state:'fallback',message:'Routage local activé avant départ'}}:current)
+      announceAmbulanceAssignment({ambulanceId:chosenAmbulance.id,location:alert.location,eta:fallback.eta||12})
       notify('Service de routage distant indisponible : itinéraire local de secours activé','red')
       recordAudit('Repli de routage activé','Le calcul distant a échoué ; le trajet local du prototype est conservé.',{category:'mission',tone:'red',reference:missionId,actor:'Moteur de continuité'})
     })
@@ -537,7 +543,8 @@ export default function App(){
     const next=nextStatus||MISSION_STAGES[Math.min(MISSION_STAGES.length-1,currentIndex+1)]
     if(next===mission.status) return
     transitionMission(next)
-    announceMissionStage({ambulanceId:mission.ambulanceId,stage:next})
+    const destHospital=healthCenters.find(h=>h.id===(mission.hospitalId||mission.recommendedHospitalId))
+    announceMissionStage({status:next,stage:next,ambulanceId:mission.ambulanceId,hospital:destHospital?.name})
     recordAudit('Statut de mission mis à jour',`${mission.ambulanceId} → ${next}`,{category:'mission',tone:'green',reference:mission.id})
     notify(`Mission ${mission.ambulanceId} : ${next}`,'green')
     publishRealtime('mission:status:update',{missionId:mission.id,ambulanceId:mission.ambulanceId,status:next})
@@ -598,6 +605,7 @@ export default function App(){
       getRoadRoute(alert,hospital).then(plan=>setMission(current=>current?.id===missionId&&current.hospitalId===hospital.id?{...current,hospitalRoute:plan.coordinates,hospitalRouteMeta:plan}:current))
     }
     notify(`Orientation confirmée vers ${hospital.name}`,'green')
+    announceOrientationConfirmation({ hospitalName: hospital.name, beds: hospital.beds })
     recordAudit('Orientation validée par l’opérateur',`${hospital.name} · ${hospital.beds} place(s) disponible(s) · ${validation.note||'Recommandation conforme.'}`,{category:'security',tone:'green',reference:mission?.id||hospital.id,actor:validation.operator||operator.name,operatorId:validation.operatorId||operator.id,operatorRole:validation.role||operator.role})
     fog.enqueue('mission.orientation',{missionId:mission?.id,hospitalId:hospital.id,places:hospital.beds,confirmedAt:new Date().toISOString()},'Opérateur LOTISEC')
     publishRealtime('mission:orientation',{missionId:mission?.id,incidentId:mission?.alertId,hospitalId:hospital.id,availableBeds:hospital.beds,status:'confirmed',operatorId:validation.operatorId||operator.id})
