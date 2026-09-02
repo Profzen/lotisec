@@ -1,9 +1,4 @@
 node_modules/
-.next/
-.open-next/
-out/
 dist/
-*.log
+.env
 .DS_Store
-.vinext/
-.wrangler/

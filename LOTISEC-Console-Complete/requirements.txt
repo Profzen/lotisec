@@ -1,0 +1,15 @@
+# Dépendances du service Python IA/XAI optionnel de LOTISEC.
+# Le frontend React/Vinext s'installe avec npm et n'utilise pas ce fichier.
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+python-dotenv==1.1.1
+httpx==0.28.1
+numpy==2.3.2
+pandas==2.3.1
+scikit-learn==1.7.1
+sentence-transformers==5.1.0
+faiss-cpu==1.11.0.post1
+psycopg[binary]==3.2.9
+redis==6.4.0
+confluent-kafka==2.11.0

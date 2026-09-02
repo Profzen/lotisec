@@ -1,72 +1,90 @@
-# LOTISEC — Console géodécisionnelle
+# LOTISEC Web V2.2 — architecture multi-acteurs
 
-Cette archive contient le code source complet de la console web LOTISEC :
+Nouvelle version du tableau de bord web géodécisionnel LOTISEC, conçue pour rester légère visuellement tout en couvrant le workflow opérationnel principal :
 
-- réception des signalements mobiles et création manuelle d’incidents ;
-- carte interactive géoréférencée ;
-- suivi animé et orienté des ambulances ;
-- analyse du trafic avant le départ ;
-- affichage de l’axe congestionné en rouge et de la déviation fluide en vert ;
-- recommandation de l’hôpital le plus proche ;
-- gestion des ambulances, hôpitaux, interventions et capacités ;
-- Fog Computing, statistiques et rapports téléchargeables ;
-- modes clair et sombre.
+**Alerte mobile → validation humaine → affectation ambulance → routage → orientation hospitalière → suivi → bilan prévu/réalisé**
 
-## Prérequis
+## Stack
 
-- Node.js 20 ou version ultérieure ;
-- npm 10 ou version ultérieure.
+- React.js + Vite
+- Tailwind CSS
+- MapLibre GL JS + OpenStreetMap
+- Socket.IO client
+- Export XLSX multi-feuilles
+- Contrôle d’accès par rôles et journal d’audit
+- Intégration backend prévue avec NestJS + TypeScript
+- Données géospatiales côté backend prévues avec PostgreSQL + PostGIS
+- Routage prévu via endpoint backend relié à OSRM
 
-## Lancement local
+## Trois espaces séparés
+
+La même architecture backend alimente trois interfaces distinctes. Le paramètre `espace` permet d’ouvrir directement chaque portail sans dupliquer les données ni le code métier :
+
+- `?espace=operations&page=dashboard` : centre opérationnel, dispatch, carte et missions ;
+- `?espace=health&page=health-dashboard` : professionnels de santé, admissions, capacités et transferts ;
+- `?espace=national&page=national-dashboard` : ministères, territoires, performance et rapports décisionnels.
+
+Les changements d’espace conservent le mode test et le flux réel dans deux états séparés. Les interfaces Santé et Pilotage ne reçoivent jamais de données nominatives de victimes.
+
+## Menus du centre opérationnel
+
+- Tableau de bord
+- Alertes & incidents
+- Interventions
+- Carte opérationnelle
+- Ambulances
+- Hôpitaux & capacités
+- Routage
+- Orientation hospitalière
+- Statistiques
+- Bilans de mission
+- Évaluation du prototype
+- Journal de traçabilité
+- État du système
+- Sécurité & accès
+- Fog & synchronisation
+- Paramètres
+
+## Données de démonstration
+
+Les valeurs de distance, ETA, capacité, occupation, statistiques et états Fog fournies dans `src/data/demo.js` sont des données de démonstration. Elles doivent être remplacées par les données du backend en production.
+
+Les hôpitaux intégrés dans la démonstration sont : CHU TOKOIN, CHU CAMPUS, CENTRE DE SANTÉ DE BÈ et DOGTA LAFIE.
+
+Les opérateurs d'ambulances utilisés sont : Sapeurs-Pompiers, Secours ABALO, Togo Assistance et Multi Assistance Togo.
+
+## Installation
 
 ```bash
 npm install
+cp .env.example .env
 npm run dev
 ```
 
-Ouvrir ensuite l’adresse affichée dans le terminal. La route principale redirige automatiquement vers `public/console.html`.
-
-## Compilation
-
-### Build Vinext / Cloudflare
+## Build
 
 ```bash
 npm run build
 ```
 
-### Build Next.js pour Vercel
+## Intégration backend
 
-```bash
-npm run build:next
-```
+La connexion mobile réelle est encapsulée dans `src/services/mobileGateway.js`. Le bac à sable test utilise un générateur séparé et conserve son propre état. Les incidents, positions GPS et capacités reçus depuis le terrain sont mis en attente tant que le mode test est actif.
 
-Pour Vercel, importer le dossier dans un dépôt Git, choisir le framework **Next.js** et utiliser `npm run build:next` comme commande de build.
+Le contrat complet est documenté dans `MOBILE_INTEGRATION.md`. Les principaux champs de configuration se trouvent dans `.env.example`.
 
-## Structure principale
+Le fichier `src/services/api.js` centralise les appels REST. Les routes prévues sont :
 
-- `app/page.jsx` : entrée directe vers la console ;
-- `app/api/v1/incidents/mobile/route.js` : ancien prototype D1 conservé comme référence, non utilisé par le déploiement Vercel ;
-- `public/console.html` : structure de l’interface opérationnelle ;
-- `public/console.css` : design, thèmes, cartes et responsive ;
-- `public/console.js` : incidents, carte, itinéraires, ambulances, Fog et interactions ;
-- `public/assets/logo-lotisec.png` : logo officiel fourni ;
-- `drizzle/0000_mobile_incidents.sql` : schéma de stockage des signalements ;
-- `vite.config.ts`, `next.config.mjs` et `wrangler.jsonc` : configuration de compilation et d’hébergement.
+- `GET /api/dashboard`
+- `GET /api/alerts`
+- `POST /api/alerts/:id/validate`
+- `GET /api/interventions`
+- `GET /api/ambulances`
+- `GET /api/hospitals`
+- `GET /api/routing/compare?interventionId=...`
+- `GET /api/hospitals/orientation?interventionId=...`
+- `GET /api/fog/status`
 
-## Données cartographiques
+Le dossier `src/pages` comprend également la supervision technique, la sécurité, les bilans de mission et l’export XLSX. Le fichier `requirements.txt` décrit l’environnement Python optionnel du service IA/XAI ; il n’est pas nécessaire pour exécuter le frontend React.
 
-La carte repose sur Leaflet et OpenStreetMap. Le calcul routier utilise un service d’itinéraire compatible OSRM, avec un tracé géoréférencé de secours si ce service est temporairement indisponible.
-
-## Démonstration de congestion
-
-1. Ouvrir **Carte en direct** ou **Trafic en temps réel**.
-2. Cliquer sur **Simuler la congestion avant départ**.
-3. L’ambulance revient au point de départ.
-4. L’axe congestionné apparaît en rouge.
-5. Le Fog calcule une déviation fluide en vert.
-6. Après le contrôle pré-départ, l’ambulance commence son déplacement sur la déviation.
-# Intégration monorepo
-
-Cette application est la troisième interface officielle de LOTISEC. Elle utilise le backend Node et Supabase comme source de vérité. L'ancien stockage Cloudflare D1 n'est plus utilisé par la console déployée.
-
-La console exige un JWT de `/auth/login`, filtre son menu selon les rôles et n'affiche les données de démonstration qu'avec `?demo=1`. `VITE_API_URL` est injectée dans `public/config.js` pendant le build.
+Les contrats propres aux nouveaux portails se trouvent dans `src/services/portalGateway.js`. Ils prévoient des namespaces Socket.IO et clients Keycloak indépendants : `lotisec-health-web` et `lotisec-national-web`.

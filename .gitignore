@@ -31,3 +31,7 @@ Thumbs.db
 
 # Nested git metadata from old cloned repos
 **/.git/
+
+# Raw archives and source zips
+*.zip
+LOTISEC-Plateforme-V2.2-Version27-Code-Source/

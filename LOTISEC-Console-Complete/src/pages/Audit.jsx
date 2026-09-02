@@ -1,0 +1,12 @@
+import { Clock3, FileClock, ShieldCheck, Smartphone, Truck } from 'lucide-react'
+import { Kpi, PageTitle, Status } from '../components/UI'
+
+const icons={mobile:Smartphone,mission:Truck,security:ShieldCheck,system:Clock3}
+
+export default function Audit({events=[]}){
+  return <>
+    <PageTitle title="Journal de traçabilité" subtitle="Historique horodaté des signalements, décisions opérateur, missions et synchronisations." action={<Status tone="blue"><ShieldCheck size={14}/>Traçabilité active</Status>}/>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Événements conservés" value={events.length} icon={FileClock} tone="blue"/><Kpi label="Décisions humaines" value={events.filter(item=>item.category==='security').length} icon={ShieldCheck} tone="green"/><Kpi label="Événements mobiles" value={events.filter(item=>item.category==='mobile').length} icon={Smartphone} tone="red"/><Kpi label="Dernière activité" value={events[0]?.time||'—'} icon={Clock3} tone="violet"/></div>
+    <section className="surface lotisec-scroll-panel mt-4 max-h-[calc(100vh-17rem)] overflow-y-auto"><div className="sticky top-0 z-[2] border-b border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0b1e2d]"><h3 className="font-semibold">Chronologie opérationnelle</h3><p className="mt-1 text-xs muted">Acteur, rôle, environnement et référence métier sont conservés avec chaque action.</p></div><div className="divide-y divide-slate-100 dark:divide-slate-800">{events.map(event=>{const Icon=icons[event.category]||Clock3;return <article key={event.id} className="grid gap-3 p-4 md:grid-cols-[44px_180px_1fr_190px]"><span className={`grid h-10 w-10 place-items-center rounded-xl ${event.tone==='red'?'bg-red-100 text-red-700':event.tone==='green'?'bg-emerald-100 text-emerald-700':'bg-blue-100 text-blue-700'}`}><Icon size={18}/></span><div><div className="text-xs muted">{event.time}</div><div className="mt-1 text-sm font-semibold">{event.actor}</div><div className="mt-1 text-[10px] text-blue-600">{event.operatorRole||'Service système'}</div></div><div><div className="font-medium">{event.action}</div><div className="mt-1 text-sm muted">{event.details}</div></div><div className="text-xs muted md:text-right">Référence<br/><b className="text-slate-700 dark:text-slate-200">{event.reference||'SYSTÈME'}</b><div className="mt-2"><Status tone={event.dataMode==='real'?'green':'blue'}>{event.dataMode==='real'?'RÉEL':'TEST'}</Status></div></div></article>})}</div></section>
+  </>
+}

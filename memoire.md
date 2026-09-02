@@ -2,17 +2,54 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
-## Mise à jour — header Conseils et APK GitHub autonome (2026-08-14)
-- L'en-tête de l'écran mobile « Conseils de sécurité » et sa barre d'état utilisent désormais le bleu nuit canonique `#071A2E` (`colors.primaryDark`). Le bleu `#1565D8` reste réservé aux filtres actifs et aux actions.
-- Un pipeline GitHub Actions `.github/workflows/android-apk.yml` construit un APK Android autonome à chaque `push` et à la demande (`workflow_dispatch`). Il ne consomme aucun quota EAS : le runner effectue localement le prebuild Expo puis `assembleRelease` avec Gradle, ce qui embarque le bundle JavaScript dans l'APK.
-- L'APK est publié comme artifact `LOTISEC-Android-<commit>` dans la page de l'exécution GitHub Actions, avec une conservation de 30 jours. Le téléchargement nécessite d'ouvrir l'exécution terminée puis la section « Artifacts ».
-- Les variables publiques du build mobile sont reprises du profil `preview` de `Qr-mobile/eas.json`. Aucun secret DeepInfra n'est inclus dans l'APK; la clé reste uniquement sur FastAPI Cloud.
-- Incident corrigé : le premier pipeline exécutait `assembleDebug`. Cet APK attendait Metro au démarrage et pouvait rester figé sur le splash lorsqu'il était installé seul. Les artifacts issus du commit `32a7ec4` et des builds antérieurs doivent être ignorés et désinstallés.
-- Le pipeline produit désormais un APK `release` autonome de recette. La configuration Android générée le signe pour l'installation interne; pour une publication Play Store, il faudra ajouter un keystore de production chiffré dans les secrets GitHub et générer un AAB signé.
-- Vérifications locales avant publication : contrôle TypeScript Expo sans erreur, configuration publique Expo résolue correctement et `git diff --check` sans anomalie.
+## Mise à jour — Réception et cadrage d'intégration de la Console Web V2.2 Version 27 (2026-09-02)
 
-## État de référence prioritaire — 2026-08-14
-Cette section remplace les affirmations historiques contradictoires conservées plus bas. Railway n'est plus le fournisseur IA actif, les cartes mobiles ne reposent plus sur Google Maps et la recette comprend désormais 18 comptes.
+### 1. Contexte de réception et code source transmis
+- Un nouveau package complet refondu pour la console web d'administration (pompiers, ambulanciers, hôpitaux, régulation centrale et administration générale) a été transmis par le collègue responsable et extrait à la racine : `LOTISEC-Plateforme-V2.2-Version27-Code-Source/LOTISEC-Plateforme-V2.2-Version27`.
+- Ce nouveau code source est destiné à remplacer l'ancienne console (`LOTISEC-Console-Complete/`) pour le déploiement de production sur Vercel.
+- Stack technique de la nouvelle plateforme : **React 19 + Vite 8 + Tailwind CSS 3.4 + Lucide React + MapLibre GL JS (OpenStreetMap / Carto) + Socket.IO client / REST + Export XLSX**.
+
+### 2. Architecture fonctionnelle de la nouvelle version (V2.2)
+- **Architecture 3 espaces en 1** (pilotés via le paramètre URL `?espace=` et la navigation contextuelle) :
+  1. **Centre Opérationnel (`?espace=operations`)** :
+     - *Opérations* : Tableau de bord de régulation, Alertes & incidents, Interventions en cours, Carte opérationnelle interactive de Lomé (MapLibre GL).
+     - *Ressources* : Gestion de flotte d'ambulances et véhicules d'intervention, Hôpitaux partenaires & capacités en lits.
+     - *Géodécision & IA* : Moteur de routage pré-départ avec analyse de congestion trafic OSRM, Orientation hospitalière multicritère (places disponibles, spécialités, temps de trajet réel).
+     - *Pilotage & Suivi* : Statistiques temps réel, Bilans de mission prévisionnel/réel, Évaluation ergonomique du prototype, Journal d'audit et de traçabilité inviolable.
+     - *Système & Résilience* : État de santé du système et des services, Sécurité et contrôle d'accès RBAC, Moteur Fog Computing (mise en cache et fonctionnement hors-ligne / réseau dégradé avec synchronisation automatique au retour de la connectivité), Paramètres de la plateforme.
+  2. **Espace Professionnels de Santé (`?espace=health`)** :
+     - Vue d'ensemble des urgences hospitalières, Réceptions d'urgence et validation des admissions, Suivi et mise à jour dynamique des capacités d'accueil (lits réa, chirurgie, urgences), Transferts entrants inter-hôpitaux, Réseau hospitalier connecté.
+  3. **Espace Pilotage National & Ministères (`?espace=national`)** :
+     - Vue nationale consolidée, Cartographie territoriale et analyse des zones critiques/points noirs routiers, Indicateurs de performance des secours (délais d'intervention, taux de survie), Analyses prédictives et tendances, Rapports décisionnels et gouvernance des données.
+
+### 3. Préservation stricte du Mode Test / Simulation locale
+- La nouvelle interface intègre un bac à sable complet de démonstration et de test :
+  - Scénario guidé pas-à-pas en 8 étapes : *Signalement mobile → Contrôle humain & validation → Affectation ambulance avec détection trafic → Départ guidé & déplacement GPS → Décision et confirmation hôpital → Coupure réseau & mode Fog local → Retour réseau & synchronisation → Bilan de clôture de mission*.
+  - Synthèse vocale et alertes sonores contextuelles (moteur audio Web Audio API).
+  - Générateur d'incidents de test isolés (`createTestIncident()`) n'impactant pas la base de données réelle.
+  - Commutateur explicite `Mode Test` / `Mode Réel` permettant de tester la console de façon autonome tout en pouvant basculer en exploitation réelle sans redémarrage.
+
+### 4. Exigences d'intégration pour la mise en production
+- **Remplacement de l'ancienne console sur Vercel** : Transférer la nouvelle base de code dans le répertoire de build Vercel de la console, avec configuration Vite (`vite.config.ts`), `package.json` et `vercel.json` pour la gestion des rewrites SPA.
+- **Raccordement au Backend Node.js / PostgreSQL Supabase** :
+  - Remplacer les appels simulés dans `src/services/api.js` par les endpoints réels de l'API Node : `/auth/login`, `/auth/me`, `/api/v1/incidents`, `/api/v1/incidents/:id/status`, `/api/v1/incidents/:id/assignments`, `/api/v1/resources`, `/api/v1/resources/:id/location`, `/api/v1/facilities`, `/api/v1/facilities/:id/capacities`, `/api/v1/interventions`, `/api/v1/admissions`, `/api/v1/audit`, `/api/v1/activity-audit`.
+  - Intégrer l'écoute temps réel via Supabase Realtime (sur les tables `incidents`, `interventions`, `response_units`, `hospital_admission_requests`) avec fallback en polling intelligent sécurisé.
+- **Synchronisation bout-en-bout avec l'application mobile (`Qr-mobile`)** :
+  - Tout déclenchement SOS ou signalement d'accident depuis le mobile arrive instantanément sur la console en mode réel avec alarme sonore et pointage sur la carte.
+  - L'affectation d'une mission à une ambulance ou à une équipe de sapeurs-pompiers met à jour le statut dans la base et notifie l'agent sur son mobile.
+  - La remontée GPS du véhicule d'urgence met à jour la position sur la carte de régulation en direct.
+- **Écran d'authentification avec accès direct Administrateur & Rôles de simulation** :
+  - Création d'un écran de Login dédié à la console permettant la connexion par numéro de téléphone et mot de passe.
+  - Ajout d'un panneau de **Connexion Rapide / Simulation** pré-configuré avec les comptes de recette réels du système :
+    - 👑 *Administrateur Général* (`+22800001005` / `Ls!Pass2026!`) : accès total (Opérations, Santé, National, Audit, Configuration).
+    - 🚨 *Superviseur / Centrale Dispatching* (`+22800001007` ou `+22800001008`) : régulation opérationnelle, validation d'alertes, affectations.
+    - 🚒 *Sapeurs-Pompiers* (`+22800001003`) : missions secours et interventions d'urgence.
+    - 🚑 *Ambulances / SAMU* (`+22800001004`) : transport médicalisé et orientation patient.
+    - 🏥 *Gestionnaire Hôpital / Médecin* (`+22800001006`) : gestion des lits et admissions d'urgence.
+    - 👁️ *Mode Simulation Démo 1-Clic* (sans appel serveur pour les présentations hors-ligne).
+
+## État de référence prioritaire — 2026-09-02
+Cette section remplace les affirmations historiques contradictoires conservées plus bas. Railway n'est plus le fournisseur IA actif, les cartes mobiles ne reposent plus sur Google Maps, la nouvelle console V2.2 (Version 27) remplace l'ancienne console de démonstration et la recette comprend 18 comptes réels provisionnés.
 
 ### Assistant IA actif
 - Service canonique : `appp.py`, FastAPI 2.0, déployé sur FastAPI Cloud à `https://lotisec-ai.fastapicloud.dev`.

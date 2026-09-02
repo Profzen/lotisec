@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #0f172a;
+  background: #f7f9fc;
+}
+
+html, body, #root { min-height: 100%; }
+body { margin: 0; }
+* { box-sizing: border-box; }
+
+@layer components {
+  .surface { @apply bg-white dark:bg-[#0b1e2d] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft; }
+  .surface-flat { @apply bg-white dark:bg-[#0b1e2d] border border-slate-200 dark:border-slate-800 rounded-xl; }
+  .muted { @apply text-slate-500 dark:text-slate-400; }
+  .title { @apply text-slate-950 dark:text-white font-semibold; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition; }
+  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700; }
+  .btn-secondary { @apply btn border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800; }
+  .input { @apply w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/30; }
+}
+
+.maplibregl-map { font-family: inherit; }
+.maplibregl-popup-content { border-radius: 14px; padding: 12px 14px; }
+.dark .maplibregl-popup-content { background:#0f2536; color:white; }
+.dark .maplibregl-popup-tip { border-top-color:#0f2536; }
+.lotisec-map-shell { overscroll-behavior: contain; touch-action: none; }
+.lotisec-map-shell .maplibregl-canvas-container { cursor: grab; }
+.lotisec-map-shell .maplibregl-canvas-container.maplibregl-interactive:active { cursor: grabbing; }
+.lotisec-scroll-panel { scrollbar-gutter: stable; }
+.lotisec-scroll-panel::-webkit-scrollbar { width: 8px; }
+.lotisec-scroll-panel::-webkit-scrollbar-track { background: transparent; }
+.lotisec-scroll-panel::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #cbd5e1; background-clip: padding-box; }
+.dark .lotisec-scroll-panel::-webkit-scrollbar-thumb { background: #334155; background-clip: padding-box; }
+
+@media (min-width: 1536px) {
+  .lotisec-fixed-split { overflow: hidden; }
+  .lotisec-fixed-split > * {
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .lotisec-fixed-split > :first-child > .surface:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .lotisec-fixed-split > *::-webkit-scrollbar { width: 8px; height: 8px; }
+  .lotisec-fixed-split > *::-webkit-scrollbar-track { background: transparent; }
+  .lotisec-fixed-split > *::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #cbd5e1; background-clip: padding-box; }
+  .dark .lotisec-fixed-split > *::-webkit-scrollbar-thumb { background: #334155; background-clip: padding-box; }
+}
+
+.lotisec-route-step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(15,23,42,.24));
+}
+.lotisec-route-step-number {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: white;
+  font-size: 9px;
+  font-weight: 900;
+  box-shadow: 0 0 0 2px rgba(37,99,235,.22);
+}
+.lotisec-route-step-label {
+  max-width: 150px;
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: rgba(255,255,255,.96);
+  padding: 4px 7px;
+  color: #1e3a8a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dark .lotisec-route-step-label {
+  border-color: #1e40af;
+  background: rgba(11,30,45,.96);
+  color: #bfdbfe;
+}
+.lotisec-route-name-card { animation: route-card-in .3s ease-out; }
+.lotisec-route-arrow { pointer-events: none; filter: drop-shadow(0 2px 3px rgba(15,23,42,.35)); }
+.lotisec-route-arrow span {
+  display: block;
+  width: 0;
+  height: 0;
+  border-right: 6px solid transparent;
+  border-bottom: 12px solid var(--route-arrow-color,#2563eb);
+  border-left: 6px solid transparent;
+  transform: rotate(var(--route-bearing,0deg));
+  filter: drop-shadow(0 0 1px white) drop-shadow(0 0 1px white);
+}
+@keyframes route-card-in {
+  from { transform: translateY(-5px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.lotisec-map-anchor {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+.lotisec-map-callout {
+  position: absolute;
+  top: 50%;
+  z-index: 30;
+  display: grid;
+  width: 164px;
+  gap: 3px;
+  border: 1px solid;
+  border-radius: 11px;
+  background: rgba(255,255,255,.97);
+  padding: 8px 10px;
+  text-align: left;
+  box-shadow: 0 9px 24px rgba(15,23,42,.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(.96);
+  transition: opacity .18s ease, transform .18s ease;
+  backdrop-filter: blur(8px);
+}
+.lotisec-map-callout.side-right { left: calc(100% + 12px); transform-origin: left center; }
+.lotisec-map-callout.side-left { right: calc(100% + 12px); transform-origin: right center; }
+.lotisec-map-callout::after {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  border-top: 2px dashed currentColor;
+  content: '';
+  opacity: .65;
+}
+.lotisec-map-callout.side-right::after { right: 100%; }
+.lotisec-map-callout.side-left::after { left: 100%; }
+.lotisec-map-anchor.is-featured .lotisec-map-callout,
+.lotisec-map-anchor.is-selected .lotisec-map-callout,
+.lotisec-map-anchor:hover .lotisec-map-callout,
+.lotisec-map-anchor:focus-visible .lotisec-map-callout {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.lotisec-map-callout > strong {
+  margin-bottom: 2px;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+.lotisec-map-callout > span { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lotisec-map-callout small { color: #64748b; font-size: 8px; white-space: nowrap; }
+.lotisec-map-callout span b { overflow: hidden; color: #0f172a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.lotisec-map-callout.incident-callout { border-color:#fca5a5; color:#dc2626; }
+.lotisec-map-callout.ambulance-callout { border-color:#93c5fd; color:#2563eb; }
+.lotisec-map-callout.hospital-callout { border-color:#6ee7b7; color:#059669; }
+.lotisec-hospital-anchor.is-recommended { z-index: 24 !important; }
+.lotisec-hospital-anchor.is-recommended .lotisec-hospital-marker {
+  outline: 4px solid rgba(16,185,129,.24);
+  box-shadow: 0 0 0 8px rgba(16,185,129,.12), 0 7px 20px rgba(6,78,59,.42);
+  animation: hospital-recommended 1.5s ease-in-out infinite alternate;
+}
+.dark .lotisec-map-callout { background:rgba(11,30,45,.97); }
+.dark .lotisec-map-callout small { color:#94a3b8; }
+.dark .lotisec-map-callout span b { color:#f8fafc; }
+.lotisec-hospital-anchor.is-recommended .hospital-callout,
+.dark .lotisec-hospital-anchor.is-recommended .hospital-callout {
+  width: 190px;
+  border: 2px solid #a7f3d0;
+  border-radius: 16px;
+  background: linear-gradient(145deg,#047857,#10b981);
+  padding: 30px 12px 11px;
+  color: white;
+  box-shadow: 0 14px 34px rgba(4,120,87,.4);
+}
+.lotisec-hospital-anchor.is-recommended .hospital-callout::before {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 999px;
+  background: rgba(255,255,255,.17);
+  padding: 3px 7px;
+  color: white;
+  content: '✓ RECOMMANDÉ';
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+.lotisec-hospital-anchor.is-recommended .hospital-callout small,
+.lotisec-hospital-anchor.is-recommended .hospital-callout span b { color: white; }
+.lotisec-hospital-anchor.is-recommended .hospital-callout small { opacity: .78; }
+.lotisec-incident-marker {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.incident-core {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 3px 12px rgba(127,29,29,.38);
+}
+.incident-ring {
+  position: absolute;
+  inset: 2px;
+  border: 3px solid rgba(239,68,68,.85);
+  border-radius: 999px;
+  animation: incident-pulse 1.4s ease-out infinite;
+}
+@keyframes incident-pulse {
+  0% { transform: scale(.55); opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+.lotisec-hospital-marker {
+  display: flex;
+  min-width: 43px;
+  height: 31px;
+  align-items: center;
+  overflow: hidden;
+  border: 3px solid white;
+  border-radius: 10px;
+  background: #059669;
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 4px 14px rgba(6,78,59,.35);
+  cursor: pointer;
+}
+.lotisec-hospital-marker span { padding: 0 7px; }
+.lotisec-hospital-marker b { display:grid; height:100%; min-width:20px; place-items:center; background:#047857; font-size:10px; }
+.lotisec-ambulance-marker {
+  position: relative;
+  display: grid;
+  width: 68px;
+  justify-items: center;
+  filter: drop-shadow(0 7px 8px rgba(15,23,42,.45));
+  pointer-events: none;
+}
+.lotisec-ambulance-marker img { width: 48px; height: 61px; object-fit: contain; transform:rotate(var(--ambulance-bearing,0deg)); transform-origin: center; }
+.lotisec-ambulance-marker b { margin-top:-5px; border:2px solid white; border-radius:8px; background:#1d4ed8; padding:2px 7px; color:white; font-size:9px; line-height:14px; box-shadow:0 3px 8px rgba(30,64,175,.4); }
+.lotisec-ambulance-marker.is-live { z-index: 28; border-radius:999px; background:radial-gradient(circle,rgba(255,255,255,.96) 0 34%,rgba(59,130,246,.34) 35% 51%,transparent 52%); }
+.lotisec-ambulance-marker.is-live img { width:58px; height:74px; animation: ambulance-bob .7s ease-in-out infinite alternate; }
+.lotisec-ambulance-marker.is-arrived b { background:#059669; }
+.ambulance-beacon { position:absolute; z-index:2; top:20px; width:8px; height:8px; border-radius:50%; background:#ef4444; box-shadow:-10px 0 11px 3px #3b82f6,10px 0 11px 3px #ef4444; animation: beacon .38s linear infinite alternate; }
+@keyframes ambulance-bob {
+  from { transform:rotate(var(--ambulance-bearing,0deg)) translateY(0); }
+  to { transform:rotate(var(--ambulance-bearing,0deg)) translateY(-2px); }
+}
+@keyframes beacon { to { opacity:.35; } }
+@keyframes hospital-recommended { to { transform: translateY(-2px) scale(1.04); } }
+
+@media (max-width: 900px) {
+  .lotisec-map-callout { display: none; }
+  .lotisec-route-step-label { display: none; }
+}

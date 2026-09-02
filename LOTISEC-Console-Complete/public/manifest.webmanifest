@@ -1,0 +1,13 @@
+{
+  "name": "LOTISEC — Centre de coordination",
+  "short_name": "LOTISEC",
+  "description": "Supervision intelligente des urgences routières à Lomé.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#061522",
+  "theme_color": "#072b4d",
+  "lang": "fr",
+  "icons": [
+    {"src":"/lotisec-logo.png","sizes":"72x72","type":"image/png","purpose":"any maskable"}
+  ]
+}

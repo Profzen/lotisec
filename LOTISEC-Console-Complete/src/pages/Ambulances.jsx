@@ -1,0 +1,30 @@
+import { useMemo, useState } from 'react'
+import { Search, Ambulance as AmbulanceIcon, History } from 'lucide-react'
+import LomeMap from '../components/LomeMap'
+import { Kpi, PageTitle, Status } from '../components/UI'
+
+export default function Ambulances({ambulances,mission,onNavigate,onNotify}){
+  const [selectedId,setSelectedId]=useState(ambulances[0].id)
+  const [query,setQuery]=useState('')
+  const [historyOpen,setHistoryOpen]=useState(false)
+  const selected=ambulances.find(a=>a.id===selectedId)||ambulances[0]
+  const visible=useMemo(()=>ambulances.filter(a=>`${a.id} ${a.provider} ${a.status}`.toLowerCase().includes(query.toLowerCase())),[ambulances,query])
+  return <>
+    <PageTitle title="Ambulances" subtitle="Suivi de la flotte, de la disponibilité et des positions."/>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Kpi label="Total" value={ambulances.length} icon={AmbulanceIcon} tone="blue"/>
+      <Kpi label="Disponibles" value={ambulances.filter(a=>a.status==='Disponible').length} icon={AmbulanceIcon} tone="green"/>
+      <Kpi label="En mission" value={ambulances.filter(a=>a.status!=='Disponible').length} icon={AmbulanceIcon} tone="amber" hint={mission?`${mission.ambulanceId} · ${mission.status}`:'Aucune mission active'}/>
+      <Kpi label="Hors service" value="0" icon={AmbulanceIcon} tone="red"/>
+    </div>
+    <div className="lotisec-fixed-split mt-4 grid gap-4 2xl:h-[calc(100vh-17rem)] 2xl:min-h-[520px] 2xl:grid-cols-[1fr_380px]">
+      <section className="surface overflow-hidden">
+        <div className="border-b border-slate-200 p-4 dark:border-slate-800"><div className="relative max-w-md"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><input value={query} onChange={event=>setQuery(event.target.value)} className="input pl-9" placeholder="Rechercher une ambulance..."/></div></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-900/60 dark:text-slate-400"><tr><th className="p-4">Ambulance</th><th>Service</th><th>Statut</th><th>Équipement</th><th>ETA</th><th>Score</th><th>Fraîcheur GPS</th></tr></thead><tbody>{visible.map(a=>{const stale=String(a.updated).includes('min');return <tr onClick={()=>setSelectedId(a.id)} key={a.id} className={`cursor-pointer border-t border-slate-100 transition hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-blue-950/20 ${a.id===selected.id?'bg-blue-50/60 dark:bg-blue-950/20':''}`}><td className="p-4 font-semibold">{a.id}{a.recommended&&<span className="ml-2 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] text-white">RECOMMANDÉE</span>}</td><td>{a.provider}</td><td><Status tone={a.status==='Disponible'?'green':a.status==='En route'?'blue':'amber'}>{a.status}</Status></td><td>{a.equipment||'Standard'}</td><td>{a.decisionEta||a.eta} min</td><td><b className="text-blue-600">{a.decisionScore||'—'}%</b></td><td><span className={`text-xs font-semibold ${stale?'text-amber-600':'text-emerald-600'}`}>{stale?'À vérifier':'À jour'} · {a.updated}</span></td></tr>})}</tbody></table></div>
+      </section>
+      <aside className={`surface p-4 ${selected.recommended?'border-blue-300 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10':''}`}><div className="flex items-center justify-between"><div><div className="text-xs font-bold text-blue-600">{selected.recommended?'AMBULANCE RECOMMANDÉE':'AMBULANCE SÉLECTIONNÉE'}</div><h3 className="mt-1 text-xl font-semibold">{selected.id}</h3></div><Status tone={selected.status==='Disponible'?'green':'blue'}>{selected.status}</Status></div><div className="mt-1 text-sm muted">{selected.provider}</div><div className="mt-4"><LomeMap ambulances={[selected]} height={280} showRoute={false}/></div><div className="mt-4 grid grid-cols-2 gap-3 text-sm"><Info label="ETA estimée" value={`${selected.decisionEta||selected.eta} min`}/><Info label="Score" value={`${selected.decisionScore||'—'}%`}/><Info label="Équipement" value={selected.equipment||'Standard'}/><Info label="Équipe" value={selected.team||'2 secouristes'}/></div><div className="mt-3 rounded-xl bg-white p-3 text-xs leading-5 shadow-sm dark:bg-slate-900"><b>Justification</b><div className="muted">{selected.decisionReason||'Calcul disponible après sélection d’un incident.'}</div></div>{selected.scoreBreakdown&&<DecisionBreakdown item={selected}/>}<div className="mt-4 flex gap-2"><button type="button" onClick={()=>onNavigate('map')} className="btn-primary flex-1">Voir sur la carte</button><button type="button" onClick={()=>setHistoryOpen(value=>!value)} className="btn-secondary flex-1"><History size={15}/>Historique</button></div>{historyOpen&&<div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-900"><b>Derniers événements</b><div className="mt-2 space-y-2 muted"><div>18:42 · Position GPS synchronisée</div><div>17:58 · Retour disponible</div><div>16:31 · Intervention terminée</div></div><button type="button" onClick={()=>onNotify(`Historique ${selected.id} consulté`)} className="mt-2 text-xs font-semibold text-blue-600">Marquer comme consulté</button></div>}</aside>
+    </div>
+  </>
+}
+function Info({label,value}){return <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 font-medium">{value}</div></div>}
+function DecisionBreakdown({item}){return <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900 dark:bg-blue-950/20"><div className="text-[10px] font-black uppercase tracking-wider text-blue-600">Composition du score</div><div className="mt-2 space-y-2">{Object.entries(item.scoreBreakdown).map(([label,value])=><div key={label}><div className="flex justify-between text-[10px]"><span>{label} · poids {item.scoreWeights?.[label]}</span><b>{value}/100</b></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white dark:bg-slate-900"><div className="h-full rounded-full bg-blue-600" style={{width:`${value}%`}}/></div></div>)}</div></div>}
