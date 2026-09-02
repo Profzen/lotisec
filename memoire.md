@@ -2,51 +2,88 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
-## Mise à jour — Réception et cadrage d'intégration de la Console Web V2.2 Version 27 (2026-09-02)
+## Mise à jour — Intégration et Validation Complète de la Console Web V2.2 Version 27 (2026-09-02)
 
-### 1. Contexte de réception et code source transmis
-- Un nouveau package complet refondu pour la console web d'administration (pompiers, ambulanciers, hôpitaux, régulation centrale et administration générale) a été transmis par le collègue responsable et extrait à la racine : `LOTISEC-Plateforme-V2.2-Version27-Code-Source/LOTISEC-Plateforme-V2.2-Version27`.
-- Ce nouveau code source est destiné à remplacer l'ancienne console (`LOTISEC-Console-Complete/`) pour le déploiement de production sur Vercel.
-- Stack technique de la nouvelle plateforme : **React 19 + Vite 8 + Tailwind CSS 3.4 + Lucide React + MapLibre GL JS (OpenStreetMap / Carto) + Socket.IO client / REST + Export XLSX**.
+### 1. Contexte & Migration Accomplie
+- La nouvelle console web unifiée d'administration et de régulation opérationnelle (Sapeurs-Pompiers 118, Ambulances/SAMU, Hôpitaux, Dispatching central, Pilotage national) issue du package `LOTISEC-Plateforme-V2.2-Version27` a été **intégralement migrée dans [LOTISEC-Console-Complete](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete)**.
+- L'ancien shell statique a été totalement remplacé par la plateforme moderne en **React 19 + Vite + Tailwind CSS + MapLibre GL JS + Lucide Icons + Moteur Fog hors-ligne + Web Audio / Web Speech API**.
+- **Build de production validé** : `npm run build` exécuté localement avec succès (**1943 modules transformés, 0 erreur**, build Vite en 20s).
+- **Correctif Build Vercel** : Suppression du fichier `requirements.txt` résiduel de la console qui provoquait une détection erronée de projet Python 3.14 par Vercel. La console se compile désormais comme une SPA Node.js/Vite pure via `vercel.json` (rewrites `/(.*) -> /index.html`).
 
-### 2. Architecture fonctionnelle de la nouvelle version (V2.2)
-- **Architecture 3 espaces en 1** (pilotés via le paramètre URL `?espace=` et la navigation contextuelle) :
-  1. **Centre Opérationnel (`?espace=operations`)** :
-     - *Opérations* : Tableau de bord de régulation, Alertes & incidents, Interventions en cours, Carte opérationnelle interactive de Lomé (MapLibre GL).
-     - *Ressources* : Gestion de flotte d'ambulances et véhicules d'intervention, Hôpitaux partenaires & capacités en lits.
-     - *Géodécision & IA* : Moteur de routage pré-départ avec analyse de congestion trafic OSRM, Orientation hospitalière multicritère (places disponibles, spécialités, temps de trajet réel).
-     - *Pilotage & Suivi* : Statistiques temps réel, Bilans de mission prévisionnel/réel, Évaluation ergonomique du prototype, Journal d'audit et de traçabilité inviolable.
-     - *Système & Résilience* : État de santé du système et des services, Sécurité et contrôle d'accès RBAC, Moteur Fog Computing (mise en cache et fonctionnement hors-ligne / réseau dégradé avec synchronisation automatique au retour de la connectivité), Paramètres de la plateforme.
-  2. **Espace Professionnels de Santé (`?espace=health`)** :
-     - Vue d'ensemble des urgences hospitalières, Réceptions d'urgence et validation des admissions, Suivi et mise à jour dynamique des capacités d'accueil (lits réa, chirurgie, urgences), Transferts entrants inter-hôpitaux, Réseau hospitalier connecté.
-  3. **Espace Pilotage National & Ministères (`?espace=national`)** :
-     - Vue nationale consolidée, Cartographie territoriale et analyse des zones critiques/points noirs routiers, Indicateurs de performance des secours (délais d'intervention, taux de survie), Analyses prédictives et tendances, Rapports décisionnels et gouvernance des données.
+---
 
-### 3. Préservation stricte du Mode Test / Simulation locale
-- La nouvelle interface intègre un bac à sable complet de démonstration et de test :
-  - Scénario guidé pas-à-pas en 8 étapes : *Signalement mobile → Contrôle humain & validation → Affectation ambulance avec détection trafic → Départ guidé & déplacement GPS → Décision et confirmation hôpital → Coupure réseau & mode Fog local → Retour réseau & synchronisation → Bilan de clôture de mission*.
-  - Synthèse vocale et alertes sonores contextuelles (moteur audio Web Audio API).
-  - Générateur d'incidents de test isolés (`createTestIncident()`) n'impactant pas la base de données réelle.
-  - Commutateur explicite `Mode Test` / `Mode Réel` permettant de tester la console de façon autonome tout en pouvant basculer en exploitation réelle sans redémarrage.
+### 2. Écran de Connexion & Accès 1-Clic Administrateur Général ([Login.jsx](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete/src/components/Login.jsx))
+- **Bouton d'accès direct 1-clic** : **« Connexion Immédiate Administrateur »**
+  - Connecte automatiquement en production réelle avec le compte officiel : `+22800001005` / `Ls!Pass2026!`.
+  - Attribue le rôle **Super Administrateur** disposant des droits totaux et universels sur l'ensemble des modules :
+    - 🚒 **Sapeurs-Pompiers (118)** : réception d'alertes, validation, gestion des unités incendie/secours.
+    - 🚑 **Ambulances & SAMU** : affectation nominative d'équipages, suivi GPS en direct, calcul d'itinéraires et dégagement trafic.
+    - 🏥 **Gestion Hospitalière & Lits** : consultation et ajustement en temps réel des capacités lits réa/urgences, orientation patient et réceptions.
+    - 🚨 **Centrale de régulation & Dispatching** : supervision globale, traitement des flux SOS.
+    - 📊 **Pilotage National & Ministériel (`?espace=national`)** : KPI, points noirs routiers, statistiques d'intervention.
+    - 🛡️ **Audit, Traçabilité & Configuration Système** : journal d'audit cryptographiquement chaîné, paramétrage RBAC, monitoring santé.
+- **Formulaire de connexion manuel** : Permet la connexion avec n'importe quel autre compte du seeder (champs pré-remplis par défaut avec l'Admin).
+- **Accès Démo Sandbox (Offline)** : Bouton 1-clic pour lancer le bac à sable de simulation autonome sans connexion réseau.
 
-### 4. Exigences d'intégration pour la mise en production
-- **Remplacement de l'ancienne console sur Vercel** : Transférer la nouvelle base de code dans le répertoire de build Vercel de la console, avec configuration Vite (`vite.config.ts`), `package.json` et `vercel.json` pour la gestion des rewrites SPA.
-- **Raccordement au Backend Node.js / PostgreSQL Supabase** :
-  - Remplacer les appels simulés dans `src/services/api.js` par les endpoints réels de l'API Node : `/auth/login`, `/auth/me`, `/api/v1/incidents`, `/api/v1/incidents/:id/status`, `/api/v1/incidents/:id/assignments`, `/api/v1/resources`, `/api/v1/resources/:id/location`, `/api/v1/facilities`, `/api/v1/facilities/:id/capacities`, `/api/v1/interventions`, `/api/v1/admissions`, `/api/v1/audit`, `/api/v1/activity-audit`.
-  - Intégrer l'écoute temps réel via Supabase Realtime (sur les tables `incidents`, `interventions`, `response_units`, `hospital_admission_requests`) avec fallback en polling intelligent sécurisé.
-- **Synchronisation bout-en-bout avec l'application mobile (`Qr-mobile`)** :
-  - Tout déclenchement SOS ou signalement d'accident depuis le mobile arrive instantanément sur la console en mode réel avec alarme sonore et pointage sur la carte.
-  - L'affectation d'une mission à une ambulance ou à une équipe de sapeurs-pompiers met à jour le statut dans la base et notifie l'agent sur son mobile.
-  - La remontée GPS du véhicule d'urgence met à jour la position sur la carte de régulation en direct.
-- **Écran d'authentification avec accès direct Administrateur & Rôles de simulation** :
-  - Création d'un écran de Login dédié à la console permettant la connexion par numéro de téléphone et mot de passe.
-  - Ajout d'un panneau de **Connexion Rapide / Simulation** pré-configuré avec les comptes de recette réels du système :
-    - 👑 *Administrateur Général* (`+22800001005` / `Ls!Pass2026!`) : accès total (Opérations, Santé, National, Audit, Configuration).
-    - 🚨 *Superviseur / Centrale Dispatching* (`+22800001007` ou `+22800001008`) : régulation opérationnelle, validation d'alertes, affectations.
-    - 🚒 *Sapeurs-Pompiers* (`+22800001003`) : missions secours et interventions d'urgence.
-    - 🚑 *Ambulances / SAMU* (`+22800001004`) : transport médicalisé et orientation patient.
-    - 🏥 *Gestionnaire Hôpital / Médecin* (`+22800001006`) : gestion des lits et admissions d'urgence.
-    - 👁️ *Mode Simulation Démo 1-Clic* (sans appel serveur pour les présentations hors-ligne).
+---
+
+### 3. Synthèse Vocale Opérationnelle & Annonces Audio ([sound.js](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete/src/lib/sound.js))
+L'ensemble des déclencheurs vocaux et sonores a été audité, corrigé et validé sur l'intégralité du cycle de vie des missions :
+- 🔊 **Écouteur de voix universel** : Abonnement à `speechSynthesis.onvoiceschanged` pour garantir le chargement asynchrone des voix françaises sur Chrome, Edge, Safari et Android.
+- 🚨 **Réception SOS Mobile (`announceNewIncident`)** : *« Nouvelle urgence [gravité] signalée à [lieu]. [X] victime(s) signalée(s). »* + Alarme d'urgence.
+- ✅ **Validation d'Alerte (`speakOperational`)** : *« Alerte validée. Recherche de l'ambulance la plus proche. »*
+- 🚑 **Affectation d'Ambulance (`announceAmbulanceAssignment`)** : *« Ambulance [ID] affectée. Départ vers le lieu de l’incident. Arrivée estimée dans [X] minutes. »* + Bip de confirmation.
+- 🚦 **Détection Bouchon Pré-départ (`announcePreDepartureDecision`)** : *« Attention. Ralentissement détecté sur [axe]. L'ambulance reste à l'arrêt. Itinéraire alternatif recommandé par [nom]. »*
+- 🔄 **Reroutage Dynamique en Course (`announceCongestion`)** : *« Trafic dense détecté sur [axe]. Itinéraire de dégagement activé. »*
+- 📍 **En Route (`announceMissionStage`)** : *« Ambulance [ID] en route vers le lieu de l'urgence. »*
+- 🏁 **Sur Place (`announceMissionStage`)** : *« Ambulance [ID] arrivée sur place. Début de la prise en charge. »*
+- 🏥 **Orientation & Décision Hôpital (`announceOrientationConfirmation`)** : *« Orientation confirmée vers [Hôpital]. [X] places d'accueil disponibles. »*
+- 🚑 **Départ vers Hôpital (`announceMissionStage`)** : *« Prise en charge terminée. Départ du véhicule vers [Hôpital]. »*
+- 🎯 **Arrivée Hôpital (`announceMissionStage`)** : *« Victime arrivée à destination. Prise en charge hospitalière confirmée. »*
+- 📋 **Clôture de Mission (`announceMissionStage`)** : *« Mission clôturée avec succès. Le rapport opérationnel est disponible. »*
+
+---
+
+### 4. Raccordement Temps Réel de Bout en Bout (Mobile ↔ Backend ↔ Console)
+- **Déclenchement Mobile (`Qr-mobile`)** :
+  - SOS citoyen / témoin → `POST /api/v1/incidents` (avec géolocalisation GPS, gravité, type).
+  - Enregistrement dans la table `incidents` + création d'événements et notifications d'urgence.
+- **Console Web ([LOTISEC-Console-Complete](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete))** :
+  - Service [`realtime.js`](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete/src/services/realtime.js) connecté à Supabase Realtime + polling de secours 6s sur `api.getIncidents()`.
+  - Réception instantanée : ajout à la liste des alertes, centrage cartographique MapLibre GL à Lomé, alarme audio et annonce vocale.
+- **Régulation & Affectation** :
+  - Validation opérateur → `PATCH /api/v1/incidents/:id/status` (`validated`).
+  - Affectation ambulance/pompiers → `POST /api/v1/incidents/:id/assignments` (verrouille l'unité et génère l'intervention).
+  - L'équipe mobile terrain reçoit la mission sur son écran `Missions` dans `Qr-mobile`.
+- **Suivi GPS & Télémétrie** :
+  - Le mobile de l'équipage pousse ses coordonnées via `PATCH /api/v1/resources/:id/location`.
+  - La carte console anime le marqueur de l'ambulance en direct sur le tracé OSRM.
+- **Réseau Hospitalier** :
+  - Capacités lits synchronisées via `GET /api/v1/facilities` et `PUT /api/v1/facilities/:id/capacities`.
+  - Demandes d'admission transmises via `/api/v1/admissions`.
+
+---
+
+### 5. Comptes de Test & Recette Officiels (Mot de passe uniforme : `Ls!Pass2026!`)
+| Rôle | Téléphone | Accès & Portée |
+| :--- | :--- | :--- |
+| 👑 **Administrateur Général** | `+22800001005` / `+22800002005` | Accès universel : Console, Opérations, Santé, National, Audit, Profils |
+| 🚨 **Régulateur / Dispatcher** | `+22800001008` / `+22800002008` | Console régulation centrale, validation SOS, affectation d'engins |
+| 🚒 **Sapeurs-Pompiers** | `+22800001003` / `+22800002003` | Console pompiers + Mobile écran Missions (secours & incendie) |
+| 🚑 **Ambulances / SAMU** | `+22800001004` / `+22800002004` | Console SAMU + Mobile écran Missions & suivi GPS temps réel |
+| 🏥 **Gestionnaire Hôpital** | `+22800001006` / `+22800002006` | Console Espace Santé (`?espace=health`), gestion des lits et admissions |
+| 👮 **Superviseur** | `+22800001007` / `+22800002007` | Console supervision opérationnelle et gestion d'équipes |
+| 🏍️ **Conducteur Zem** | `+22800001002` / `+22800002002` | Mobile conducteur Zem (`ZemDriverScreen`) |
+| 👤 **Citoyen / Usager** | `+22800001001` / `+22800002001` | Mobile citoyen & Web citoyen (`frontend/`), QR médical, SOS |
+
+---
+
+### 6. Historique Git et Déploiements Récents
+- **Commit `d851955`** : Intégration de la console Web V2.2, raccordement API Node, Supabase Realtime et écran Login multi-rôles.
+- **Commit `3577aa4`** : Correctif build Vercel (suppression de `requirements.txt` et scripts obsolètes).
+- **Commit `19f4d0c`** : Rétablissement exhaustif des annonces de synthèse vocale (Web Speech API) sur toutes les étapes du cycle de mission.
+- **Branche distante** : Toutes les modifications sont publiées sur `origin/main` (dépôt `https://github.com/Profzen/lotisec.git`).
+
 
 ## État de référence prioritaire — 2026-09-02
 Cette section remplace les affirmations historiques contradictoires conservées plus bas. Railway n'est plus le fournisseur IA actif, les cartes mobiles ne reposent plus sur Google Maps, la nouvelle console V2.2 (Version 27) remplace l'ancienne console de démonstration et la recette comprend 18 comptes réels provisionnés.
