@@ -136,7 +136,6 @@ export default function LomeMap({
   },[])
 
   const selectAlert=(alert,map=null)=>{
-    playTargetLock()
     setDetail({type:'alert',item:alert})
     onSelectAlert?.(alert)
     if(map) map.easeTo({center:[alert.lng,alert.lat],zoom:17,duration:900})
@@ -253,7 +252,7 @@ export default function LomeMap({
           hospitalRoute?.forEach(point=>bounds.extend(point))
           map.fitBounds(bounds,{padding:70,maxZoom:14,duration:500})
         }
-        if(focusAlert&&!mission) selectAlert(focusAlert,map)
+        if(focusAlert&&!mission) setDetail({type:'alert',item:focusAlert})
       }catch{fail()}
     })
     return ()=>{

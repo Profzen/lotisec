@@ -136,15 +136,23 @@ export function getAfricanVoiceInfo() {
   return { available: Boolean(voice), name: voice?.name || null, lang: voice?.lang || null };
 }
 
+let activeUtterance = null;
+
 export function speakOperational(message, { delay = 0, rate, pitch, interrupt = true } = {}) {
   if (!getSoundsEnabled() || typeof window === 'undefined' || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   const timer = setTimeout(() => {
     speechTimers.delete(timer);
     try {
-      if (interrupt) window.speechSynthesis.cancel();
+      if (interrupt) {
+        window.speechSynthesis.cancel();
+      }
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       const profile = getVoiceProfile();
       const preset = profile === 'calme' ? { rate: 0.86, pitch: 1.01 } : profile === 'systeme' ? { rate: 1, pitch: 1 } : { rate: 0.94, pitch: 1.04 };
       const utterance = new window.SpeechSynthesisUtterance(message);
+      activeUtterance = utterance;
       utterance.rate = rate ?? preset.rate;
       utterance.pitch = pitch ?? preset.pitch;
       utterance.volume = 0.95;
@@ -155,7 +163,17 @@ export function speakOperational(message, { delay = 0, rate, pitch, interrupt = 
       } else {
         utterance.lang = 'fr-FR';
       }
+      utterance.onend = () => {
+        if (activeUtterance === utterance) activeUtterance = null;
+      };
+      utterance.onerror = () => {
+        if (activeUtterance === utterance) activeUtterance = null;
+      };
       window.speechSynthesis.speak(utterance);
+      // Double check resume for Chromium engines
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
     } catch (e) {
       console.warn('[Speech] Synthesis error:', e);
     }

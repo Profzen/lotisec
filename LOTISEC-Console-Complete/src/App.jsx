@@ -239,11 +239,12 @@ export default function App(){
     const alreadyKnown=seenIncidentIds.current.has(enriched.id)
     seenIncidentIds.current.add(enriched.id)
     setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
-    setSelectedAlertId(enriched.id)
-    if(portalRef.current==='operations') setActivePage('map')
-    if(!alreadyKnown) announceNewIncident(enriched)
-    notify(`${alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement du mode test reçu'} : ${enriched.location}`,alreadyKnown?'blue':'red')
-    recordAudit(alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:alreadyKnown?'blue':'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile — mode test'})
+    if(!alreadyKnown){
+      setSelectedAlertId(enriched.id)
+      announceNewIncident(enriched)
+      notify(real?`Urgence mobile reçue : ${enriched.location}`:`Signalement du mode test reçu : ${enriched.location}`,'red')
+      recordAudit(real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile — mode test'})
+    }
     fog.enqueue('incident.mobile',enriched,enriched.source)
     recordMetric('Traitement du signalement',performance.now()-started,'ms','Flux mobile','Réception, normalisation, alerte sonore et ciblage cartographique')
     return enriched
@@ -715,38 +716,44 @@ export default function App(){
     try{
       if(step===0) simulateMobileAlert()
       if(step===1){
-      const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
-      if(incident) updateAlert(incident.id,'Validée',{actor:'Opérateur du mode test'})
-      setActivePage('alerts')
+        const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
+        if(incident) updateAlert(incident.id,'Validée',{actor:'Opérateur du mode test'})
+        setActivePage('alerts')
       }
       if(step===2){
-      const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
-      const recommended=rankAmbulances(incident,ambulanceFleet).find(item=>item.recommended)||rankAmbulances(incident,ambulanceFleet)[0]
-      assignAmbulance(recommended,incident.id,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Ambulance recommandée confirmée après comparaison des scores.'})
+        const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
+        const recommended=rankAmbulances(incident,ambulanceFleet).find(item=>item.recommended)||rankAmbulances(incident,ambulanceFleet)[0]
+        assignAmbulance(recommended,incident.id,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Ambulance recommandée confirmée après comparaison des scores.'})
       }
       if(step===3){
-      if(['Analyse trafic','Affectée'].includes(mission?.status)) transitionMission('En route')
-      setActivePage('map')
+        transitionMission('En route')
+        announceMissionStage({status:'En route',stage:'En route',ambulanceId:mission?.ambulanceId||'AMB-01'})
+        setActivePage('map')
       }
       if(step===4){
-      const incident=alerts.find(item=>item.id===mission?.alertId)||activeAlert
-      const recommended=rankHospitals(incident,healthCenters).find(item=>item.id===mission?.recommendedHospitalId)||rankHospitals(incident,healthCenters).find(item=>item.recommended)
-      if(recommended) confirmOrientation(recommended,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Hôpital confirmé selon ETA, capacité disponible et spécialité.'})
-      setActivePage('map')
+        const incident=alerts.find(item=>item.id===mission?.alertId)||activeAlert
+        const recommended=rankHospitals(incident,healthCenters).find(item=>item.id===mission?.recommendedHospitalId)||rankHospitals(incident,healthCenters).find(item=>item.recommended)
+        if(recommended) confirmOrientation(recommended,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Hôpital confirmé selon ETA, capacité disponible et spécialité.'})
+        setActivePage('map')
       }
       if(step===5){
-      fog.setNetworkMode('offline')
-      await fog.enqueue('ambulance.position',{missionId:mission?.id,lat:6.1531,lng:1.2117,capturedAt:new Date().toISOString()},'GPS ambulance hors ligne')
-      setActivePage('fog')
+        transitionMission('Sur place')
+        announceMissionStage({status:'Sur place',stage:'Sur place',ambulanceId:mission?.ambulanceId||'AMB-01'})
+        fog.setNetworkMode('offline')
+        await fog.enqueue('ambulance.position',{missionId:mission?.id,lat:6.1531,lng:1.2117,capturedAt:new Date().toISOString()},'GPS ambulance hors ligne')
+        setActivePage('fog')
       }
       if(step===6){
-      fog.setNetworkMode('normal')
-      setActivePage('fog')
-      await fog.syncNow(true)
+        const destHospital=healthCenters.find(h=>h.id===(mission?.hospitalId||mission?.recommendedHospitalId))
+        transitionMission('Vers le centre de santé')
+        announceMissionStage({status:'Vers le centre de santé',stage:'Vers le centre de santé',ambulanceId:mission?.ambulanceId||'AMB-01',hospital:destHospital?.name})
+        fog.setNetworkMode('normal')
+        setActivePage('fog')
+        await fog.syncNow(true)
       }
       if(step===7){
-      advanceMission('Terminée')
-      setActivePage('mission-reports')
+        advanceMission('Terminée')
+        setActivePage('mission-reports')
       }
       setDemoStep(current=>Math.min(DEMO_STEPS.length,current+1))
       if(step===DEMO_STEPS.length-1){setDemoAuto(false);setDemoMode(false)}
@@ -814,5 +821,7 @@ export default function App(){
     default: content=<Dashboard alerts={alerts} ambulances={ambulanceFleet} hospitals={healthCenters} hospitalRanking={hospitalRanking} mission={mission} onNavigate={setActivePage} onSimulateMobile={simulateMobileAlert} onOpenAlert={openAlertOnMap} onStartDemo={startDemo} fog={fog}/>; break
   }
 
-  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} demo={{active:demoMode,auto:demoAuto,busy:demoBusy,step:demoStep,steps:DEMO_STEPS,intervalSeconds:DEMO_INTERVAL_SECONDS,onToggle:toggleDemo,onNext:runNextDemoStep,onAuto:()=>setDemoAuto(value=>!value),onReset:()=>{setDemoAuto(false);setDemoStep(0);resetOperationalState()}}} onLogout={handleLogout}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
+  const activeAlertsCount = alerts.filter(a => a.status === 'Nouveau' || a.status === 'new').length || alerts.length
+
+  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} alertsCount={activeAlertsCount} demo={{active:demoMode,auto:demoAuto,busy:demoBusy,step:demoStep,steps:DEMO_STEPS,intervalSeconds:DEMO_INTERVAL_SECONDS,onToggle:toggleDemo,onNext:runNextDemoStep,onAuto:()=>setDemoAuto(value=>!value),onReset:()=>{setDemoAuto(false);setDemoStep(0);resetOperationalState()}}} onLogout={handleLogout}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
 }

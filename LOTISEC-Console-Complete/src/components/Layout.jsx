@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, Ambulance, BarChart3, Bell, Building2, CloudCog,
   ChevronDown, ChevronRight, ClipboardCheck, ClipboardList, Database, FileBarChart, Gauge, HeartPulse, Home, Hospital, Landmark, LineChart, MapPinned, MonitorPlay, Moon, Network, Pause, Play, RotateCcw, Route, Settings, ShieldCheck, Stethoscope, Sun, Target,
@@ -9,7 +9,7 @@ import { applyTheme, initialTheme } from '../lib/theme'
 const operationsNav = [
   { section:'OPÉRATIONS', items:[
     {to:'/', label:'Tableau de bord', icon:Home},
-    {to:'/alerts', label:'Alertes & incidents', icon:TriangleAlert, badge:3},
+    {to:'/alerts', label:'Alertes & incidents', icon:TriangleAlert, badge:null},
     {to:'/interventions', label:'Interventions', icon:Activity},
     {to:'/map', label:'Carte opérationnelle', icon:MapPinned},
   ]},
@@ -78,13 +78,27 @@ const emergencyContacts=[
   {name:'Secours Abalo',detail:'Ambulance privée',number:'8880'},
 ]
 
-export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,onLogout,children}){
+export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,onLogout,alertsCount,children}){
   const [theme,setTheme] = useState(initialTheme())
   const [notificationsOpen,setNotificationsOpen]=useState(false)
   const [emergencyOpen,setEmergencyOpen]=useState(false)
   const [portalOpen,setPortalOpen]=useState(false)
   const mainRef=useRef(null)
-  const nav=navFor(portal)
+  const baseNav=navFor(portal)
+  const nav=useMemo(()=>{
+    if(portal==='operations'&&typeof alertsCount==='number'){
+      return baseNav.map(group=>{
+        if(group.section==='OPÉRATIONS'){
+          return {
+            ...group,
+            items:group.items.map(item=>item.to==='/alerts'?{...item,badge:alertsCount>0?alertsCount:null}:item)
+          }
+        }
+        return group
+      })
+    }
+    return baseNav
+  },[baseNav,portal,alertsCount])
   const meta=portalMeta[portal]||portalMeta.operations
   const activeNavClass=portal==='health'?'bg-emerald-600 text-white':portal==='national'?'bg-violet-700 text-white':'bg-blue-600 text-white'
   const notificationItems=portal==='health'

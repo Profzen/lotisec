@@ -2,6 +2,83 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Audit Opérationnel & Diagnostic Détaillé des Dysfonctionnements de la Console Web (2026-09-06)
+
+Ce rapport documente l'analyse exhaustive des points remontés concernant la console de régulation (`LOTISEC-Console-Complete`) et son raccordement avec l'application mobile (`Qr-mobile`) et le backend (`backend/`).
+
+### 1. Simplification et Épuration de la Page de Connexion (`Login.jsx`)
+- **Constat actuel** : L'écran de connexion présente une double boîte asymétrique (boîte d'accès Admin à gauche et formulaire manuel à droite), avec un style visuel perçu comme trop chargé / artificiel (« trop IA »), des badges redondants et des textes longs (« Ce profil donne un accès total... », mention « 18 comptes de test », « Système certifié pour les services de secours togolais... »).
+- **Cible validée** :
+  - Remplacer les deux encadrés par **une unique carte centrale de connexion**, sobre, épurée, élégante et professionnelle.
+  - Conserver un formulaire standard : champ Téléphone + champ Mot de passe + bouton « Se connecter ».
+  - Intégrer directement au bas de cette unique carte :
+    - Le bouton d'accès direct **« Connexion Immédiate Administrateur »** (automatique avec le compte Super Admin `+22800001005`).
+    - Le bouton secondaire **« Mode Démo Hors-ligne (Sandbox) »**.
+  - Supprimer les textes promotionnels, les badges superflus, les mentions « 18 comptes » et « LOTISEC V2.2 système certifié... ».
+
+---
+
+### 2. Redirection Intempestive vers « Carte Opérationnelle » (`App.jsx`, `realtime.js`)
+- **Symptôme** : Lors de la navigation vers n'importe quelle vue du menu (ex. « Tableau de bord », « Ambulances »), l'utilisateur est systématiquement renvoyé vers la vue « Carte opérationnelle » au bout de 1 à 2 secondes.
+- **Cause racine identifiée** :
+  - Dans `services/realtime.js`, un intervalle de polling de secours (`poll()`) s'exécute immédiatement puis toutes les 6 secondes, et boucle sur les incidents retournés par l'API : `list.forEach((inc) => onIncident?.(inc, 'POLL'))`.
+  - Dans `App.jsx`, chaque appel à `receiveIncident()` contenait l'instruction inconditionnelle : `if(portalRef.current==='operations') setActivePage('map')`.
+  - Cette redirection s'exécutait même lorsque l'incident était déjà connu (`alreadyKnown === true`) et à chaque itération de polling de l'ensemble des incidents existants en base.
+- **Solution validée** :
+  - Conditionner strictement le changement de page `setActivePage('map')` : il ne doit **JAMAIS** s'exécuter lors d'un rafraîchissement polling d'incidents déjà enregistrés.
+  - La redirection automatique vers la carte ne doit avoir lieu que sur action humaine explicite (clic « Voir sur la carte ») ou lors de la réception d'un tout nouvel incident critique réel en direct, sans jamais détourner l'écran si l'opérateur consulte déjà une autre section du tableau de bord.
+
+---
+
+### 3. Compteur « Alertes & Incidents » Bloqué à 3 (`Layout.jsx`, `Dashboard.jsx`)
+- **Symptôme** : Le badge du menu « Alertes & incidents » reste figé à la valeur 3, même après l'émission de plusieurs alertes depuis le mobile ou le simulateur.
+- **Cause racine identifiée** :
+  - Dans `components/Layout.jsx`, la liste de navigation `operationsNav` contenait la propriété statique `{to:'/alerts', label:'Alertes & incidents', icon:TriangleAlert, badge:3}` codée en dur. Aucune prop dynamique n'alimentait ce badge.
+  - Dans `pages/Dashboard.jsx`, la liste des alertes affichées était arbitrairement tronquée avec `.slice(0, 3)`.
+- **Solution validée** :
+  - Rendre le badge de la barre latérale dynamique en transmettant à `Layout` le décompte réel des alertes actives ou non validées (`alerts.filter(a => a.status === 'Nouveau' || a.status === 'new').length` ou `alerts.length`).
+  - Lier la réactivité du badge au state `alerts` afin que toute nouvelle alerte mobile ou simulation incrémente immédiatement le compteur visible.
+
+---
+
+### 4. Bips Sonores Intempestifs et Jitter de la Carte (`LomeMap.jsx`)
+- **Symptôme** : La carte émet des bips sonores réguliers (« target lock ») et se recentre/bouge d'elle-même toutes les quelques secondes, même sans nouvelle alerte.
+- **Cause racine identifiée** :
+  - Dans `components/LomeMap.jsx`, le hook `useEffect` principal surveillant les dépendances `[alerts, ambulances, hospitals, mission, ... focusAlertId]` exécutait à chaque cycle : `if(focusAlert && !mission) selectAlert(focusAlert, map)`.
+  - La fonction `selectAlert` appelait systématiquement `playTargetLock()` (génération sonore Web Audio) et `map.easeTo(...)` (animation de la caméra vers le point).
+  - Comme le polling de 6 secondes ou les mises à jour de télémétrie mettent à jour les tableaux `ambulances` ou `alerts`, le hook s'exécutait en boucle, provoquant les bips sonores continus et les micro-déplacements de caméra observés dans la vue détaillée.
+- **Solution validée** :
+  - Retirer l'appel automatique à `selectAlert()` et `playTargetLock()` du `useEffect` de re-rendu de la carte.
+  - Réserver `playTargetLock()` et les animations caméra exclusivement aux clics manuels interactifs de l'opérateur sur la carte ou la liste des incidents.
+
+---
+
+### 5. Synthèse Vocale Bloquée après la Première Étape en Mode Test (`App.jsx`, `sound.js`)
+- **Symptôme** : En lançant le mode test (démo), le message vocal de la première étape (réception de l'incident) fonctionne correctement, mais les annonces vocales des étapes suivantes ne sont plus émises.
+- **Causes racines identifiées** :
+  - Dans `App.jsx` (`runNextDemoStep`) :
+    - À l'étape 3, l'automate appelait directement `transitionMission('En route')` au lieu de `advanceMission('En route')`. Or, `transitionMission` ne contient aucun appel vocal, alors qu'`advanceMission` déclenche `announceMissionStage()`.
+    - Les étapes intermédiaires utilisaient des closures React asynchrones avec des états de mission désynchronisés.
+  - Dans `lib/sound.js` :
+    - Comportement spécifique des moteurs Chromium (Chrome/Edge) : l'objet `SpeechSynthesisUtterance` est fréquemment collecté par le garbage collector s'il n'est pas retenu dans une variable globale, ce qui coupe la file d'attente vocale après la première phrase.
+    - Après un appel à `speechSynthesis.cancel()`, l'instance peut rester dans un état interne suspendu si `speechSynthesis.resume()` n'est pas invoqué.
+- **Solution validée** :
+  - Sécuriser `lib/sound.js` en conservant une référence active `window.__activeUtterance` et en garantissant un déverrouillage propre (`resume()`) avant chaque émission vocale.
+  - Harmoniser les étapes du mode test dans `App.jsx` pour déclencher les annonces vocales officielles à chaque phase du cycle : Affectation (`announceAmbulanceAssignment` ou `announcePreDepartureDecision`), Départ En route (`announceMissionStage`), Orientation (`announceOrientationConfirmation`), et Clôture (`announceMissionStage`).
+
+---
+
+### 6. Audit de la Synchronisation Mobile (`Qr-mobile`) ↔ Backend ↔ Console
+- **Flux SOS Citoyen** :
+  - `Qr-mobile/src/screens/HomeScreen.tsx` émet vers `POST /api/v1/incidents` avec coordonnées GPS, gravité, type, et `qr_token`.
+  - Le backend Node.js (`backend/src/routers/operations.ts`) insère l'incident en base PostgreSQL, calcule l'unité la plus proche avec PostGIS (`ST_Distance`) et émet les notifications opérationnelles.
+  - La console reçoit l'incident via Supabase Realtime et/ou le polling sécurisé `GET /api/v1/incidents`.
+- **Points de vigilance identifiés** :
+  - Dans `Qr-mobile`, `contactService()` (appel des services 118, SAMU...) émettait vers `/api/v1/incidents` sans spécifier de token, ce qui nécessite la présence d'un token valide dans `AsyncStorage` via le client `api()`. Si l'utilisateur n'est pas connecté, une erreur 401 survenait.
+  - La console web en mode réel doit s'assurer que `dataMode` est correctement initialisé dès la connexion pour ne pas masquer les incidents entrants dans la file d'attente de secours.
+
+---
+
 ## Mise à jour — Intégration et Validation Complète de la Console Web V2.2 Version 27 (2026-09-02)
 
 ### 1. Contexte & Migration Accomplie
