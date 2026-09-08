@@ -580,9 +580,20 @@ export default function App(){
   const changeOperatorRole=role=>{
     const nextRole=ROLE_ACTIONS[role]?role:'Observateur'
     const previous=operator.role
-    setOperator(current=>({...current,role:nextRole}))
+    setOperator(current=>({...current,id:current.id==='USR-GUEST'?'USR-OP-001':current.id,name:current.authenticated?current.name:'Opérateur LOTISEC',role:nextRole,authenticated:true,sessionStartedAt:current.sessionStartedAt||new Date().toISOString()}))
     recordAudit('Rôle de session modifié',`${previous} → ${nextRole} dans l’environnement ${dataModeRef.current}.`,{category:'security',tone:'blue',reference:operator.id,operatorRole:nextRole})
     notify(`Session active : rôle ${nextRole}`,'blue')
+  }
+
+  const handleLogout=()=>{
+    try{
+      sessionStorage.removeItem('lotisec-access-token')
+      localStorage.removeItem('lotisec-access-token')
+    }catch{}
+    recordAudit('Déconnexion de session',`L'opérateur ${operator.name} s'est déconnecté.`,{category:'security',tone:'blue',reference:operator.id})
+    setOperator({id:'USR-GUEST',name:'Session déconnectée',role:'Observateur',authenticated:false,sessionStartedAt:null})
+    setActivePage('security')
+    notify('Session déconnectée avec succès','blue')
   }
 
   const updateSecurity=(key,value)=>{
@@ -824,5 +835,5 @@ export default function App(){
   const demoBlocked=Boolean(demoDecisionPending)||(demoStep===3&&mission?.routeState==='loading')
   const demoBlockedMessage=demoDecisionPending?'Validation opérateur attendue':demoStep===3&&mission?.routeState==='loading'?'Calcul de l’itinéraire en cours':onScenePause?'Intervention sur les lieux en cours':hospitalHandoff?'Remise à l’hôpital en cours':movementStep?'Déplacement de l’ambulance en cours':null
 
-  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
+  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} onLogout={handleLogout} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Activity, Ambulance, BarChart3, Bell, Building2, CloudCog,
   ChevronDown, ChevronRight, ChevronUp, ClipboardCheck, ClipboardList, Database, FileBarChart, Gauge, HeartPulse, Home, Hospital, Landmark, LineChart, MapPinned, MonitorPlay, Moon, Network, RotateCcw, Route, Settings, ShieldCheck, Stethoscope, Sun, Target,
-  TriangleAlert, UsersRound, Volume2, VolumeX, FileClock, PhoneCall, Siren, ArrowRightLeft, BedDouble
+  TriangleAlert, UsersRound, Volume2, VolumeX, FileClock, PhoneCall, Siren, ArrowRightLeft, BedDouble, LogOut
 } from 'lucide-react'
 import { applyTheme, initialTheme } from '../lib/theme'
 
@@ -78,7 +78,7 @@ const emergencyContacts=[
   {name:'Secours Abalo',detail:'Ambulance privée',number:'8880'},
 ]
 
-export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,children}){
+export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,onLogout,children}){
   const [theme,setTheme] = useState(initialTheme())
   const [notificationsOpen,setNotificationsOpen]=useState(false)
   const [emergencyOpen,setEmergencyOpen]=useState(false)
@@ -127,6 +127,12 @@ export default function Layout({activePage,onNavigate,portal='operations',onChan
       </nav>
       <div className="shrink-0 space-y-2 border-t border-slate-100 p-3 dark:border-slate-800">
         {portal==='operations'&&<button type="button" onClick={()=>setEmergencyOpen(true)} className="flex w-full items-center gap-3 rounded-xl bg-red-600 px-3 py-3 text-left text-sm font-bold text-white shadow-lg shadow-red-900/15 transition hover:bg-red-700"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/15"><PhoneCall size={17}/></span><span className="flex-1">Contacter les urgences</span><ChevronRight size={16}/></button>}
+        <button type="button" onClick={onLogout} className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-red-900/40 dark:hover:bg-red-950/30 dark:hover:text-red-400" title="Déconnecter la session opérateur">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-slate-500 shadow-sm transition group-hover:text-red-600 dark:bg-slate-800 dark:text-slate-400">
+            <LogOut size={15}/>
+          </span>
+          <span className="flex-1">Se déconnecter</span>
+        </button>
       </div>
     </aside>
 
