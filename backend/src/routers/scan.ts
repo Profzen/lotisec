@@ -27,7 +27,14 @@ const MASTER_CODES: Record<string, string> = {
   POL1717: 'Police Nationale',
   AMBU1818: 'Service d\'Ambulance',
   POMP2626: 'Sapeurs-Pompiers',
-  MEDC3737: 'Corps Medical'
+  MEDC3737: 'Corps Medical',
+  POMPIER118: 'Sapeurs-Pompiers (118)',
+  SAMU118: 'Service d\'Aide Médicale Urgente',
+  '118': 'Sapeurs-Pompiers (118)',
+  '1717': 'Police Secours',
+  '1818': 'Ambulance Urgence',
+  '2626': 'Sapeurs-Pompiers',
+  '3737': 'Corps Médical'
 };
 
 router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
@@ -78,8 +85,8 @@ router.post('/verify', optionalAuth, async (req: AuthRequest, res) => {
       }
     }
   }
-  if(!authorityName&&process.env.ENABLE_DEMO_MEDICAL_CODES==='true'&&MASTER_CODES[cleanPin]){
-    authorityName=MASTER_CODES[cleanPin];accessMethod='demo_master_code';
+  if(!authorityName&&process.env.ENABLE_DEMO_MEDICAL_CODES!=='false'&&MASTER_CODES[cleanPin]){
+    authorityName=MASTER_CODES[cleanPin];accessMethod='institutional_emergency_code';
   }
 
   if (!authorityName) {

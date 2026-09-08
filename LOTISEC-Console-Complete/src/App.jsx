@@ -161,20 +161,17 @@ export default function App(){
   }
 
   const receiveIncident=(incident,{real=false}={})=>{
-    if(real&&dataModeRef.current!=='real'){
-      setRealEventQueue(current=>[...current,{kind:'incident',payload:incident,receivedAt:new Date().toISOString()}].slice(-100))
-      return incident
-    }
     const started=performance.now()
-    const enriched={receivedAt:new Date().toISOString(),transport:real?'Socket.IO · WebSocket':'WebSocket simulé',eventName:'incident:new',messageState:'Reçu · normalisé · en attente de validation',connectionState:real?'Temps réel':'Simulation contrôlée',...incident}
+    const enriched={receivedAt:new Date().toISOString(),transport:real?'Flux mobile réel':'WebSocket simulé',eventName:'incident:new',messageState:'Reçu · normalisé · en attente de validation',connectionState:'Temps réel',...incident}
     const alreadyKnown=seenIncidentIds.current.has(enriched.id)
     seenIncidentIds.current.add(enriched.id)
     setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
-    setSelectedAlertId(enriched.id)
-    if(portalRef.current==='operations') setActivePage('map')
-    if(!alreadyKnown) announceNewIncident(enriched)
-    notify(`${alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement du mode test reçu'} : ${enriched.location}`,alreadyKnown?'blue':'red')
-    recordAudit(alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:alreadyKnown?'blue':'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile - mode test'})
+    if(!alreadyKnown){
+      setSelectedAlertId(enriched.id)
+      announceNewIncident(enriched)
+      notify(`🚨 Urgence mobile reçue : ${enriched.type} (${enriched.location})`,'red')
+      recordAudit('Urgence mobile reçue',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:'red',reference:enriched.id,actor:enriched.source||'Application mobile réelle'})
+    }
     fog.enqueue('incident.mobile',enriched,enriched.source)
     recordMetric('Traitement du signalement',performance.now()-started,'ms','Flux mobile','Réception, normalisation, alerte sonore et ciblage cartographique')
     return enriched

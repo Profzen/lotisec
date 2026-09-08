@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool, query } from '../database';
-import { AuthRequest, requireAuth, requirePermission } from '../middleware/auth';
+import { AuthRequest, optionalAuth, requireAuth, requirePermission } from '../middleware/auth';
+import { broadcast } from '../utils/wsManager';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { canTransition, INCIDENT_TRANSITIONS, INTERVENTION_TRANSITIONS } from '../security/workflows';
@@ -34,7 +35,7 @@ function score(severity: string, victims: number, vehicles: number, flags: strin
   return Math.min(99, base[severity] + Math.min(victims * 3, 12) + Math.min(vehicles * 2, 8) + Math.min(flags.length * 2, 6));
 }
 
-router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
+router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
   const parsed = incidentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
   const d = parsed.data;
@@ -44,13 +45,38 @@ router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
       victims, vehicles, vehicle_type, description, flags, priority_score, qr_token, client_event_id,requested_service)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (client_event_id) DO UPDATE SET client_event_id=EXCLUDED.client_event_id RETURNING *`,
-    [req.userId, req.organizationId, allowedSource, d.type, d.severity, d.latitude, d.longitude, d.accuracy,
+    [req.userId || null, req.organizationId || null, allowedSource, d.type, d.severity, d.latitude, d.longitude, d.accuracy,
      d.address || null, d.victims, d.vehicles, d.vehicle_type || null, d.description || null, d.flags,
      score(d.severity,d.victims,d.vehicles,d.flags), d.qr_token || null, d.client_event_id || null,d.requested_service||null]
   );
-  await query(`INSERT INTO incident_events (incident_id, actor_id, type, to_status) VALUES ($1,$2,'created','new')`, [saved.rows[0].id, req.userId]);
-  await audit(req.userId,req.organizationId,'incident.created','incident',saved.rows[0].id,{source:allowedSource,severity:d.severity});
+  await query(`INSERT INTO incident_events (incident_id, actor_id, type, to_status) VALUES ($1,$2,'created','new')`, [saved.rows[0].id, req.userId || null]);
+  if (req.userId) {
+    await audit(req.userId,req.organizationId,'incident.created','incident',saved.rows[0].id,{source:allowedSource,severity:d.severity});
+  }
   await createNotification({roles:['admin','supervisor','dispatcher'],type:'incident.created',title:'Nouvel incident',message:`${d.type} · priorité ${saved.rows[0].priority_score}`,entityType:'incident',entityId:saved.rows[0].id});
+  try {
+    broadcast({
+      type: 'NOUVELLE_ALERTE',
+      event: 'incident:new',
+      id: saved.rows[0].id,
+      incident: {
+        id: saved.rows[0].id,
+        type: saved.rows[0].type,
+        severity: saved.rows[0].severity === 'critical' ? 'Critique' : saved.rows[0].severity === 'high' ? 'Élevée' : 'Modérée',
+        location: saved.rows[0].address || 'Position GPS mobile',
+        victims: saved.rows[0].victims || 1,
+        vehicles: saved.rows[0].vehicles || 0,
+        source: allowedSource === 'web' ? 'Portail citoyen web' : 'Application mobile réelle',
+        received: new Date().toLocaleTimeString('fr-FR'),
+        receivedAt: saved.rows[0].created_at || new Date().toISOString(),
+        accuracy: saved.rows[0].accuracy ? `${saved.rows[0].accuracy} m` : 'GPS certifié',
+        lat: Number(saved.rows[0].latitude),
+        lng: Number(saved.rows[0].longitude),
+        status: 'Nouveau',
+        qr_token: saved.rows[0].qr_token || null
+      }
+    });
+  } catch {}
   if(d.requested_service){
     const organizationTypes:Record<string,string[]>={fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']};
     const target=await query<any>(`SELECT id FROM organizations WHERE active=true AND type=ANY($1::text[]) ORDER BY created_at ASC LIMIT 1`,[organizationTypes[d.requested_service]]);
@@ -155,13 +181,13 @@ router.post('/incidents', requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-router.get('/incidents', requireAuth, requirePermission('incidents:read'), async (req: AuthRequest, res) => {
+router.get(['/incidents', '/alerts'], optionalAuth, async (req: AuthRequest, res) => {
   const since = typeof req.query.since === 'string' ? req.query.since : null;
   const result = await query<any>(
     `SELECT * FROM incidents WHERE ($1::timestamptz IS NULL OR updated_at > $1::timestamptz)
      ORDER BY created_at DESC LIMIT 200`, [since]
   );
-  return res.json({ incidents: result.rows, server_time: new Date().toISOString() });
+  return res.json({ incidents: result.rows, alerts: result.rows, server_time: new Date().toISOString() });
 });
 
 router.patch('/incidents/:id/status', requireAuth, requirePermission('incidents:manage'), async (req: AuthRequest, res) => {

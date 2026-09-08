@@ -3,8 +3,14 @@ const DEMO_FALLBACK = String(import.meta.env.VITE_ENABLE_DEMO_FALLBACK ?? 'true'
 
 async function request(path, options = {}) {
   try {
+    const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('lotisec-token')) : null
+    const headers = { 
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers || {}) 
+    }
     const response = await fetch(`${API_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      headers,
       ...options,
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -29,8 +35,9 @@ export const api = {
     return await res.json()
   },
   dashboard: () => request('/api/v1/dashboard'),
-  alerts: () => request('/api/v1/alerts'),
-  validateAlert: (id) => request(`/api/v1/alerts/${id}/validate`, { method:'POST' }),
+  alerts: () => request('/api/v1/incidents'),
+  incidents: () => request('/api/v1/incidents'),
+  validateAlert: (id) => request(`/api/v1/incidents/${id}/status`, { method:'PATCH', body:JSON.stringify({ status:'validated' }) }),
   interventions: () => request('/api/v1/interventions'),
   ambulances: () => request('/api/v1/ambulances'),
   hospitals: () => request('/api/v1/hospitals'),

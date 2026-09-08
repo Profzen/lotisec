@@ -43,16 +43,18 @@ L'analyse de bout en bout de la chaîne (Mobile App -> Mobile Web -> Backend -> 
 
 ---
 
-### III. Plan d'Action pour une Synchronisation Réelle Parfaite
-1. **Backend** :
-   - Passer `POST /api/v1/incidents` en `optionalAuth` (autoriser le SOS même sans jeton citoyen).
-   - Activer `ENABLE_DEMO_MEDICAL_CODES=true` par défaut dans `scan.ts` pour que les codes d'urgence institutionnels fonctionnent immédiatement.
-   - Ajouter un alias `GET /api/v1/alerts` pointant vers la liste des incidents pour satisfaire le contrat d'API de la console.
-   - Diffuser l'incident via `broadcast()` lors de la création d'un incident dans `operations.ts`.
-2. **Console (`LOTISEC-Console-Complete`)** :
-   - Connecter la console au flux réel du backend : récupérer les incidents réels via `GET /api/v1/incidents` (ou `/api/v1/alerts`) au chargement et lors de la bascule en flux réel.
-   - Prévoir une synchronisation hybride robuste (Polling HTTP toutes les X secondes + WebSocket natif `/ws/alertes`), de sorte que même si la console tourne sur un hébergeur serverless (Vercel) sans WebSockets persistants, les nouveaux incidents mobiles s'affichent instantanément en temps réel avec bip d'alerte, incrémentation des compteurs et mise à jour de la carte.
-   - Assurer que les alertes reçues s'affichent directement et incrémentent les indicateurs opérationnels.
+### III. Plan d'Action & Résolution Appliquée (Déployé 2026-09-08)
+1. **Backend (`backend/src/routers/`)** :
+   - `scan.ts` : `MASTER_CODES` étendu avec tous les alias courants (`POMP2626`, `AMBU1818`, `POL1717`, `MEDC3737`, `POMPIER118`, `118`, `1717`, `1818`, `2626`, `3737`) et activé par défaut (`process.env.ENABLE_DEMO_MEDICAL_CODES !== 'false'`).
+   - `operations.ts` : `POST /incidents` rendu accessible avec `optionalAuth` afin que les signalements SOS anonymes ou citoyens sans session soient immédiatement enregistrés et géo-localisés.
+   - `operations.ts` : Diffusion temps réel via `broadcast()` vers le WebSocket `/ws/alertes` à chaque incident créé.
+   - `operations.ts` : Route alias `GET /alerts` ajoutée avec `optionalAuth` renvoyant les incidents pour satisfaire le contrat d'API de la console.
+   - Compilation backend `tsc` réussie avec 0 erreur.
+2. **Console Admin (`LOTISEC-Console-Complete`)** :
+   - `services/api.js` : Ajout du token `Authorization` dans `request` et alias `alerts` vers `/api/v1/incidents`.
+   - `services/mobileGateway.js` : Implémentation d'une passerelle hybride robuste combinant WebSocket natif `/ws/alertes` et polling automatique toutes les 4 secondes sur `/api/v1/incidents`.
+   - `App.jsx` : Déblocage immédiat de `receiveIncident` : dès qu'un incident mobile ou citoyen web arrive, il est injecté en temps réel en tête de liste des alertes, le carillon retentit, le message toast s'affiche, et les compteurs (KPIs) s'incrémentent automatiquement.
+   - Build Vite validé avec succès (code 0).
 
 ## Stabilisation Carte LomeMap & Élimination Défilement Sonore / Clignotement (2026-09-08)
 - **Constat utilisateur** : Dans l'onglet *Alertes & incidents* (colonne de droite, alerte sélectionnée), la carte et l'encadré flottant *INCIDENT MOBILE* clignotaient en permanence, la carte bougeait de façon saccadée et les bips sonores défilaient en boucle continue.

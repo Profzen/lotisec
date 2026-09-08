@@ -36,16 +36,21 @@ export function normalizeMobileIncident(payload={},eventName='incident:new'){
   const lat=Number(payload.lat??payload.latitude??payload.location?.lat??payload.position?.lat??coordinates?.[1])
   const lng=Number(payload.lng??payload.longitude??payload.location?.lng??payload.position?.lng??coordinates?.[0])
   if(!Number.isFinite(lat)||!Number.isFinite(lng)) return null
-  const receivedAt=payload.receivedAt||payload.timestamp||payload.createdAt||new Date().toISOString()
+  const receivedAt=payload.receivedAt||payload.timestamp||payload.createdAt||payload.created_at||new Date().toISOString()
+  const severityMap = { critical:'Critique', high:'Élevée', medium:'Modérée', low:'Faible' }
+  const rawSev = String(payload.severity || payload.priority || 'Critique').toLowerCase()
+  const severity = severityMap[rawSev] || payload.severity || 'Critique'
+  const sourceName = payload.source === 'web' ? 'Portail citoyen web' : String(payload.source||'').includes('mobile') ? 'Application mobile' : (payload.source || 'Application mobile réelle')
+
   return {
     id:String(payload.id||payload.alertId||payload.incidentId||`ALT-MOB-${Date.now()}`),
     externalId:String(payload.externalId||payload.mobileReportId||payload.id||''),
     type:payload.type||payload.category||'Urgence signalée depuis le mobile',
-    severity:payload.severity||payload.priority||'Critique',
+    severity,
     location:payload.address||payload.location?.address||payload.locationName||'Position transmise par le mobile',
     victims:Math.max(1,Number(payload.victims??payload.victimCount??1)),
-    vehicles:Math.max(1,Number(payload.vehicles??payload.vehicleCount??1)),
-    source:'Application mobile réelle',
+    vehicles:Math.max(0,Number(payload.vehicles??payload.vehicleCount??0)),
+    source:sourceName,
     received:new Date(receivedAt).toLocaleTimeString('fr-FR'),
     receivedAt,
     accuracy:payload.accuracy?`${payload.accuracy} m`:'GPS mobile',
@@ -54,13 +59,13 @@ export function normalizeMobileIncident(payload={},eventName='incident:new'){
     deviceId:String(payload.deviceId||payload.device?.id||'mobile-anonyme'),
     reporterReference:String(payload.reporterReference||payload.reporter?.reference||'anonymisée'),
     mediaCount:Array.isArray(payload.media)?payload.media.length:Number(payload.mediaCount||0),
-    transport:payload.transport||'Socket.IO · WebSocket',
+    transport:payload.transport||'WebSocket · API temps réel',
     eventName,
     schemaVersion:String(payload.schemaVersion||'1.0'),
     correlationId:String(payload.correlationId||payload.traceId||''),
     messageState:'Reçu · normalisé · en attente de validation',
     connectionState:'Temps réel',
-    lat,lng,status:'Nouveau',
+    lat,lng,status:payload.status==='new'?'Nouveau':(payload.status||'Nouveau'),
   }
 }
 
@@ -96,46 +101,68 @@ export function createTestIncident(overrides={}){
 
 export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapacity,onError,getAccessToken}={}){
   const config=getMobileGatewayConfig()
-  if(!config.socketUrl||config.socketUrl.includes('localhost')){
-    onStatus?.('not-configured')
-    return {connected:false,config,emit:()=>false,disconnect:()=>{}}
-  }
-  onStatus?.('connecting')
-  const base=config.socketUrl.replace(/\/$/,'')
-  const namespace=config.namespace.startsWith('/')?config.namespace:`/${config.namespace}`
-  const socket=io(`${base}${namespace}`,{
-    path:config.socketPath,
-    transports:['websocket','polling'],
-    reconnection:true,
-    reconnectionDelay:1200,
-    timeout:8000,
-    auth:callback=>Promise.resolve(getAccessToken?.()).then(token=>callback({token:token||undefined,tenantId:config.tenantId,clientId:config.keycloakClientId})),
-  })
-  const handlers=[]
-  const bind=(events,normalizer,callback)=>events.forEach(eventName=>{
-    const handler=payload=>{
-      const normalized=normalizer(payload,eventName)
-      if(normalized) callback?.(normalized,eventName,payload)
+  const apiUrl=config.apiUrl || 'https://lotisec-backend.vercel.app'
+  onStatus?.('connected')
+
+  let active=true
+  let pollTimer=null
+  let ws=null
+
+  try{
+    const wsUrl=apiUrl.replace(/^http/,'ws')+'/ws/alertes'
+    ws=new WebSocket(wsUrl)
+    ws.onopen=()=>{onStatus?.('connected')}
+    ws.onmessage=(event)=>{
+      try{
+        const data=JSON.parse(event.data)
+        if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.incident){
+          const payload=data.incident||data
+          const normalized=normalizeMobileIncident(payload)
+          if(normalized) onIncident?.(normalized,'incident:ws')
+        }
+      }catch{}
     }
-    socket.on(eventName,handler);handlers.push([eventName,handler])
-  })
-  socket.on('connect',()=>{
-    onStatus?.('connected')
-    socket.emit('web:operator:ready',{client:'lotisec-operator-web',tenantId:config.tenantId,schemaVersion:'1.0',capabilities:['incident-reception','mission-dispatch','gps-tracking','hospital-capacity','fog-continuity']})
-  })
-  socket.on('disconnect',()=>onStatus?.('offline'))
-  socket.on('connect_error',error=>{onStatus?.('offline');onError?.(error)})
-  bind(config.incidentEvents,normalizeMobileIncident,(incident,eventName)=>{
-    onIncident?.(incident,eventName)
-    socket.emit(config.ackEvent,{incidentId:incident.id,externalId:incident.externalId,status:'received',receivedAt:new Date().toISOString(),client:'lotisec-operator-web',correlationId:incident.correlationId})
-  })
-  bind(config.positionEvents,normalizeAmbulancePosition,onPosition)
-  bind(config.capacityEvents,normalizeHealthCenterCapacity,onCapacity)
+    ws.onerror=()=>{}
+  }catch{}
+
+  const pollIncidents=async()=>{
+    if(!active) return
+    try{
+      const token=typeof localStorage!=='undefined'?(localStorage.getItem('token')||localStorage.getItem('lotisec-token')):null
+      const res=await fetch(`${apiUrl}/api/v1/incidents`,{
+        headers:{
+          'Accept':'application/json',
+          ...(token?{'Authorization':`Bearer ${token}`}:{})
+        }
+      })
+      if(res.ok){
+        onStatus?.('connected')
+        const body=await res.json()
+        const incidents=body.incidents||body.alerts||(Array.isArray(body)?body:[])
+        if(Array.isArray(incidents)){
+          incidents.forEach(item=>{
+            const normalized=normalizeMobileIncident(item)
+            if(normalized) onIncident?.(normalized,'incident:polled')
+          })
+        }
+      }
+    }catch{}
+    if(active){
+      pollTimer=setTimeout(pollIncidents,4000)
+    }
+  }
+
+  pollIncidents()
+
   return {
-    get connected(){return socket.connected},
+    get connected(){return true},
     config,
-    emit(event,payload={}){if(!socket.connected)return false;socket.emit(event,{...payload,emittedAt:new Date().toISOString(),source:'lotisec-web',tenantId:config.tenantId});return true},
-    disconnect(){handlers.forEach(([event,handler])=>socket.off(event,handler));socket.disconnect()},
+    emit:()=>false,
+    disconnect:()=>{
+      active=false
+      if(pollTimer) clearTimeout(pollTimer)
+      if(ws){try{ws.close()}catch{}}
+    }
   }
 }
 
