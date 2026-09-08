@@ -85,12 +85,12 @@ export function createTestIncident(overrides={}){
     id:`ALT-TEST-${String(Date.now()).slice(-6)}`,
     externalId:'',
     type:'Accident signalé depuis le mobile',severity:'Critique',
-    location:'Carrefour GTA, Lomé',victims:2,vehicles:2,
-    source:'Application mobile — mode test isolé',received:now.toLocaleTimeString('fr-FR'),receivedAt:now.toISOString(),accuracy:'6 m',
+    location:'DRSI, Campus Sud - Université de Lomé',victims:2,vehicles:2,
+    source:'Application mobile - mode test isolé',received:now.toLocaleTimeString('fr-FR'),receivedAt:now.toISOString(),accuracy:'6 m',
     transport:'Bus local de test',eventName:'test:incident:new',schemaVersion:'test-1.0',correlationId:`TEST-${Date.now()}`,
     deviceId:'simulateur-mobile',reporterReference:'TEST-ANONYME',mediaCount:0,
     messageState:'Reçu · normalisé · en attente de validation',connectionState:'Simulation isolée',
-    lat:6.1639,lng:1.2058,status:'Nouveau',...overrides,
+    lat:6.1723,lng:1.21952,status:'Nouveau',...overrides,
   }
 }
 
@@ -146,6 +146,6 @@ export async function probeBackendHealth(signal){
   try{
     const response=await fetch(`${config.apiUrl.replace(/\/$/,'')}${config.healthPath}`,{headers:{Accept:'application/json','X-LOTISEC-Tenant':config.tenantId},signal})
     const body=await response.json().catch(()=>({}))
-    return {configured:true,ok:response.ok,latency:Math.round(performance.now()-started),status:response.status,components:body.components||body.checks||{},version:body.version||body.release||'—'}
+    return {configured:true,ok:response.ok,latency:Math.round(performance.now()-started),status:response.status,components:body.components||body.checks||{},version:body.version||body.release||'-'}
   }catch(error){return {configured:true,ok:false,latency:Math.round(performance.now()-started),error:error?.name==='AbortError'?'Délai dépassé':'API inaccessible',components:{}}}
 }

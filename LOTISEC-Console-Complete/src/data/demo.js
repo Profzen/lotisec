@@ -15,9 +15,9 @@ export const ambulances = [
 ]
 
 export const alerts = [
-  { id:'ALT-2026-081', type:'Accident de la route', severity:'Critique', location:'Boulevard du 13 Janvier, Lomé', victims:2, source:'Application mobile', received:'il y a 2 min', lat:6.1414, lng:1.2187 },
-  { id:'ALT-2026-080', type:'Collision moto', severity:'Élevée', location:'Tokoin, Lomé', victims:1, source:'Application mobile', received:'il y a 6 min', lat:6.1450, lng:1.2050 },
-  { id:'ALT-2026-079', type:'Malaise', severity:'Modérée', location:'Bè, Lomé', victims:1, source:'Opérateur', received:'il y a 11 min', lat:6.1280, lng:1.2380 },
+  { id:'ALT-2026-081', type:'Accident de la route', severity:'Critique', location:'Douane Adidogomé, Lomé', victims:2, source:'Signalement enregistré', received:'il y a 5 min', lat:6.18777, lng:1.16339 },
+  { id:'ALT-2026-080', type:'Collision moto', severity:'Élevée', location:'Agoè-Sogbossito, Lomé', victims:1, source:'Signalement enregistré', received:'il y a 9 min', lat:6.25168, lng:1.17156 },
+  { id:'ALT-2026-079', type:'Malaise', severity:'Modérée', location:'Bè, Lomé', victims:1, source:'Opérateur', received:'il y a 14 min', lat:6.1280, lng:1.2380 },
 ]
 
 export const interventions = [

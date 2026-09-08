@@ -37,7 +37,11 @@ body { margin: 0; }
 .lotisec-scroll-panel::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #cbd5e1; background-clip: padding-box; }
 .dark .lotisec-scroll-panel::-webkit-scrollbar-thumb { background: #334155; background-clip: padding-box; }
 
-@media (min-width: 1536px) {
+.lotisec-sticky-kpis {
+  position: static;
+}
+
+@media (min-width: 1280px) {
   .lotisec-fixed-split { overflow: hidden; }
   .lotisec-fixed-split > * {
     min-height: 0;
@@ -153,7 +157,8 @@ body { margin: 0; }
 }
 .lotisec-map-callout.side-right::after { right: 100%; }
 .lotisec-map-callout.side-left::after { left: 100%; }
-.lotisec-map-anchor.is-featured .lotisec-map-callout,
+.lotisec-incident-anchor.is-new .lotisec-map-callout,
+.lotisec-hospital-anchor.is-recommended .lotisec-map-callout,
 .lotisec-map-anchor.is-selected .lotisec-map-callout,
 .lotisec-map-anchor:hover .lotisec-map-callout,
 .lotisec-map-anchor:focus-visible .lotisec-map-callout {
@@ -185,7 +190,7 @@ body { margin: 0; }
   width: 190px;
   border: 2px solid #a7f3d0;
   border-radius: 16px;
-  background: linear-gradient(145deg,#047857,#10b981);
+  background: #059669;
   padding: 30px 12px 11px;
   color: white;
   box-shadow: 0 14px 34px rgba(4,120,87,.4);
@@ -239,6 +244,20 @@ body { margin: 0; }
   border-radius: 999px;
   animation: incident-pulse 1.4s ease-out infinite;
 }
+.lotisec-incident-anchor.is-new { z-index: 26 !important; }
+.lotisec-incident-anchor.is-new .incident-core {
+  width: 31px;
+  height: 31px;
+  background: #dc2626;
+  font-size: 16px;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.92), 0 8px 20px rgba(127,29,29,.5);
+}
+.lotisec-incident-anchor.is-new .incident-ring {
+  inset: -4px;
+  border-width: 4px;
+  border-color: rgba(220,38,38,.92);
+  animation-duration: 1s;
+}
 @keyframes incident-pulse {
   0% { transform: scale(.55); opacity: 1; }
   100% { transform: scale(1.35); opacity: 0; }
@@ -270,7 +289,7 @@ body { margin: 0; }
 }
 .lotisec-ambulance-marker img { width: 48px; height: 61px; object-fit: contain; transform:rotate(var(--ambulance-bearing,0deg)); transform-origin: center; }
 .lotisec-ambulance-marker b { margin-top:-5px; border:2px solid white; border-radius:8px; background:#1d4ed8; padding:2px 7px; color:white; font-size:9px; line-height:14px; box-shadow:0 3px 8px rgba(30,64,175,.4); }
-.lotisec-ambulance-marker.is-live { z-index: 28; border-radius:999px; background:radial-gradient(circle,rgba(255,255,255,.96) 0 34%,rgba(59,130,246,.34) 35% 51%,transparent 52%); }
+.lotisec-ambulance-marker.is-live { z-index: 28; border-radius:999px; background:#dbeafe; outline:4px solid rgba(37,99,235,.28); }
 .lotisec-ambulance-marker.is-live img { width:58px; height:74px; animation: ambulance-bob .7s ease-in-out infinite alternate; }
 .lotisec-ambulance-marker.is-arrived b { background:#059669; }
 .ambulance-beacon { position:absolute; z-index:2; top:20px; width:8px; height:8px; border-radius:50%; background:#ef4444; box-shadow:-10px 0 11px 3px #3b82f6,10px 0 11px 3px #ef4444; animation: beacon .38s linear infinite alternate; }

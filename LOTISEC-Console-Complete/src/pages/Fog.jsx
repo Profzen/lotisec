@@ -25,7 +25,7 @@ export default function Fog({fog,onQueueTest,onNotify}){
 
     <section className="surface mb-4 overflow-hidden border-blue-200 dark:border-blue-900">
       <div className="grid lg:grid-cols-[1.2fr_.8fr]">
-        <div className="bg-gradient-to-br from-[#072b4d] to-[#0d4d7d] p-5 text-white">
+        <div className="bg-[#073b67] p-5 text-white">
           <div className="text-[10px] font-black uppercase tracking-[.18em] text-sky-200">Prototype Fog fonctionnel</div>
           <h3 className="mt-2 text-xl font-bold">Continuité de service en connectivité dégradée</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100">Les opérations sont placées dans une file IndexedDB persistante. À la reprise, le moteur les transmet, attend un acquittement puis les retire de la file.</p>
@@ -38,7 +38,7 @@ export default function Fog({fog,onQueueTest,onNotify}){
       </div>
     </section>
 
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="lotisec-sticky-kpis grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Kpi label="État réseau" value={fog.quality.label} icon={CurrentIcon} tone={current.tone} hint={`${fog.quality.latency} · pertes ${fog.quality.loss}`}/>
       <Kpi label="File locale" value={fog.queue.length} icon={Database} tone={fog.queue.length?'amber':'green'} hint={fog.queue.length?'Données persistées':'File synchronisée'}/>
       <Kpi label="Dernière synchronisation" value={lastSync} icon={RefreshCw} tone="blue" hint={fog.syncing?'Transmission en cours':'Acquittement vérifié'}/>
@@ -47,7 +47,7 @@ export default function Fog({fog,onQueueTest,onNotify}){
 
     <section className={`surface mt-4 overflow-hidden ${fog.effectiveMode==='offline'?'border-red-300':fog.effectiveMode==='degraded'?'border-amber-300':'border-emerald-300'}`}>
       <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center dark:border-slate-800"><div><div className="text-[10px] font-black uppercase tracking-[.15em] text-blue-600">Continuité fonctionnelle observable</div><h3 className="mt-1 font-semibold">Ce qui reste disponible pendant la dégradation réseau</h3></div><Status tone={fog.effectiveMode==='offline'?'red':fog.effectiveMode==='degraded'?'amber':'green'}>{fog.effectiveMode==='offline'?'MODE LOCAL ACTIF':fog.effectiveMode==='degraded'?'TRANSMISSION RALENTIE':'SYNCHRONISATION DIRECTE'}</Status></div>
-      <div className="grid gap-3 p-4 md:grid-cols-3"><ContinuityItem icon={Activity} title="Signalement et décision locale" text="Réception, validation et classement des ressources restent utilisables." active/><ContinuityItem icon={HardDrive} title="Stockage temporaire" text={`${fog.queue.length} événement(s) protégé(s) dans la file persistante.`} active/><ContinuityItem icon={RefreshCw} title="Reprise Fog–Cloud" text={fog.effectiveMode==='offline'?'En attente du retour réseau avant acquittement.':fog.syncing?'Transmission progressive en cours.':'Synchronisation automatique prête.'} active={fog.effectiveMode!=='offline'}/></div>
+      <div className="grid gap-3 p-4 md:grid-cols-3"><ContinuityItem icon={Activity} title="Signalement et décision locale" text="Réception, validation et classement des ressources restent utilisables." active/><ContinuityItem icon={HardDrive} title="Stockage temporaire" text={`${fog.queue.length} événement(s) protégé(s) dans la file persistante.`} active/><ContinuityItem icon={RefreshCw} title="Reprise Fog-Cloud" text={fog.effectiveMode==='offline'?'En attente du retour réseau avant acquittement.':fog.syncing?'Transmission progressive en cours.':'Synchronisation automatique prête.'} active={fog.effectiveMode!=='offline'}/></div>
       <div className="grid grid-cols-3 border-t border-slate-100 text-center text-[10px] font-bold dark:border-slate-800"><div className="bg-blue-50 p-3 text-blue-700 dark:bg-blue-950/20">1 · Détecter la coupure</div><div className="bg-amber-50 p-3 text-amber-700 dark:bg-amber-950/20">2 · Conserver localement</div><div className="bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/20">3 · Synchroniser et acquitter</div></div>
     </section>
 
@@ -70,5 +70,5 @@ export default function Fog({fog,onQueueTest,onNotify}){
 }
 
 function Node({icon:Icon,title,state,text,tone}){const colors={blue:'bg-blue-50 text-blue-700 dark:bg-blue-950/30',green:'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30',amber:'bg-amber-50 text-amber-700 dark:bg-amber-950/30',red:'bg-red-50 text-red-700 dark:bg-red-950/30',violet:'bg-violet-50 text-violet-700 dark:bg-violet-950/30'};return <div className={`rounded-2xl border border-current/15 p-5 text-center ${colors[tone]}`}><Icon className="mx-auto" size={25}/><div className="mt-3 font-bold">{title}</div><div className="mt-1 text-xs font-semibold">{state}</div><div className="mt-2 text-[10px] opacity-75">{text}</div></div>}
-function Arrow({active}){return <div className="grid place-items-center"><span className={`h-1 w-full min-w-8 rounded-full ${active?'bg-gradient-to-r from-blue-400 to-emerald-400':'bg-slate-200 dark:bg-slate-700'}`}/></div>}
+function Arrow({active}){return <div className="grid place-items-center"><span className={`h-1 w-full min-w-8 rounded-full ${active?'bg-blue-600':'bg-slate-200 dark:bg-slate-700'}`}/></div>}
 function ContinuityItem({icon:Icon,title,text,active}){return <div className={`rounded-2xl border p-4 ${active?'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20':'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900'}`}><div className="flex items-center gap-2"><span className={`grid h-8 w-8 place-items-center rounded-xl ${active?'bg-emerald-600 text-white':'bg-slate-200 text-slate-500 dark:bg-slate-800'}`}><Icon size={16}/></span><b className="text-sm">{title}</b></div><p className="mt-2 text-xs leading-5 muted">{text}</p></div>}

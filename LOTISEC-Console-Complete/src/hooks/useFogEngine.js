@@ -90,7 +90,7 @@ export function useFogEngine(){
     await clearFogItems();setQueue([]);setNetworkModeState('normal');setStats({queued:0,synced:0,failures:0,lastDuration:0});setHistory([])
   },[])
 
-  const quality=effectiveMode==='normal'?{label:'Stable',latency:stats.lastDuration?`${stats.lastDuration} ms mesurés`:'latence à mesurer',loss:'0 % (scénario)'}:effectiveMode==='degraded'?{label:'Dégradée',latency:'+1,1 s injectée',loss:'12 % (scénario)'}:{label:'Interrompue',latency:'—',loss:'100 % (scénario)'}
+  const quality=effectiveMode==='normal'?{label:'Stable',latency:stats.lastDuration?`${stats.lastDuration} ms mesurés`:'latence à mesurer',loss:'0 % (scénario)'}:effectiveMode==='degraded'?{label:'Dégradée',latency:'+1,1 s injectée',loss:'12 % (scénario)'}:{label:'Interrompue',latency:'-',loss:'100 % (scénario)'}
   const syncRate=stats.queued?Math.round(stats.synced/stats.queued*100):100
 
   return useMemo(()=>({networkMode,effectiveMode,browserOnline,setNetworkMode,queue,enqueue,syncNow,syncing,lastSync,history,stats:{...stats,syncRate},quality,storage:fogStorageLabel(),refreshQueue,reset}),[networkMode,effectiveMode,browserOnline,setNetworkMode,queue,enqueue,syncNow,syncing,lastSync,history,stats,quality.label,quality.latency,quality.loss,refreshQueue,reset])

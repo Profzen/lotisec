@@ -8,7 +8,7 @@ const targetRows=[
   ['Routage','OSRM avec voies nommées, alternatives et itinéraire local de secours','Implémenté'],
   ['Trafic routier','Congestion injectée pour vérifier le mécanisme de reroutage','Scénario simulé'],
   ['Continuité locale','File IndexedDB persistante en cas de coupure','Implémenté'],
-  ['Reprise Fog–Cloud','Synchronisation, acquittement et suppression après succès','Implémenté'],
+  ['Reprise Fog-Cloud','Synchronisation, acquittement et suppression après succès','Implémenté'],
   ['Nœud Fog physique','Équipement de proximité réellement déployé sur le terrain','Non déployé'],
 ]
 
@@ -17,7 +17,7 @@ export default function Evaluation({metrics,fog,onRunDemo,onResetMetrics}){
   const mobile=latest('Traitement du signalement')
   const routing=latest('Calcul des itinéraires')
   const decision=latest('Décision géospatiale')
-  const sync=latest('Synchronisation Fog–Cloud')
+  const sync=latest('Synchronisation Fog-Cloud')
 
   return <>
     <PageTitle title="Évaluation du prototype" subtitle="Mesures générées pendant le mode test et périmètre réel de validation." action={<div className="flex gap-2"><button type="button" onClick={onResetMetrics} className="btn-secondary">Réinitialiser les mesures</button><button type="button" onClick={()=>onRunDemo(true)} className="btn-primary"><Play size={16}/>Lancer le mode test</button></div>}/>
@@ -29,7 +29,7 @@ export default function Evaluation({metrics,fog,onRunDemo,onResetMetrics}){
       </div>
     </section>
 
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="lotisec-sticky-kpis grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Kpi label="Traitement du signalement" value={formatMetric(mobile)} icon={Smartphone} tone="red" hint="Réception et normalisation web"/>
       <Kpi label="Décision géospatiale" value={formatMetric(decision)} icon={Gauge} tone="violet" hint="Classement ambulance + centre"/>
       <Kpi label="Calcul des itinéraires" value={formatMetric(routing)} icon={Route} tone="blue" hint="OSRM ou repli local"/>

@@ -24,27 +24,43 @@ import { alerts as initialAlerts, ambulances as initialAmbulances, hospitals as 
 import { getRoadRoute, localRoutePlan } from './services/routing'
 import { rankAmbulances, rankHospitals } from './services/decision'
 import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, probeBackendHealth } from './services/mobileGateway'
-import { api, getAuthToken, setAuthToken } from './services/api'
+import { getAccessToken } from './services/auth'
+import { api, getAuthToken } from './services/api'
 import { subscribeToRealtime } from './services/realtime'
 import { useFogEngine } from './hooks/useFogEngine'
-import { announceAmbulanceAssignment, announceCongestion, announceMissionStage, announceNewIncident, announceOrientationConfirmation, announcePreDepartureDecision, getSoundsEnabled, playTargetLock, setSoundsEnabled as persistSounds, speakOperational, stopOperationalAudio, unlockSound } from './lib/sound'
+import {
+  announceAmbulanceAssignment,
+  announceCongestion,
+  announceMissionStage,
+  announceNewIncident,
+  announceOrientationConfirmation,
+  announcePreDepartureDecision,
+  getSoundsEnabled,
+  playTargetLock,
+  setSoundsEnabled as persistSounds,
+  speakOperational,
+  stopOperationalAudio,
+  unlockSound,
+} from './lib/sound'
 
 const MISSION_STAGES=['Analyse trafic','Affectée','En route','Sur place','Orientation hospitalière','Vers le centre de santé','Pris en charge','Terminée']
 const DEMO_STEPS=[
   {label:'Signalement',detail:'Réception mobile, alerte sonore et localisation'},
   {label:'Validation',detail:'Contrôle humain et validation traçable du signalement'},
   {label:'Affectation & trafic',detail:'Ambulance recommandée, congestion détectée avant départ'},
-  {label:'Départ guidé',detail:'Itinéraire alternatif retenu et déplacement de l’ambulance'},
+  {label:'Départ guidé',detail:'Déplacement vers l’incident pendant 10 secondes en mode test'},
+  {label:'Arrivée sur les lieux',detail:'Intervention sur place pendant 10 secondes avant l’orientation'},
   {label:'Décision hôpital',detail:'Recommandation et validation humaine de l’hôpital'},
-  {label:'Fog hors ligne',detail:'Coupure réseau et conservation locale des données'},
-  {label:'Synchronisation',detail:'Retour du réseau et reprise Fog–Cloud'},
+  {label:'Transfert hospitalier',detail:'Déplacement vers l’hôpital pendant 5 secondes en mode test'},
   {label:'Bilan',detail:'Mission clôturée et comparaison prévision/réalité'},
 ]
-const DEMO_INTERVAL_SECONDS=10
+const DEMO_INCIDENT_TRAVEL_MS=10000
+const DEMO_ON_SCENE_MS=10000
+const DEMO_HOSPITAL_TRAVEL_MS=5000
 const INITIAL_AUDIT=[
   {id:'AUD-3',time:'18:42:20',actor:'Système GPS',category:'mission',tone:'green',action:'Position ambulance synchronisée',details:'AMB-07 a transmis une nouvelle position terrain.',reference:'AMB-07'},
   {id:'AUD-2',time:'18:41:08',actor:'Centre de santé',category:'system',tone:'green',action:'Capacité mise à jour',details:'Le CHU Tokoin déclare 5 places disponibles.',reference:'HSP-01'},
-  {id:'AUD-1',time:'18:40:12',actor:'Application mobile',category:'mobile',tone:'red',action:'Urgence reçue',details:'Accident de la route localisé au Boulevard du 13 Janvier.',reference:'ALT-2026-081'},
+  {id:'AUD-1',time:'18:40:12',actor:'Application mobile',category:'mobile',tone:'red',action:'Urgence reçue',details:'Accident de la route localisé à la Douane Adidogomé.',reference:'ALT-2026-081'},
 ]
 
 const mobileConfig=getMobileGatewayConfig()
@@ -99,48 +115,8 @@ function normalizeBackendIncident(inc) {
   }
 }
 
-function normalizeBackendResource(res) {
-  const lat = Number(res.latitude || 6.137)
-  const lng = Number(res.longitude || 1.212)
-  return {
-    id: String(res.call_sign || res.registration || res.id || 'AMB-01'),
-    dbId: res.id,
-    organization_id: res.organization_id,
-    name: res.name || `Unité ${res.call_sign || res.registration || ''}`,
-    type: res.type === 'fire_truck' ? 'Sapeurs-Pompiers' : 'Ambulance',
-    status: res.status === 'available' ? 'Disponible' : res.status === 'assigned' ? 'En mission' : 'Indisponible',
-    lat,
-    lng,
-    operator: res.organization_name || 'Service d’Urgence',
-    phone: '118',
-    updated: "à l'instant",
-    gpsSource: 'GPS réel',
-    battery: 98,
-    fuel: 85,
-    speed: Number(res.speed || 0),
-    heading: Number(res.heading || 0),
-  }
-}
-
-function normalizeBackendFacility(fac) {
-  return {
-    id: String(fac.id || 'HSP-01'),
-    name: fac.name || 'Hôpital',
-    address: fac.address || 'Lomé, Togo',
-    lat: Number(fac.latitude || 6.16),
-    lng: Number(fac.longitude || 1.22),
-    beds: Number(fac.available_beds ?? fac.capacity?.available_beds ?? 8),
-    occupancy: Number(fac.occupancy ?? 72),
-    reception: fac.reception || 'Ouverte',
-    type: fac.type || 'Hôpital public',
-    emergencyPhone: fac.phone || '118',
-    lastCapacityUpdate: "à l'instant",
-  }
-}
-
 export default function App(){
   const initialLocation=useMemo(()=>initialPortalLocation(),[])
-  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(getAuthToken()))
   const [portal,setPortal]=useState(initialLocation.portal)
   const [activePage,setActivePage]=useState(initialLocation.page)
   const [mission,setMission]=useState(null)
@@ -150,7 +126,7 @@ export default function App(){
   const [auditLog,setAuditLog]=useState(mobileConfig.operationMode==='real'?[]:INITIAL_AUDIT)
   const [selectedAlertId,setSelectedAlertId]=useState(mobileConfig.operationMode==='real'?'':initialAlerts[0].id)
   const [notice,setNotice]=useState(null)
-  const [mobileFeedStatus,setMobileFeedStatus]=useState(mobileConfig.operationMode==='real'?'connected':'demo')
+  const [mobileFeedStatus,setMobileFeedStatus]=useState('demo')
   const [dataMode,setDataMode]=useState(mobileConfig.operationMode)
   const [realEventQueue,setRealEventQueue]=useState([])
   const [soundsEnabled,setSoundsEnabled]=useState(getSoundsEnabled())
@@ -162,8 +138,9 @@ export default function App(){
   const [systemHealth,setSystemHealth]=useState({checking:false,lastCheckedAt:null,backendLatency:null,backendVersion:null,services:[]})
   const [demoMode,setDemoMode]=useState(false)
   const [demoStep,setDemoStep]=useState(0)
-  const [demoAuto,setDemoAuto]=useState(false)
   const [demoBusy,setDemoBusy]=useState(false)
+  const [demoDecisionPending,setDemoDecisionPending]=useState(null)
+  const demoBusyRef=useRef(false)
   const gatewayRef=useRef(null)
   const portalRef=useRef(initialLocation.portal)
   const dataModeRef=useRef(mobileConfig.operationMode)
@@ -171,6 +148,18 @@ export default function App(){
   const seenIncidentIds=useRef(new Set((mobileConfig.operationMode==='real'?[]:initialAlerts).map(item=>item.id)))
   const missionStatusKeyRef=useRef('')
   const fog=useFogEngine()
+
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const token = getAuthToken()
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('demo') === '1' || params.get('sandbox') === '1') return true
+      return Boolean(token)
+    }
+    return false
+  })
+
   const activeAlert=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
   const ambulanceRanking=useMemo(()=>rankAmbulances(activeAlert,ambulanceFleet),[activeAlert,ambulanceFleet])
   const hospitalRanking=useMemo(()=>rankHospitals(activeAlert,healthCenters),[activeAlert,healthCenters])
@@ -180,12 +169,85 @@ export default function App(){
     setNotice({message,tone,id:Date.now()})
   }
 
+  const handleLogout = async () => {
+    await api.logout()
+    setIsAuthenticated(false)
+    setMission(null)
+    notify('Déconnexion réussie', 'blue')
+  }
+
+  // Supabase Realtime & Polling synchronization for real production events
+  useEffect(() => {
+    if (!isAuthenticated || dataMode !== 'real') return undefined
+
+    const unsubscribe = subscribeToRealtime({
+      onIncident: (rawInc, eventType) => {
+        if (!rawInc) return
+        const normalized = normalizeBackendIncident(rawInc)
+        const alreadyKnown = seenIncidentIds.current.has(normalized.id)
+
+        setAlerts((current) => {
+          const exists = current.some((item) => item.id === normalized.id)
+          if (exists) {
+            return current.map((item) => (item.id === normalized.id ? { ...item, ...normalized } : item))
+          }
+          return [normalized, ...current]
+        })
+
+        seenIncidentIds.current.add(normalized.id)
+
+        if (!alreadyKnown && eventType !== 'POLL') {
+          announceNewIncident({
+            severity: normalized.severity,
+            location: normalized.location,
+            victims: normalized.victims,
+          })
+          notify(`Nouvel incident reçu : ${normalized.id} (${normalized.location})`, 'red')
+        }
+      },
+      onResource: (rawRes) => {
+        if (!rawRes) return
+        setAmbulanceFleet((current) =>
+          current.map((amb) => {
+            if (amb.id === rawRes.id || amb.id === rawRes.call_sign) {
+              return {
+                ...amb,
+                lat: Number(rawRes.latitude || amb.lat),
+                lng: Number(rawRes.longitude || amb.lng),
+                status: rawRes.status === 'available' ? 'Disponible' : 'En mission',
+              }
+            }
+            return amb
+          })
+        )
+      },
+      onAdmission: (rawFac, eventType) => {
+        if (eventType === 'POLL_FACILITY' && rawFac) {
+          setHealthCenters((current) =>
+            current.map((h) => {
+              if (h.id === rawFac.id || h.name === rawFac.name) {
+                return {
+                  ...h,
+                  beds: Number(rawFac.available_beds ?? h.beds),
+                  status: rawFac.is_active ? 'Opérationnel' : h.status,
+                }
+              }
+              return h
+            })
+          )
+        }
+      },
+    })
+
+    return () => unsubscribe()
+  }, [isAuthenticated, dataMode])
+
   const changePortal=nextPortal=>{
     const next=Object.hasOwn(PORTAL_DEFAULTS,nextPortal)?nextPortal:'operations'
     portalRef.current=next
     setPortal(next)
     setActivePage(PORTAL_DEFAULTS[next])
-    if(next!=='operations'){setDemoMode(false);setDemoAuto(false);stopOperationalAudio()}
+    if(next!=='operations'){setDemoMode(false);setDemoDecisionPending(null);stopOperationalAudio()}
     notify(next==='health'?'Espace Professionnels de santé ouvert':next==='national'?'Espace Pilotage national ouvert':'Centre opérationnel ouvert','green')
   }
 
@@ -239,19 +301,19 @@ export default function App(){
     const alreadyKnown=seenIncidentIds.current.has(enriched.id)
     seenIncidentIds.current.add(enriched.id)
     setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
-    if(!alreadyKnown){
-      setSelectedAlertId(enriched.id)
-      announceNewIncident(enriched)
-      notify(real?`Urgence mobile reçue : ${enriched.location}`:`Signalement du mode test reçu : ${enriched.location}`,'red')
-      recordAudit(real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile — mode test'})
-    }
+    setSelectedAlertId(enriched.id)
+    // Never hijack navigation away from operator if already known!
+    if(portalRef.current==='operations' && !alreadyKnown) setActivePage('map')
+    if(!alreadyKnown) announceNewIncident(enriched)
+    notify(`${alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement du mode test reçu'} : ${enriched.location}`,alreadyKnown?'blue':'red')
+    recordAudit(alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:alreadyKnown?'blue':'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile - mode test'})
     fog.enqueue('incident.mobile',enriched,enriched.source)
     recordMetric('Traitement du signalement',performance.now()-started,'ms','Flux mobile','Réception, normalisation, alerte sonore et ciblage cartographique')
     return enriched
   }
 
   const simulateMobileAlert=()=>{
-    if(dataModeRef.current!=='test'){notify('Le simulateur est isolé : activez le bac à sable test pour l’utiliser','amber');return null}
+    if(dataModeRef.current!=='test'){notify('Le simulateur est isolé : activez le mode test pour l’utiliser','amber');return null}
     const incident=createTestIncident()
     return receiveIncident(incident)
   }
@@ -281,102 +343,31 @@ export default function App(){
     setAlerts(nextAlerts);setAmbulanceFleet(nextAmbulances);setHealthCenters(nextHospitals);setMission(snapshot.mission);setMissionHistory(snapshot.missionHistory);setSelectedAlertId(snapshot.selectedAlertId||nextAlerts[0]?.id||'')
     seenIncidentIds.current=new Set(nextAlerts.map(item=>item.id))
     if(next==='real') setRealEventQueue([])
-    recordAudit('Environnement de données changé',next==='test'?'Bac à sable test restauré, sans données terrain.':`Flux réel activé · ${queued.length} événement(s) isolé(s) importé(s).`,{category:'security',tone:next==='test'?'blue':'green',reference:'DATA-MODE',dataMode:next})
-    notify(next==='test'?'Bac à sable test restauré':'Flux mobile réel activé','green')
+    recordAudit('Environnement de données changé',next==='test'?'Mode test restauré, sans données terrain.':`Flux réel activé · ${queued.length} événement(s) isolé(s) importé(s).`,{category:'security',tone:next==='test'?'blue':'green',reference:'DATA-MODE',dataMode:next})
+    notify(next==='test'?'Mode test restauré':'Flux mobile réel activé','green')
   }
 
-  // Real Backend Synchronization & Realtime hook
-  useEffect(() => {
-    if (!isAuthenticated || dataMode !== 'real') return;
-
-    let unsubscribe = null;
-    const loadRealData = async () => {
-      try {
-        const [incRes, resRes, facRes, auditRes] = await Promise.allSettled([
-          api.getIncidents(),
-          api.getResources(),
-          api.getFacilities(),
-          api.getAudit(),
-        ]);
-
-        if (incRes.status === 'fulfilled' && incRes.value) {
-          const list = Array.isArray(incRes.value) ? incRes.value : incRes.value.incidents || [];
-          if (list.length > 0) {
-            const normalized = list.map(normalizeBackendIncident);
-            setAlerts(normalized);
-            if (!selectedAlertId && normalized[0]) setSelectedAlertId(normalized[0].id);
-            seenIncidentIds.current = new Set(normalized.map((i) => i.id));
-          }
-        }
-
-        if (resRes.status === 'fulfilled' && resRes.value) {
-          const list = Array.isArray(resRes.value) ? resRes.value : resRes.value.resources || [];
-          if (list.length > 0) {
-            setAmbulanceFleet(list.map(normalizeBackendResource));
-          }
-        }
-
-        if (facRes.status === 'fulfilled' && facRes.value) {
-          const list = Array.isArray(facRes.value) ? facRes.value : facRes.value.facilities || [];
-          if (list.length > 0) {
-            setHealthCenters(list.map(normalizeBackendFacility));
-          }
-        }
-
-        if (auditRes.status === 'fulfilled' && auditRes.value) {
-          const list = Array.isArray(auditRes.value) ? auditRes.value : auditRes.value.logs || [];
-          if (list.length > 0) {
-            const mapped = list.map((a) => ({
-              id: String(a.id),
-              time: new Date(a.created_at || Date.now()).toLocaleTimeString('fr-FR'),
-              actor: a.actor_id || 'Système',
-              category: 'system',
-              tone: 'blue',
-              action: a.action || 'Événement',
-              details: JSON.stringify(a.metadata || {}),
-              reference: a.entity_id || 'SYSTÈME',
-            }));
-            setAuditLog(mapped);
-          }
-        }
-
-        setMobileFeedStatus('connected');
-      } catch (err) {
-        console.warn('Failed to load initial real data:', err);
-      }
-    };
-
-    loadRealData();
-
-    // Subscribe to live events
-    unsubscribe = subscribeToRealtime({
-      onIncident: (rawIncident) => {
-        if (!rawIncident) return;
-        const norm = normalizeBackendIncident(rawIncident);
-        receiveIncident(norm, { real: true });
+  useEffect(()=>{
+    const gateway=connectRealMobileGateway({
+      getAccessToken,
+      onStatus:status=>setMobileFeedStatus(status==='not-configured'?'demo':status),
+      onIncident:incident=>receiveIncident(incident,{real:true}),
+      onPosition:position=>{
+        if(dataModeRef.current!=='real'){setRealEventQueue(current=>[...current,{kind:'position',payload:position,receivedAt:new Date().toISOString()}].slice(-100));return}
+        setAmbulanceFleet(current=>current.map(item=>item.id===position.id?{...item,lat:position.lat,lng:position.lng,heading:position.heading,liveSpeed:position.speed,updated:"à l'instant",gpsSource:'GPS réel'}:item))
+        recordAudit('Position GPS reçue',`${position.id} · ${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`,{category:'mission',tone:'green',reference:position.id,actor:'GPS ambulance',dataMode:'real'})
+        fog.enqueue('ambulance.position',position,'GPS ambulance')
       },
-      onResource: (rawResource) => {
-        if (!rawResource) return;
-        const norm = normalizeBackendResource(rawResource);
-        setAmbulanceFleet((prev) => {
-          const exists = prev.some((u) => u.id === norm.id || u.dbId === norm.dbId);
-          if (exists) {
-            return prev.map((u) => (u.id === norm.id || u.dbId === norm.dbId ? { ...u, ...norm } : u));
-          }
-          return [norm, ...prev];
-        });
+      onCapacity:capacity=>{
+        if(dataModeRef.current!=='real'){setRealEventQueue(current=>[...current,{kind:'capacity',payload:capacity,receivedAt:new Date().toISOString()}].slice(-100));return}
+        setHealthCenters(current=>current.map(item=>item.id===capacity.id?{...item,beds:capacity.beds,occupancy:capacity.occupancy,reception:capacity.reception,lastCapacityUpdate:"à l'instant"}:item))
+        recordAudit('Capacité hospitalière reçue',`${capacity.id} · ${capacity.beds} place(s) annoncée(s).`,{category:'system',tone:'green',reference:capacity.id,actor:'Portail hôpital',dataMode:'real'})
+        fog.enqueue('health-center.capacity',capacity,'Portail centre de santé')
       },
-      onAdmission: (rawFac) => {
-        if (!rawFac) return;
-        const norm = normalizeBackendFacility(rawFac);
-        setHealthCenters((prev) => prev.map((f) => (f.id === norm.id ? { ...f, ...norm } : f)));
-      },
-    });
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [isAuthenticated, dataMode]);
+    })
+    gatewayRef.current=gateway
+    return ()=>{gateway.disconnect();gatewayRef.current=null}
+  },[])
 
   const toggleSounds=()=>{
     const next=!soundsEnabled
@@ -385,25 +376,15 @@ export default function App(){
     notify(next?'Sons opérationnels activés':'Sons opérationnels coupés')
   }
 
-  const updateAlert=async(id,status,options={})=>{
+  const updateAlert=(id,status,options={})=>{
     if(!requireOperate('modifier le statut d’un signalement')) return
     setAlerts(current=>current.map(alert=>alert.id===id?{...alert,status,messageState:status==='Validée'?'Reçu · normalisé · validé par l’opérateur':status==='Rejetée'?'Reçu · contrôlé · rejeté':alert.messageState}:alert))
     if(!options.silent) notify(status==='Rejetée'?'Alerte classée comme rejetée':`Alerte ${status.toLowerCase()}` ,status==='Rejetée'?'red':'green')
     recordAudit(`Alerte ${status.toLowerCase()}`,`Le statut du signalement ${id} a été modifié par validation humaine.`,{category:'security',tone:status==='Rejetée'?'red':'green',reference:id,actor:options.actor||operator.name})
     publishRealtime('incident:status:update',{incidentId:id,status,operatorId:operator.id,operatorRole:operator.role})
-    if(status==='Validée') speakOperational('Alerte validée. Recherche de l’ambulance la plus proche.',{delay:150,rate:.95})
-
-    if (dataModeRef.current === 'real') {
-      try {
-        const dbStatus = status === 'Validée' ? 'validated' : status === 'Rejetée' ? 'rejected' : 'new';
-        await api.updateIncidentStatus(id, dbStatus, 'Validé depuis la console LOTISEC PRO');
-      } catch (err) {
-        console.warn('Failed to update incident in backend:', err.message);
-      }
-    }
   }
 
-  const performAssignment=async(ambulance,alertId=selectedAlertId,validation={})=>{
+  const performAssignment=(ambulance,alertId=selectedAlertId,validation={})=>{
     if(!requireOperate('affecter une ambulance')) return null
     if(mission&&mission.status!=='Terminée'){
       notify('Une mission est déjà active. Terminez-la ou réinitialisez-la avant une nouvelle affectation.','red')
@@ -430,8 +411,8 @@ export default function App(){
       recommendedHospitalId:nearestHospital?.id||null,
       createdAt,
       startedAt:null,
-      duration:48000,
-      animationDuration:48000,
+      duration:demoMode?DEMO_INCIDENT_TRAVEL_MS:48000,
+      animationDuration:demoMode?DEMO_INCIDENT_TRAVEL_MS:48000,
       status:'Analyse trafic',
       leg:'incident',
       routeState:'loading',
@@ -454,25 +435,11 @@ export default function App(){
     setSelectedAlertId(targetId)
     setActivePage('map')
     notify(`${chosenAmbulance.id} validée : analyse du trafic avant départ`,'blue')
-    recordAudit('Affectation validée par l’opérateur',`${chosenAmbulance.id} a été affectée à ${targetId} · score ${ambulanceDecision.decisionScore} % · ${validation.note||'Recommandation conforme.'}`,{category:'security',tone:'green',reference:missionId,actor:validation.operator||operator.name,operatorId:validation.operatorId||operator.id,operatorRole:validation.role||operator.role})
+    recordAudit('Affectation validée par l’opérateur',`${chosenAmbulance.id} a été affectée à ${targetId} · ${validation.note||'Recommandation conforme.'}`,{category:'security',tone:'green',reference:missionId,actor:validation.operator||operator.name,operatorId:validation.operatorId||operator.id,operatorRole:validation.role||operator.role})
     recordAudit('Analyse pré-départ lancée',`${chosenAmbulance.id} réservée pour ${targetId} · comparaison des axes avant mouvement.`,{category:'mission',tone:'blue',reference:missionId,actor:'Moteur trafic'})
-    fog.enqueue('mission.assignment',{missionId,alertId:targetId,ambulanceId:chosenAmbulance.id,hospitalId:nearestHospital?.id,ambulanceScore:ambulanceDecision.decisionScore,hospitalScore:hospitalDecision?.decisionScore},'Moteur géodécisionnel')
-    publishRealtime('mission:created',{missionId,incidentId:targetId,ambulanceId:chosenAmbulance.id,recommendedHospitalId:nearestHospital?.id||null,status:'Affectée',ambulanceScore:ambulanceDecision.decisionScore,hospitalScore:hospitalDecision?.decisionScore})
+    fog.enqueue('mission.assignment',{missionId,alertId:targetId,ambulanceId:chosenAmbulance.id,hospitalId:nearestHospital?.id,ambulanceEta:ambulanceDecision.decisionEta,hospitalEta:hospitalDecision?.decisionEta},'Moteur géodécisionnel')
+    publishRealtime('mission:created',{missionId,incidentId:targetId,ambulanceId:chosenAmbulance.id,recommendedHospitalId:nearestHospital?.id||null,status:'Affectée',ambulanceEta:ambulanceDecision.decisionEta,hospitalEta:hospitalDecision?.decisionEta})
     recordMetric('Décision géospatiale',performance.now()-decisionStarted,'ms','Moteur de recommandation','Classement explicable des ambulances et centres de santé')
-    
-    // Backend mutation if in real mode
-    if (dataModeRef.current === 'real') {
-      try {
-        await api.assignIncident(targetId, {
-          organization_id: chosenAmbulance.organization_id || null,
-          response_unit_id: chosenAmbulance.dbId || null,
-          assigned_to: null,
-        });
-      } catch (err) {
-        console.warn('Failed to assign incident in backend:', err.message);
-      }
-    }
-
     const routingStarted=performance.now()
     Promise.all([getRoadRoute(chosenAmbulance,alert),nearestHospital?getRoadRoute(alert,nearestHospital):Promise.resolve(null)]).then(([plan,hospitalPlan])=>{
       const routes=plan.alternatives?.length?plan.alternatives:[plan.coordinates]
@@ -484,7 +451,7 @@ export default function App(){
       const congestionDetected=selectedIndex>0
       const alternatives=routes.filter((_,index)=>index!==selectedIndex)
       const congestedRoad=originalMeta.steps?.find(step=>!['Point de départ','Zone de destination','Voie locale non nommée'].includes(step.road))?.road||originalMeta.name
-      const departureDelay=demoMode?DEMO_INTERVAL_SECONDS*1000:6000
+      const departureDelay=demoMode?0:6000
       const departureAt=Date.now()+departureDelay
       const routeMeta={...selectedMeta,alternativesMeta:routeMetas,engine:`${plan.engine}${congestionDetected?' · alternative fluide retenue':''}`}
       setMission(current=>current?.id===missionId?{
@@ -496,11 +463,7 @@ export default function App(){
         preDeparture:{state:congestionDetected?'rerouted':'clear',congestedRoad,originalRouteName:originalMeta.name,selectedRouteName:selectedMeta.name,detectedAt:new Date().toISOString(),departureDelay},
         ...(hospitalPlan?{hospitalRoute:hospitalPlan.coordinates,hospitalRouteMeta:hospitalPlan}:{}),
       }:current)
-      if(congestionDetected) {
-        announcePreDepartureDecision({ambulanceId:chosenAmbulance.id,road:congestedRoad,route:selectedMeta.name,eta:selectedMeta.eta})
-      } else {
-        announceAmbulanceAssignment({ambulanceId:chosenAmbulance.id,location:alert.location,eta:selectedMeta.eta})
-      }
+      if(congestionDetected&&!demoMode) announcePreDepartureDecision({ambulanceId:chosenAmbulance.id,road:congestedRoad,route:selectedMeta.name,eta:selectedMeta.eta})
       recordAudit(congestionDetected?'Congestion détectée avant départ':'Axes vérifiés avant départ',congestionDetected?`${congestedRoad} écarté · ${selectedMeta.name} retenu · ambulance encore à l'arrêt.`:`${plan.engine} · ${plan.distance} km · aucun blocage détecté.`,{category:'mission',tone:congestionDetected?'red':'green',reference:missionId,actor:'Moteur trafic'})
       recordMetric('Analyse trafic pré-départ',performance.now()-routingStarted,'ms','Moteur trafic',congestionDetected?'Axe dense identifié et alternative sélectionnée avant mouvement':'Aucun axe bloquant identifié')
       if(nearestHospital&&hospitalPlan) recordAudit('Hôpital le plus proche identifié',`${nearestHospital.name} · ${hospitalPlan.distance} km depuis l’incident · ETA ${hospitalPlan.eta} min.`,{category:'mission',tone:'green',reference:missionId,actor:'Moteur de routage'})
@@ -508,7 +471,6 @@ export default function App(){
     }).catch(error=>{
       const departureAt=Date.now()+4000
       setMission(current=>current?.id===missionId?{...current,status:'Affectée',routeState:'fallback',routeError:error.message||'Service de routage indisponible',departureAt,ambulanceRoute:fallback.coordinates,ambulanceRouteMeta:fallback,preDeparture:{state:'fallback',message:'Routage local activé avant départ'}}:current)
-      announceAmbulanceAssignment({ambulanceId:chosenAmbulance.id,location:alert.location,eta:fallback.eta||12})
       notify('Service de routage distant indisponible : itinéraire local de secours activé','red')
       recordAudit('Repli de routage activé','Le calcul distant a échoué ; le trajet local du prototype est conservé.',{category:'mission',tone:'red',reference:missionId,actor:'Moteur de continuité'})
     })
@@ -518,64 +480,151 @@ export default function App(){
     setMission(current=>{
       if(!current) return current
       const now=Date.now()
-      const stageHistory=[...(current.stageHistory||[]),{status:next,at:new Date().toISOString(),actor:operator.name}]
-      if(next==='En route') return {...current,status:next,leg:'incident',startedAt:now,duration:48000,animationDuration:48000,stageHistory}
-      if(next==='Sur place') return {...current,status:next,startedAt:current.startedAt||now,stageHistory}
-      if(next==='Vers le centre de santé') return {...current,status:next,leg:'hospital',route:current.hospitalRoute||current.route,routeMeta:current.hospitalRouteMeta||current.routeMeta,startedAt:now,duration:36000,animationDuration:36000,stageHistory}
+      const timestamp=new Date(now).toISOString()
+      const stageHistory=[...(current.stageHistory||[]),{status:next,at:timestamp,actor:operator.name}]
+      if(next==='En route') return {...current,status:next,leg:'incident',startedAt:now,incidentArrivedAt:null,duration:demoMode?DEMO_INCIDENT_TRAVEL_MS:48000,animationDuration:demoMode?DEMO_INCIDENT_TRAVEL_MS:48000,stageHistory}
+      if(next==='Sur place') return {...current,status:next,startedAt:current.startedAt||now,incidentArrivedAt:timestamp,stageHistory}
+      if(next==='Vers le centre de santé') return {...current,status:next,leg:'hospital',route:current.hospitalRoute||current.route,routeMeta:current.hospitalRouteMeta||current.routeMeta,startedAt:now,hospitalArrivedAt:null,duration:demoMode?DEMO_HOSPITAL_TRAVEL_MS:36000,animationDuration:demoMode?DEMO_HOSPITAL_TRAVEL_MS:36000,stageHistory}
+      if(next==='Pris en charge') return {...current,status:next,hospitalArrivedAt:timestamp,stageHistory}
+      if(next==='Terminée') return {...current,status:next,completedAt:timestamp,stageHistory}
       return {...current,status:next,stageHistory}
     })
   }
 
+  const movementCompleted=current=>{
+    if(!current?.startedAt) return false
+    const duration=current.animationDuration||current.duration||DEMO_INCIDENT_TRAVEL_MS
+    return Date.now()-current.startedAt>=duration
+  }
+
   const assignAmbulance=(ambulance,alertId=selectedAlertId,options={})=>{
     if(!requireOperate('affecter une ambulance')) return
-    const targetAlert=alerts.find(item=>item.id===alertId)||alerts[0]
-    const ranked=rankAmbulances(targetAlert,ambulanceFleet)
-    const candidate=ambulance||ranked.find(item=>item.recommended)||ranked[0]
-    if(!candidate) return notify('Aucune ambulance disponible pour cette affectation','red')
-    if(options.autoApprove||!securityConfig.requireHumanValidation) return performAssignment(candidate,alertId,{operator:options.operator||operator.name,operatorId:options.operatorId||operator.id,role:options.role||operator.role,note:options.note||'Validation opérateur du mode test contrôlé.'})
-    setDecisionReview({type:'assignment',alert:targetAlert,candidate,ranking:ranked,defaultNote:'Ambulance la plus rapide selon le trafic pré-départ et la disponibilité déclarée.'})
-    recordAudit('Affectation soumise à validation',`${candidate.id} est proposée avec un score de ${candidate.decisionScore} %.`,{category:'security',tone:'blue',reference:alertId})
+    const alert=alerts.find(item=>item.id===(alertId||selectedAlertId))||alerts[0]
+    if(!alert) return notify('Aucun incident ne peut être affecté','red')
+    const ranking=rankAmbulances(alert,ambulanceFleet)
+    const candidate=ambulance||ranking.find(item=>item.recommended)||ranking[0]
+    if(options.autoApprove||!securityConfig.requireHumanValidation){
+      if(alert.status!=='Validée') updateAlert(alert.id,'Validée',{silent:true,actor:options.operator||operator.name})
+      return performAssignment(candidate,alert.id,{operator:options.operator||operator.name,operatorId:options.operatorId||operator.id,role:options.role||operator.role,note:options.note||'Validation opérateur du mode test contrôlé.'})
+    }
+    setDecisionReview({type:'assignment',alert,candidate,ranking,defaultNote:'Disponibilité vérifiée. Affectation confirmée par l’opérateur.'})
+    recordAudit('Affectation soumise à validation',`${candidate.id} est proposé pour ${alert.id} selon sa disponibilité, son délai et son équipement.`,{category:'security',tone:'blue',reference:alert.id})
   }
 
-  const advanceMission=nextStatus=>{
-    if(!requireOperate('faire progresser une mission')) return
-    if(!mission) return notify('Aucune mission active à faire progresser','red')
-    const currentIndex=MISSION_STAGES.indexOf(mission.status)
-    const next=nextStatus||MISSION_STAGES[Math.min(MISSION_STAGES.length-1,currentIndex+1)]
-    if(next===mission.status) return
-    transitionMission(next)
-    const destHospital=healthCenters.find(h=>h.id===(mission.hospitalId||mission.recommendedHospitalId))
-    announceMissionStage({status:next,stage:next,ambulanceId:mission.ambulanceId,hospital:destHospital?.name})
-    recordAudit('Statut de mission mis à jour',`${mission.ambulanceId} → ${next}`,{category:'mission',tone:'green',reference:mission.id})
-    notify(`Mission ${mission.ambulanceId} : ${next}`,'green')
-    publishRealtime('mission:status:update',{missionId:mission.id,ambulanceId:mission.ambulanceId,status:next})
-    if(next==='Terminée'){
-      const closedAt=Date.now()
-      const durationSeconds=Math.max(12,Math.round((closedAt-(mission.createdAt||closedAt))/1000))
-      const completedMission={...mission,status:'Terminée',closedAt,durationSeconds,plannedDistance:mission.plannedDistance||mission.routeMeta?.distance||14.2,actualDistance:mission.actualDistance||mission.routeMeta?.distance||14.8,plannedDuration:mission.plannedEta?`${mission.plannedEta} min`:'18 min',actualDuration:`${Math.max(1,Math.round(durationSeconds/60))} min`,summary:'Mission clôturée avec succès.'}
-      setMissionHistory(current=>[completedMission,...current])
-      setAmbulanceFleet(current=>current.map(item=>item.id===mission.ambulanceId?{...item,status:'Disponible',updated:"à l'instant"}:item))
-      setAlerts(current=>current.map(item=>item.id===mission.alertId?{...item,status:'Terminée',messageState:'Mission terminée · dossier clôturé'}:item))
-      fog.enqueue('mission.completion',{missionId:mission.id,alertId:mission.alertId,ambulanceId:mission.ambulanceId,durationSeconds},'Opérateur LOTISEC')
-    }
+  const buildMissionReport=current=>{
+    const ambulancePlan=current.initialRouteMeta||current.ambulanceRouteMeta||current.routeMeta||{}
+    const ambulanceActual=current.ambulanceRouteMeta||ambulancePlan
+    const hospitalPlan=current.hospitalRouteMeta||{}
+    const plannedEta=Math.max(1,Number(ambulancePlan.eta||0)+Number(hospitalPlan.eta||0))
+    const plannedDistance=Number(ambulancePlan.distance||0)+Number(hospitalPlan.distance||0)
+    const rerouteGain=current.rerouteCount?Math.min(3,Math.max(1,current.rerouteCount*2)):0
+    const actualEta=Number(current.actualEta||Math.max(1,plannedEta-rerouteGain+(current.rerouteCount?0:1)))
+    const actualDistance=Number(current.actualDistance||Number(ambulanceActual.distance||0)+Number(hospitalPlan.distance||0)||plannedDistance)
+    const hospital=healthCenters.find(item=>item.id===(current.hospitalId||current.recommendedHospitalId))
+    const initialRoute=[ambulancePlan.name,hospitalPlan.name].filter(Boolean).join(' puis ')||'Itinéraire initial'
+    const finalRoute=[ambulanceActual.name,hospitalPlan.name].filter(Boolean).join(' puis ')||'Itinéraire final'
+    const stages=current.stageHistory||[]
+    const stageHistory=stages.at(-1)?.status==='Terminée'?stages:[...stages,{status:'Terminée',at:new Date().toISOString(),actor:operator.name}]
+    return {id:current.id,incidentId:current.alertId,alertId:current.alertId,ambulanceId:current.ambulanceId,hospitalId:hospital?.id||current.hospitalId||current.recommendedHospitalId,hospitalName:hospital?.name||'',createdAt:current.createdAt,completedAt:new Date().toISOString(),status:'Terminée',plannedEta,actualEta,etaDelta:actualEta-plannedEta,plannedDistance:Number(plannedDistance.toFixed(1)),actualDistance:Number(actualDistance.toFixed(1)),distanceDelta:Number((actualDistance-plannedDistance).toFixed(1)),initialRoute,finalRoute,routeName:finalRoute,rerouteCount:current.rerouteCount||0,ambulanceValidation:current.ambulanceValidation,orientationValidation:current.orientationValidation,stageHistory,dataMode:current.dataMode||dataModeRef.current,fogEvents:fog.queue.filter(item=>item.payload?.missionId===current.id).length}
   }
+
+  const advanceMission=(requestedStatus=null)=>{
+    if(!mission) return
+    if(!requireOperate('faire évoluer une mission')) return
+    if(['En route','Vers le centre de santé'].includes(mission.status)&&!movementCompleted(mission)){
+      notify(mission.status==='En route'?'L’ambulance est toujours en déplacement vers l’incident.':'L’ambulance est toujours en déplacement vers l’hôpital.','blue')
+      return
+    }
+    const currentIndex=Math.max(0,MISSION_STAGES.indexOf(mission.status))
+    const next=requestedStatus||MISSION_STAGES[Math.min(MISSION_STAGES.length-1,currentIndex+1)]
+    if(next==='Orientation hospitalière'&&!mission.incidentArrivedAt){
+      notify('L’ambulance doit d’abord arriver sur les lieux de l’incident.','red')
+      return
+    }
+    if(next==='Vers le centre de santé'&&!mission.hospitalId){
+      notify('L’hôpital d’accueil doit être confirmé avant le transfert.','red')
+      return
+    }
+    if(['Pris en charge','Terminée'].includes(next)&&mission.leg==='hospital'&&!movementCompleted(mission)){
+      notify('La réception hospitalière ne peut être confirmée avant l’arrivée de l’ambulance.','red')
+      return
+    }
+    transitionMission(next)
+  }
+
+  useEffect(()=>{
+    if(!mission) return undefined
+    if(demoMode) return undefined
+    let delay=null,next=null
+    if(mission.status==='Affectée'&&mission.routeState!=='loading'){delay=Math.max(0,(mission.departureAt||Date.now())-Date.now());next='En route'}
+    if(mission.status==='En route'){delay=Math.max(0,mission.duration-(Date.now()-(mission.startedAt||Date.now())));next='Sur place'}
+    if(mission.status==='Sur place'){delay=6000;next='Orientation hospitalière'}
+    if(mission.status==='Orientation hospitalière'&&mission.hospitalId){delay=6000;next='Vers le centre de santé'}
+    if(mission.status==='Vers le centre de santé'){delay=Math.max(0,mission.duration-(Date.now()-(mission.startedAt||Date.now())));next='Pris en charge'}
+    if(mission.status==='Pris en charge'){delay=6000;next='Terminée'}
+    if(delay===null||!next) return undefined
+    const timer=setTimeout(()=>transitionMission(next),delay)
+    return ()=>clearTimeout(timer)
+  },[mission?.id,mission?.status,mission?.startedAt,mission?.departureAt,mission?.routeState,mission?.duration,mission?.hospitalId,demoMode])
+
+  useEffect(()=>{
+    if(!mission) return
+    const key=`${mission.id}:${mission.status}:${mission.leg||'incident'}`
+    if(missionStatusKeyRef.current===key) return
+    missionStatusKeyRef.current=key
+    const hospital=healthCenters.find(item=>item.id===(mission.hospitalId||mission.recommendedHospitalId))
+    const ambulanceStatus=mission.status==='Terminée'?'Disponible':mission.status
+    const alertStatuses={
+      'Analyse trafic':'Analyse trafic','Affectée':'Ambulance affectée','En route':'Ambulance en route','Sur place':'Secours sur place','Orientation hospitalière':'Orientation hospitalière','Vers le centre de santé':'Transfert hospitalier','Pris en charge':'Victime prise en charge','Terminée':'Clôturée',
+    }
+    setAmbulanceFleet(current=>current.map(item=>item.id===mission.ambulanceId?{...item,status:ambulanceStatus,updated:"à l'instant"}:item))
+    setAlerts(current=>current.map(item=>item.id===mission.alertId?{...item,status:alertStatuses[mission.status]||mission.status,messageState:`Mission ${mission.status.toLowerCase()} · mise à jour automatique`}:item))
+    notify(`Mission : ${mission.status}`,mission.status==='Terminée'?'green':mission.status==='Analyse trafic'?'blue':'blue')
+    recordAudit(`Mission : ${mission.status}`,`${mission.ambulanceId} · ${mission.alertId}${hospital?` · ${hospital.name}`:''}`,{category:'mission',tone:mission.status==='Terminée'?'green':mission.status==='Analyse trafic'?'blue':'blue',reference:mission.id,actor:'Suivi automatique'})
+    fog.enqueue('mission.status',{missionId:mission.id,status:mission.status,leg:mission.leg,updatedAt:new Date().toISOString()},'Suivi opérationnel')
+    publishRealtime('mission:status:update',{missionId:mission.id,incidentId:mission.alertId,ambulanceId:mission.ambulanceId,status:mission.status,leg:mission.leg})
+    if(!demoMode){
+      if(mission.status==='En route') announceAmbulanceAssignment({ambulanceId:mission.ambulanceId,location:alerts.find(item=>item.id===mission.alertId)?.location,eta:mission.ambulanceRouteMeta?.eta||mission.routeMeta?.eta})
+      else announceMissionStage({
+        status:mission.status,
+        ambulanceId:mission.ambulanceId,
+        hospital:hospital?.name,
+        arrived:mission.status==='Sur place'?Boolean(mission.incidentArrivedAt):['Pris en charge','Terminée'].includes(mission.status)?Boolean(mission.hospitalArrivedAt):true,
+      })
+    }
+    if(mission.status==='Terminée'){
+      const report=buildMissionReport(mission)
+      setMissionHistory(current=>current.some(item=>item.id===report.id)?current:[report,...current].slice(0,50))
+      recordMetric('Durée opérationnelle observée',report.actualEta,'min',report.dataMode==='test'?'Mode test isolé':'Télémétrie réelle',`Prévision ${report.plannedEta} min · écart ${report.etaDelta} min`)
+    }
+  },[mission?.id,mission?.status,mission?.leg,demoMode])
+
+  useEffect(()=>{
+    if(!fog.lastSync||!fog.stats.lastDuration) return
+    recordMetric('Synchronisation Fog-Cloud',fog.stats.lastDuration,'ms',import.meta.env.VITE_API_URL?'API NestJS':'Cloud simulé du prototype',`${fog.stats.synced} donnée(s) acquittée(s) · taux ${fog.stats.syncRate} %`)
+  },[fog.lastSync])
 
   const simulateCongestion=()=>{
-    if(!requireOperate('simuler une congestion')) return
-    if(!mission) return notify('Affectez d’abord une ambulance pour simuler un reroutage','red')
-    if(!mission.alternatives?.length) return notify('Aucun itinéraire alternatif disponible pour ce tronçon','amber')
-    const nextRoute=mission.alternatives[0]
-    const remainingAlternatives=mission.alternatives.slice(1)
-    const nextRerouteCount=(mission.rerouteCount||0)+1
-    const congestedRoad=mission.routeMeta?.steps?.find(step=>!['Point de départ','Zone de destination','Voie locale non nommée'].includes(step.road))?.road||'Boulevard principal'
-    announceCongestion({ambulanceId:mission.ambulanceId,road:congestedRoad,eta:Math.round((mission.plannedEta||18)*1.25)})
-    setMission(current=>current?{...current,congestion:true,rerouteCount:nextRerouteCount,route:nextRoute,alternatives:remainingAlternatives,routeMeta:{...current.routeMeta,engine:`${current.routeMeta?.engine||'OSRM'} · reroutage dynamique #${nextRerouteCount}`}}:current)
-    recordAudit('Reroutage dynamique appliqué',`${congestedRoad} bloqué · passage sur itinéraire de dégagement.`,{category:'mission',tone:'red',reference:mission.id,actor:'Moteur trafic'})
-    notify(`Trafic dense sur ${congestedRoad} : itinéraire de dégagement activé`,'red')
-    publishRealtime('mission:rerouted',{missionId:mission.id,ambulanceId:mission.ambulanceId,rerouteCount:nextRerouteCount,reason:`Congestion sur ${congestedRoad}`})
+    if(!requireOperate('simuler ou appliquer un reroutage')) return
+    if(!mission||mission.routeState==='loading'){
+      notify('Attendez la fin du calcul des itinéraires avant de simuler une nouvelle congestion.','red')
+      return
+    }
+    const started=performance.now()
+    const alternatives=mission.alternatives?.length?mission.alternatives:[mission.route]
+    const nextIndex=(mission.rerouteCount+1)%alternatives.length
+    const nextRoute=alternatives[nextIndex]||mission.route
+    const nextMeta=mission.routeMeta?.alternativesMeta?.[nextIndex]
+    setMission(current=>({...current,route:nextRoute,startedAt:Date.now(),duration:demoMode?DEMO_INCIDENT_TRAVEL_MS:42000,animationDuration:demoMode?DEMO_INCIDENT_TRAVEL_MS:42000,status:'En route',leg:'incident',congestion:true,rerouteCount:(current.rerouteCount||0)+1,routeMeta:{...current.routeMeta,...nextMeta,alternativesMeta:current.routeMeta?.alternativesMeta,engine:'OSRM · itinéraire recalculé'}}))
+    notify('Congestion détectée : l’ambulance est redirigée','red')
+    announceCongestion({road:nextMeta?.name||mission.routeMeta?.name,eta:nextMeta?.eta||mission.routeMeta?.eta})
+    recordAudit('Reroutage automatique','Un axe congestionné a été évité et un trajet alternatif activé.',{category:'mission',tone:'red',reference:mission.id,actor:'Moteur de routage'})
+    fog.enqueue('traffic.reroute',{missionId:mission.id,reroute:(mission.rerouteCount||0)+1,detectedAt:new Date().toISOString()},'Moteur trafic')
+    publishRealtime('mission:rerouted',{missionId:mission.id,ambulanceId:mission.ambulanceId,reroute:(mission.rerouteCount||0)+1,reason:'congestion'})
+    recordMetric('Recalcul après congestion',performance.now()-started,'ms','Moteur de routage','Sélection d’une alternative évitant l’axe dense')
   }
 
-  const updateHealthCenter=async(id,changes)=>{
+  const updateHealthCenter=(id,changes)=>{
     if(!requireOperate('modifier la capacité d’un hôpital')) return
     const center=healthCenters.find(item=>item.id===id)
     setHealthCenters(current=>current.map(item=>item.id===id?{...item,...changes,lastCapacityUpdate:"à l'instant"}:item))
@@ -583,17 +632,6 @@ export default function App(){
     recordAudit('Capacité mise à jour',`${center?.name||id} · ${changes.beds??center?.beds} place(s) disponible(s).`,{category:'system',tone:'green',reference:id,actor:'Centre de santé'})
     fog.enqueue('health-center.capacity',{id,...changes,updatedAt:new Date().toISOString()},'Portail centre de santé')
     publishRealtime('hospital:capacity:update',{hospitalId:id,...changes})
-
-    if (dataModeRef.current === 'real') {
-      try {
-        await api.updateCapacities(id, {
-          available_beds: changes.beds,
-          icu_beds: changes.icuBeds,
-        });
-      } catch (err) {
-        console.warn('Failed to update capacities in backend:', err.message);
-      }
-    }
   }
 
   const performOrientation=(hospital,validation={})=>{
@@ -606,7 +644,7 @@ export default function App(){
       getRoadRoute(alert,hospital).then(plan=>setMission(current=>current?.id===missionId&&current.hospitalId===hospital.id?{...current,hospitalRoute:plan.coordinates,hospitalRouteMeta:plan}:current))
     }
     notify(`Orientation confirmée vers ${hospital.name}`,'green')
-    announceOrientationConfirmation({ hospitalName: hospital.name, beds: hospital.beds })
+    announceOrientationConfirmation({hospitalName:hospital.name,beds:hospital.beds})
     recordAudit('Orientation validée par l’opérateur',`${hospital.name} · ${hospital.beds} place(s) disponible(s) · ${validation.note||'Recommandation conforme.'}`,{category:'security',tone:'green',reference:mission?.id||hospital.id,actor:validation.operator||operator.name,operatorId:validation.operatorId||operator.id,operatorRole:validation.role||operator.role})
     fog.enqueue('mission.orientation',{missionId:mission?.id,hospitalId:hospital.id,places:hospital.beds,confirmedAt:new Date().toISOString()},'Opérateur LOTISEC')
     publishRealtime('mission:orientation',{missionId:mission?.id,incidentId:mission?.alertId,hospitalId:hospital.id,availableBeds:hospital.beds,status:'confirmed',operatorId:validation.operatorId||operator.id})
@@ -615,13 +653,14 @@ export default function App(){
   const confirmOrientation=(hospital,options={})=>{
     if(!requireOperate('confirmer une orientation hospitalière')) return
     if(!mission) return notify('Affectez d’abord une ambulance avant de confirmer l’hôpital','red')
+    if(!['Sur place','Orientation hospitalière'].includes(mission.status)||!mission.incidentArrivedAt) return notify('L’ambulance doit arriver sur les lieux avant l’orientation hospitalière.','red')
     const alert=alerts.find(item=>item.id===mission?.alertId)||activeAlert
     const ranking=rankHospitals(alert,healthCenters)
     const candidate=hospital||ranking.find(item=>item.recommended)||ranking[0]
     if(!candidate) return notify('Aucun hôpital disponible pour cette orientation','red')
     if(options.autoApprove||!securityConfig.requireHumanValidation) return performOrientation(candidate,{operator:options.operator||operator.name,operatorId:options.operatorId||operator.id,role:options.role||operator.role,note:options.note||'Validation opérateur du mode test contrôlé.'})
-    setDecisionReview({type:'orientation',alert,candidate,ranking,defaultNote:'Hôpital retenu selon le délai, la capacité et la spécialité requise.'})
-    recordAudit('Orientation soumise à validation',`${candidate.name} est proposé avec un score de ${candidate.decisionScore} %.`,{category:'security',tone:'blue',reference:mission?.id||alert?.id})
+    setDecisionReview({type:'orientation',alert,candidate,ranking,defaultNote:'Capacité d’accueil vérifiée. Orientation confirmée par l’opérateur.'})
+    recordAudit('Orientation soumise à validation',`${candidate.name} est proposé selon le délai, la capacité et les services disponibles.`,{category:'security',tone:'blue',reference:mission?.id||alert?.id})
   }
 
   const confirmDecisionReview=note=>{
@@ -631,12 +670,28 @@ export default function App(){
     if(review.type==='assignment'){
       if(review.alert.status!=='Validée') updateAlert(review.alert.id,'Validée',{silent:true})
       performAssignment(review.candidate,review.alert.id,{operator:operator.name,operatorId:operator.id,role:operator.role,note})
-    }else performOrientation(review.candidate,{operator:operator.name,operatorId:operator.id,role:operator.role,note})
+      if(demoMode&&demoDecisionPending==='assignment'){
+        setDemoDecisionPending(null)
+        setDemoStep(current=>Math.max(current,3))
+        setActivePage('map')
+        speakOperational(`Affectation confirmée pour l'ambulance ${review.candidate.id}. Analyse du trafic et préparation de l'itinéraire.`,{rate:.91})
+      }
+    }else{
+      performOrientation(review.candidate,{operator:operator.name,operatorId:operator.id,role:operator.role,note})
+      if(demoMode&&demoDecisionPending==='orientation'){
+        setDemoDecisionPending(null)
+        setDemoStep(current=>Math.max(current,6))
+        setActivePage('map')
+        transitionMission('Vers le centre de santé')
+        announceMissionStage({status:'Vers le centre de santé',ambulanceId:mission?.ambulanceId,hospital:review.candidate.name})
+      }
+    }
   }
 
   const cancelDecisionReview=reason=>{
     if(decisionReview) recordAudit('Décision non exécutée',`${decisionReview.type==='assignment'?'Affectation':'Orientation'} : ${reason||'validation annulée'}.`,{category:'security',tone:'amber',reference:decisionReview.alert?.id})
     setDecisionReview(null)
+    setDemoDecisionPending(null)
   }
 
   const runSystemHealthCheck=async()=>{
@@ -648,13 +703,13 @@ export default function App(){
     const now=new Date().toLocaleTimeString('fr-FR')
     const routeEngine=mission?.routeMeta?.engine
     const services=[
-      {id:'mobile',name:'Passerelle application mobile',status:mobileFeedStatus==='connected'?'operational':mobileConfig.socketUrl?'degraded':'ready',detail:mobileFeedStatus==='connected'?'Canal réel authentifié et événements écoutés.':mobileConfig.socketUrl?'Configuration présente, connexion indisponible.':'Adaptateur prêt ; URL Socket.IO non renseignée.',lastSignal:mobileFeedStatus==='connected'?now:'—'},
-      {id:'realtime',name:'Socket.IO / Supabase temps réel',status:mobileFeedStatus==='connected'?'operational':mobileConfig.socketUrl?'degraded':'ready',detail:`Namespace ${mobileConfig.namespace} · chemin ${mobileConfig.socketPath} · reconnexion automatique.`,lastSignal:mobileFeedStatus==='connected'?now:'—'},
-      {id:'api',name:'API Backend Express / Node.js',status:backend.ok?'operational':backend.configured?'degraded':'ready',detail:backend.ok?'Endpoint /health accessible et réponse valide.':backend.configured?(backend.error||`Réponse HTTP ${backend.status||'indisponible'}.`):'Backend LOTISEC connecté.',lastSignal:backend.ok?now:'—',latency:backend.latency},
-      {id:'database',name:'Supabase PostgreSQL + PostGIS',status:backend.ok&&(backend.components?.postgis?.ok||backend.components?.database?.ok||backend.db==='up')?'operational':backend.ok?'operational':'ready',detail:backend.ok?'Base opérationnelle active.':'La base géographique est synchronisée via l’API sécurisée.',lastSignal:backend.ok?now:'—'},
-      {id:'routing',name:'Moteur de routage OSRM',status:routeEngine?'operational':'ready',detail:routeEngine?`${routeEngine} · dernier itinéraire ${mission.routeMeta?.distance||'—'} km.`:'OSRM et moteur de repli local prêts pour le prochain calcul.',lastSignal:routeEngine?now:'—'},
+      {id:'mobile',name:'Passerelle application mobile',status:mobileFeedStatus==='connected'?'operational':mobileConfig.socketUrl?'degraded':'ready',detail:mobileFeedStatus==='connected'?'Canal réel authentifié et événements écoutés.':mobileConfig.socketUrl?'Configuration présente, connexion indisponible.':'Adaptateur prêt ; URL Socket.IO non renseignée.',lastSignal:mobileFeedStatus==='connected'?now:'-'},
+      {id:'realtime',name:'Socket.IO temps réel',status:mobileFeedStatus==='connected'?'operational':mobileConfig.socketUrl?'degraded':'ready',detail:`Namespace ${mobileConfig.namespace} · chemin ${mobileConfig.socketPath} · reconnexion automatique.`,lastSignal:mobileFeedStatus==='connected'?now:'-'},
+      {id:'api',name:'API métier NestJS',status:backend.ok?'operational':backend.configured?'degraded':'ready',detail:backend.ok?'Endpoint /health accessible et réponse valide.':backend.configured?(backend.error||`Réponse HTTP ${backend.status||'indisponible'}.`):'VITE_API_URL à renseigner pour activer la vérification réelle.',lastSignal:backend.ok?now:'-',latency:backend.latency},
+      {id:'database',name:'PostgreSQL + PostGIS',status:backend.ok&&(backend.components.postgis?.ok||backend.components.database?.ok)?'operational':backend.ok?'degraded':'ready',detail:backend.ok?'État dérivé du health-check backend ; aucune connexion SQL directe depuis le navigateur.':'La base géographique sera supervisée uniquement via l’API sécurisée.',lastSignal:backend.ok?now:'-'},
+      {id:'routing',name:'Moteur de routage',status:routeEngine?'operational':'ready',detail:routeEngine?`${routeEngine} · dernier itinéraire ${mission.routeMeta?.distance||'-'} km.`:'OSRM et moteur de repli local prêts pour le prochain calcul.',lastSignal:routeEngine?now:'-'},
       {id:'fog',name:'Continuité Fog locale',status:fog.effectiveMode==='offline'?'degraded':'operational',detail:`Mode ${fog.quality.label.toLowerCase()} · ${fog.queue.length} élément(s) dans la file persistante.`,lastSignal:fog.lastSync||now},
-      {id:'audit',name:'Journal de traçabilité',status:securityConfig.auditEnabled?'operational':'offline',detail:`${auditLog.length} événement(s) horodaté(s), actions sensibles attribuées à un rôle.`,lastSignal:auditLog[0]?.time||'—'},
+      {id:'audit',name:'Journal de traçabilité',status:securityConfig.auditEnabled?'operational':'offline',detail:`${auditLog.length} événement(s) horodaté(s), actions sensibles attribuées à un rôle.`,lastSignal:auditLog[0]?.time||'-'},
     ]
     setSystemHealth({checking:false,lastCheckedAt:now,backendLatency:backend.latency,backendVersion:backend.version,services})
     return {backend,services}
@@ -695,106 +750,197 @@ export default function App(){
     stopOperationalAudio()
     setAlerts(initialAlerts);setAmbulanceFleet(initialAmbulances);setHealthCenters(initialHospitals)
     seenIncidentIds.current=new Set(initialAlerts.map(item=>item.id))
-    setMission(null);setMissionHistory([]);setDecisionReview(null);missionStatusKeyRef.current='';setSelectedAlertId(initialAlerts[0].id);setAuditLog(INITIAL_AUDIT);setActivePage('dashboard')
+    setMission(null);setMissionHistory([]);setDecisionReview(null);setDemoDecisionPending(null);missionStatusKeyRef.current='';setSelectedAlertId(initialAlerts[0].id);setAuditLog(INITIAL_AUDIT);setActivePage('dashboard')
     if(!keepMetrics) setMetrics([])
     await fog.reset()
     notify('Mode test LOTISEC réinitialisé et prêt','blue')
   }
 
-  const startDemo=async(auto=true)=>{
+  const startDemo=async()=>{
     if(dataModeRef.current!=='test') changeDataMode('test')
     if(operator.role==='Observateur') setOperator(current=>({...current,role:'Opérateur'}))
-    setDemoMode(true);setDemoStep(0);setDemoAuto(Boolean(auto));setDemoBusy(false)
+    demoBusyRef.current=false
+    setDemoMode(true);setDemoStep(0);setDemoBusy(false);setDemoDecisionPending(null)
     await resetOperationalState()
-    notify(auto?'Mode test automatique activé':'Mode test manuel activé','blue')
+    notify('Mode test prêt : utilisez Étape suivante pour piloter la démonstration','blue')
   }
 
   const runNextDemoStep=async()=>{
-    if(demoBusy||demoStep>=DEMO_STEPS.length) return
+    if(demoBusyRef.current||demoStep>=DEMO_STEPS.length) return
+    demoBusyRef.current=true
     setDemoBusy(true)
     const step=demoStep
+    let advanceStep=true
     try{
-      if(step===0) simulateMobileAlert()
+      if(step===0){
+        setActivePage('map')
+        simulateMobileAlert()
+      }
       if(step===1){
         const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
         if(incident) updateAlert(incident.id,'Validée',{actor:'Opérateur du mode test'})
         setActivePage('alerts')
+        speakOperational(`Le signalement de ${incident?.location||'la zone indiquée'} est vérifié et validé.`,{rate:.91})
       }
       if(step===2){
         const incident=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
-        const recommended=rankAmbulances(incident,ambulanceFleet).find(item=>item.recommended)||rankAmbulances(incident,ambulanceFleet)[0]
-        assignAmbulance(recommended,incident.id,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Ambulance recommandée confirmée après comparaison des scores.'})
+        const ranking=rankAmbulances(incident,ambulanceFleet)
+        const recommended=ranking.find(item=>item.recommended)||ranking[0]
+        setActivePage('map')
+        setDemoDecisionPending('assignment')
+        assignAmbulance(recommended,incident.id)
+        speakOperational(`L'ambulance ${recommended.id} est proposée. L'opérateur peut confirmer cette affectation ou choisir une autre ambulance.`,{rate:.9})
+        advanceStep=false
       }
       if(step===3){
-        transitionMission('En route')
-        announceMissionStage({status:'En route',stage:'En route',ambulanceId:mission?.ambulanceId||'AMB-01'})
-        setActivePage('map')
+        if(!mission||mission.routeState==='loading'){
+          notify('Le calcul de l’itinéraire doit être terminé avant le départ','blue')
+          advanceStep=false
+        }else{
+          transitionMission('En route')
+          setActivePage('map')
+          const incident=alerts.find(item=>item.id===mission.alertId)
+          if(mission.congestion){
+            const road=mission.preDeparture?.congestedRoad
+            const route=mission.preDeparture?.selectedRouteName||mission.routeMeta?.name
+            speakOperational(`Trafic dense${road?` sur ${road}`:''}. L'itinéraire${route?` par ${route}`:''} est retenu. Ambulance ${mission.ambulanceId} en route vers l'incident.`,{delay:220,rate:.9})
+          }else announceAmbulanceAssignment({ambulanceId:mission.ambulanceId,location:incident?.location,eta:mission.ambulanceRouteMeta?.eta||mission.routeMeta?.eta})
+        }
       }
       if(step===4){
-        const incident=alerts.find(item=>item.id===mission?.alertId)||activeAlert
-        const recommended=rankHospitals(incident,healthCenters).find(item=>item.id===mission?.recommendedHospitalId)||rankHospitals(incident,healthCenters).find(item=>item.recommended)
-        if(recommended) confirmOrientation(recommended,{autoApprove:true,operator:'Opérateur du mode test',operatorId:'USR-TEST-001',role:'Opérateur',note:'Hôpital confirmé selon ETA, capacité disponible et spécialité.'})
-        setActivePage('map')
+        const duration=mission?.animationDuration||mission?.duration||DEMO_INCIDENT_TRAVEL_MS
+        const arrived=mission?.startedAt&&Date.now()-mission.startedAt>=duration
+        if(!arrived){
+          notify('L’ambulance est encore en déplacement vers l’incident','blue')
+          advanceStep=false
+        }else{
+          transitionMission('Sur place')
+          setActivePage('map')
+          announceMissionStage({status:'Sur place',ambulanceId:mission.ambulanceId,arrived:true})
+        }
       }
       if(step===5){
-        transitionMission('Sur place')
-        announceMissionStage({status:'Sur place',stage:'Sur place',ambulanceId:mission?.ambulanceId||'AMB-01'})
-        fog.setNetworkMode('offline')
-        await fog.enqueue('ambulance.position',{missionId:mission?.id,lat:6.1531,lng:1.2117,capturedAt:new Date().toISOString()},'GPS ambulance hors ligne')
-        setActivePage('fog')
+        const incident=alerts.find(item=>item.id===mission?.alertId)||activeAlert
+        const ranking=rankHospitals(incident,healthCenters)
+        const recommended=ranking.find(item=>item.id===mission?.recommendedHospitalId)||ranking.find(item=>item.recommended)||ranking[0]
+        transitionMission('Orientation hospitalière')
+        setActivePage('map')
+        setDemoDecisionPending('orientation')
+        if(recommended) confirmOrientation(recommended)
+        speakOperational(`${recommended?.name||'Le centre de santé le plus proche'} est recommandé selon le délai, la capacité d'accueil et les services disponibles. Validation attendue.`,{rate:.89})
+        advanceStep=false
       }
       if(step===6){
-        const destHospital=healthCenters.find(h=>h.id===(mission?.hospitalId||mission?.recommendedHospitalId))
-        transitionMission('Vers le centre de santé')
-        announceMissionStage({status:'Vers le centre de santé',stage:'Vers le centre de santé',ambulanceId:mission?.ambulanceId||'AMB-01',hospital:destHospital?.name})
-        fog.setNetworkMode('normal')
-        setActivePage('fog')
-        await fog.syncNow(true)
+        if(!mission?.hospitalId){
+          notify('L’orientation hospitalière doit être confirmée avant le transfert','blue')
+          advanceStep=false
+        }else{
+          transitionMission('Vers le centre de santé')
+          setActivePage('map')
+          const hospital=healthCenters.find(item=>item.id===mission.hospitalId)
+          announceMissionStage({status:'Vers le centre de santé',ambulanceId:mission.ambulanceId,hospital:hospital?.name})
+        }
       }
       if(step===7){
-        advanceMission('Terminée')
-        setActivePage('mission-reports')
+        if(mission?.status==='Terminée'){
+          setActivePage('mission-reports')
+        }else{
+          const duration=mission?.animationDuration||mission?.duration||DEMO_HOSPITAL_TRAVEL_MS
+          const arrived=mission?.startedAt&&Date.now()-mission.startedAt>=duration
+          if(!arrived){
+            notify('L’ambulance est encore en déplacement vers l’hôpital recommandé','blue')
+            advanceStep=false
+          }else{
+            const hospital=healthCenters.find(item=>item.id===mission.hospitalId)
+            transitionMission('Pris en charge')
+            announceMissionStage({status:'Pris en charge',ambulanceId:mission.ambulanceId,hospital:hospital?.name,arrived:true})
+            await new Promise(resolve=>setTimeout(resolve,1800))
+            transitionMission('Terminée')
+            announceMissionStage({status:'Terminée',ambulanceId:mission.ambulanceId,hospital:hospital?.name,arrived:true})
+            setActivePage('mission-reports')
+          }
+        }
       }
-      setDemoStep(current=>Math.min(DEMO_STEPS.length,current+1))
-      if(step===DEMO_STEPS.length-1){setDemoAuto(false);setDemoMode(false)}
-    }finally{setDemoBusy(false)}
+      if(advanceStep) setDemoStep(current=>Math.min(DEMO_STEPS.length,current+1))
+    }finally{demoBusyRef.current=false;setDemoBusy(false)}
   }
 
   useEffect(()=>{
-    if(!demoMode||!demoAuto||demoBusy||demoStep>=DEMO_STEPS.length) return undefined
-    const timer=setTimeout(()=>runNextDemoStep(),DEMO_INTERVAL_SECONDS*1000)
-    return ()=>clearTimeout(timer)
-  },[demoMode,demoAuto,demoBusy,demoStep])
+    if(!demoMode||!mission) return undefined
+    let timer=null
+    const waitUntil=(deadline,action)=>{
+      timer=setTimeout(action,Math.max(0,deadline-Date.now()))
+    }
+    if(mission.status==='En route'&&mission.startedAt){
+      const duration=mission.animationDuration||mission.duration||DEMO_INCIDENT_TRAVEL_MS
+      waitUntil(mission.startedAt+duration,()=>{
+        transitionMission('Sur place')
+        setActivePage('map')
+        announceMissionStage({status:'Sur place',ambulanceId:mission.ambulanceId,arrived:true})
+      })
+    }else if(mission.status==='Sur place'&&mission.incidentArrivedAt){
+      waitUntil(new Date(mission.incidentArrivedAt).getTime()+DEMO_ON_SCENE_MS,()=>{
+        const incident=alerts.find(item=>item.id===mission.alertId)||activeAlert
+        const ranking=rankHospitals(incident,healthCenters)
+        const recommended=ranking.find(item=>item.id===mission.recommendedHospitalId)||ranking.find(item=>item.recommended)||ranking[0]
+        transitionMission('Orientation hospitalière')
+        setDemoStep(current=>Math.max(current,5))
+        setActivePage('map')
+        setDemoDecisionPending('orientation')
+        if(recommended) confirmOrientation(recommended)
+        speakOperational(`${recommended?.name||'Le centre de santé le plus proche'} est proposé pour l'accueil. Validation de l'opérateur attendue.`,{rate:.89})
+      })
+    }else if(mission.status==='Vers le centre de santé'&&mission.startedAt){
+      const duration=mission.animationDuration||mission.duration||DEMO_HOSPITAL_TRAVEL_MS
+      waitUntil(mission.startedAt+duration,()=>{
+        const hospital=healthCenters.find(item=>item.id===mission.hospitalId)
+        transitionMission('Pris en charge')
+        setDemoStep(current=>Math.max(current,7))
+        setActivePage('map')
+        announceMissionStage({status:'Pris en charge',ambulanceId:mission.ambulanceId,hospital:hospital?.name,arrived:true})
+      })
+    }else if(mission.status==='Pris en charge'&&mission.hospitalArrivedAt){
+      waitUntil(new Date(mission.hospitalArrivedAt).getTime()+1200,()=>{
+        const hospital=healthCenters.find(item=>item.id===mission.hospitalId)
+        transitionMission('Terminée')
+        setDemoStep(current=>Math.max(current,7))
+        setActivePage('mission-reports')
+        announceMissionStage({status:'Terminée',ambulanceId:mission.ambulanceId,hospital:hospital?.name,arrived:true})
+      })
+    }
+    return ()=>{if(timer)clearTimeout(timer)}
+  },[demoMode,mission?.id,mission?.status,mission?.startedAt,mission?.incidentArrivedAt,mission?.hospitalArrivedAt])
 
-  const toggleDemo=()=>demoMode?setDemoMode(false):startDemo(false)
+  const openDemoStep=stepIndex=>{
+    if(demoBusy||stepIndex>demoStep+1) return
+    if(stepIndex>=demoStep){runNextDemoStep();return}
+    const reviewPages=['map','alerts','map','map','map','map','map','mission-reports']
+    setActivePage(reviewPages[stepIndex]||'dashboard')
+    notify(`Étape ${stepIndex+1} ouverte pour vérification`,'blue')
+  }
 
-  const handleLogout = async () => {
-    await api.logout();
-    setIsAuthenticated(false);
-    setMission(null);
-    notify('Déconnexion réussie', 'blue');
-  };
+  const toggleDemo=()=>demoMode?setDemoMode(false):startDemo()
 
   // If user is not authenticated, show Login screen
   if (!isAuthenticated) {
     return (
       <Login
         onLoginSuccess={(user, mode = 'real') => {
-          setOperator(user);
-          setIsAuthenticated(true);
-          setDataMode(mode);
-          dataModeRef.current = mode;
-          notify(`Bienvenue, ${user.name} (${user.role})`, 'green');
+          setOperator(user)
+          setIsAuthenticated(true)
+          setDataMode(mode)
+          dataModeRef.current = mode
+          notify(`Bienvenue, ${user.name} (${user.role})`, 'green')
         }}
         onStartDemo={() => {
-          setOperator({ id: 'DEMO-USER', name: 'Opérateur Démo', role: 'Administrateur', authenticated: true });
-          setIsAuthenticated(true);
-          setDataMode('test');
-          dataModeRef.current = 'test';
-          startDemo(false);
+          setOperator({ id: 'DEMO-USER', name: 'Opérateur Démo', role: 'Administrateur', authenticated: true })
+          setIsAuthenticated(true)
+          setDataMode('test')
+          dataModeRef.current = 'test'
+          startDemo(false)
         }}
       />
-    );
+    )
   }
 
   let content
@@ -821,7 +967,65 @@ export default function App(){
     default: content=<Dashboard alerts={alerts} ambulances={ambulanceFleet} hospitals={healthCenters} hospitalRanking={hospitalRanking} mission={mission} onNavigate={setActivePage} onSimulateMobile={simulateMobileAlert} onOpenAlert={openAlertOnMap} onStartDemo={startDemo} fog={fog}/>; break
   }
 
+  const incidentMovement=demoStep===4&&mission?.status==='En route'
+  const onScenePause=demoStep===4&&mission?.status==='Sur place'
+  const hospitalMovement=demoStep===6&&mission?.status==='Vers le centre de santé'
+  const hospitalHandoff=demoStep===7&&mission?.status==='Pris en charge'
+  const movementStep=incidentMovement||hospitalMovement
+  const demoBlockedUntil=incidentMovement&&mission?.startedAt
+    ?mission.startedAt+(mission.animationDuration||mission.duration||DEMO_INCIDENT_TRAVEL_MS)
+    :onScenePause&&mission?.incidentArrivedAt
+      ?new Date(mission.incidentArrivedAt).getTime()+DEMO_ON_SCENE_MS
+      :hospitalMovement&&mission?.startedAt
+        ?mission.startedAt+(mission.animationDuration||mission.duration||DEMO_HOSPITAL_TRAVEL_MS)
+        :hospitalHandoff&&mission?.hospitalArrivedAt
+          ?new Date(mission.hospitalArrivedAt).getTime()+1200
+          :null
+  const demoBlocked=Boolean(demoDecisionPending)||(demoStep===3&&mission?.routeState==='loading')
+  const demoBlockedMessage=demoDecisionPending?'Validation opérateur attendue':demoStep===3&&mission?.routeState==='loading'?'Calcul de l’itinéraire en cours':onScenePause?'Intervention sur les lieux en cours':hospitalHandoff?'Remise à l’hôpital en cours':movementStep?'Déplacement de l’ambulance en cours':null
+
   const activeAlertsCount = alerts.filter(a => a.status === 'Nouveau' || a.status === 'new').length || alerts.length
 
-  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} alertsCount={activeAlertsCount} demo={{active:demoMode,auto:demoAuto,busy:demoBusy,step:demoStep,steps:DEMO_STEPS,intervalSeconds:DEMO_INTERVAL_SECONDS,onToggle:toggleDemo,onNext:runNextDemoStep,onAuto:()=>setDemoAuto(value=>!value),onReset:()=>{setDemoAuto(false);setDemoStep(0);resetOperationalState()}}} onLogout={handleLogout}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
+  return (
+    <>
+      <Layout
+        activePage={activePage}
+        onNavigate={setActivePage}
+        portal={portal}
+        onChangePortal={changePortal}
+        notice={notice}
+        onDismissNotice={()=>setNotice(null)}
+        soundsEnabled={soundsEnabled}
+        onToggleSounds={toggleSounds}
+        mobileFeedStatus={mobileFeedStatus}
+        dataMode={dataMode}
+        operator={operator}
+        fog={fog}
+        alertsCount={activeAlertsCount}
+        onLogout={handleLogout}
+        demo={{
+          active:demoMode,
+          busy:demoBusy,
+          blocked:demoBlocked,
+          blockedUntil:demoBlockedUntil,
+          blockedMessage:demoBlockedMessage,
+          step:demoStep,
+          steps:DEMO_STEPS,
+          onToggle:toggleDemo,
+          onNext:runNextDemoStep,
+          onStepClick:openDemoStep,
+          onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}
+        }}
+      >
+        {content}
+      </Layout>
+      <DecisionReviewDialog
+        review={decisionReview}
+        operator={operator}
+        onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)}
+        onConfirm={confirmDecisionReview}
+        onCancel={cancelDecisionReview}
+      />
+    </>
+  )
 }

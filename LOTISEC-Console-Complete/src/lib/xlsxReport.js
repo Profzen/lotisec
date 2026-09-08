@@ -52,17 +52,17 @@ function reportSheets({alerts=[],ambulances=[],hospitals=[],mission=null,mission
   const availableBeds=hospitals.reduce((sum,item)=>sum+(Number(item.beds)||0),0)
   const reports=missionReports.length?missionReports.map(item=>({
     ...item,
-    alertId:item.alertId||item.incidentId||'—',
-    hospitalName:item.hospitalName||item.hospitalId||'—',
-    routeName:item.routeName||item.finalRoute||item.initialRoute||'—',
+    alertId:item.alertId||item.incidentId||'-',
+    hospitalName:item.hospitalName||item.hospitalId||'-',
+    routeName:item.routeName||item.finalRoute||item.initialRoute||'-',
     distance:Number(item.actualDistance??item.distance??0),
     eta:Number(item.actualEta??item.eta??0),
     status:item.status||'Terminée',
     reroutes:Number(item.rerouteCount??item.reroutes??0),
     startedAt:item.startedAt||item.createdAt,
   })):mission?[{
-    id:mission.id,alertId:mission.alertId,ambulanceId:mission.ambulanceId,hospitalName:hospitals.find(item=>item.id===(mission.hospitalId||mission.recommendedHospitalId))?.name||'—',
-    routeName:mission.ambulanceRouteMeta?.name||mission.routeMeta?.name||'—',distance:mission.ambulanceRouteMeta?.distance||mission.routeMeta?.distance||0,eta:mission.ambulanceRouteMeta?.eta||mission.routeMeta?.eta||0,status:mission.status,reroutes:mission.rerouteCount||0,startedAt:mission.createdAt||mission.startedAt,completedAt:null,
+    id:mission.id,alertId:mission.alertId,ambulanceId:mission.ambulanceId,hospitalName:hospitals.find(item=>item.id===(mission.hospitalId||mission.recommendedHospitalId))?.name||'-',
+    routeName:mission.ambulanceRouteMeta?.name||mission.routeMeta?.name||'-',distance:mission.ambulanceRouteMeta?.distance||mission.routeMeta?.distance||0,eta:mission.ambulanceRouteMeta?.eta||mission.routeMeta?.eta||0,status:mission.status,reroutes:mission.rerouteCount||0,startedAt:mission.createdAt||mission.startedAt,completedAt:null,
   }]:[]
   const summaryRows=[
     row(['RAPPORT OPÉRATIONNEL LOTISEC','','',''],1,30),
@@ -82,14 +82,14 @@ function reportSheets({alerts=[],ambulances=[],hospitals=[],mission=null,mission
     row(['Fog Computing','Mécanismes locaux simulés ; aucun nœud Fog physique déployé','',''],2,32),
     row(['Confidentialité','Rapport opérationnel : ne pas ajouter de données nominatives de victimes','',''],2,32),
   ]
-  const incidentRows=alerts.map(item=>row([item.id,item.type,item.severity,item.location,Number(item.victims)||0,item.status||'Reçu',item.source||'—',item.receivedAt||item.received||'—',Number(item.lat)||0,Number(item.lng)||0],item.severity==='Critique'?5:0))
-  const missionRows=reports.map(item=>row([item.id||item.missionId,item.alertId,item.ambulanceId,item.hospitalName||'—',item.routeName||'—',Number(item.distance)||0,Number(item.eta)||0,item.status||'—',Number(item.reroutes)||0,item.startedAt?new Date(item.startedAt).toISOString():'—',item.completedAt?new Date(item.completedAt).toISOString():'—'],item.status==='Terminée'?6:0))
+  const incidentRows=alerts.map(item=>row([item.id,item.type,item.severity,item.location,Number(item.victims)||0,item.status||'Reçu',item.source||'-',item.receivedAt||item.received||'-',Number(item.lat)||0,Number(item.lng)||0],item.severity==='Critique'?5:0))
+  const missionRows=reports.map(item=>row([item.id||item.missionId,item.alertId,item.ambulanceId,item.hospitalName||'-',item.routeName||'-',Number(item.distance)||0,Number(item.eta)||0,item.status||'-',Number(item.reroutes)||0,item.startedAt?new Date(item.startedAt).toISOString():'-',item.completedAt?new Date(item.completedAt).toISOString():'-'],item.status==='Terminée'?6:0))
   const sheets=[
     {name:'Synthèse',rows:summaryRows,widths:[34,30,18,48],merges:['A1:D1','A2:D2','A3:D3','A13:D13','B14:D14','B15:D15','B16:D16'],freezeRows:4,autoFilter:'A4:D12'},
     {name:'Incidents',rows:[row(['ID incident','Type d’urgence','Gravité','Localisation','Victimes','Statut','Source','Réception','Latitude','Longitude'],4,28),...incidentRows],widths:[20,28,14,38,12,22,28,24,14,14],freezeRows:1,autoFilter:`A1:J${Math.max(2,incidentRows.length+1)}`},
     {name:'Missions',rows:[row(['ID mission','ID incident','Ambulance','Hôpital recommandé','Itinéraire recommandé','Distance (km)','ETA (min)','Statut','Reroutages','Début','Fin'],4,28),...missionRows],widths:[24,20,14,28,46,15,13,24,13,24,24],freezeRows:1,autoFilter:`A1:K${Math.max(2,missionRows.length+1)}`},
-    {name:'Ambulances',rows:[row(['ID ambulance','Service','Statut','Équipement','Équipe','Trafic','ETA (min)','Latitude','Longitude','Dernière mise à jour'],4,28),...ambulances.map(item=>row([item.id,item.provider,item.status,item.equipment,item.team,item.traffic,Number(item.eta)||0,Number(item.lat)||0,Number(item.lng)||0,item.updated||'—'],item.status==='Disponible'?6:0))],widths:[16,26,22,20,22,14,13,14,14,22],freezeRows:1,autoFilter:`A1:J${Math.max(2,ambulances.length+1)}`},
-    {name:'Centres de santé',rows:[row(['ID centre','Nom','Spécialité','Statut connexion','Places disponibles','Occupation (%)','Réception','Services','Dernière actualisation'],4,28),...hospitals.map(item=>row([item.id,item.name,item.specialty,item.status,Number(item.beds)||0,Number(item.occupancy)||0,item.reception,(item.services||[]).join(', '),item.lastCapacityUpdate||'—'],item.beds>0?6:5))],widths:[15,30,28,19,18,16,16,42,24],freezeRows:1,autoFilter:`A1:I${Math.max(2,hospitals.length+1)}`},
+    {name:'Ambulances',rows:[row(['ID ambulance','Service','Statut','Équipement','Équipe','Trafic','ETA (min)','Latitude','Longitude','Dernière mise à jour'],4,28),...ambulances.map(item=>row([item.id,item.provider,item.status,item.equipment,item.team,item.traffic,Number(item.eta)||0,Number(item.lat)||0,Number(item.lng)||0,item.updated||'-'],item.status==='Disponible'?6:0))],widths:[16,26,22,20,22,14,13,14,14,22],freezeRows:1,autoFilter:`A1:J${Math.max(2,ambulances.length+1)}`},
+    {name:'Centres de santé',rows:[row(['ID centre','Nom','Spécialité','Statut connexion','Places disponibles','Occupation (%)','Réception','Services','Dernière actualisation'],4,28),...hospitals.map(item=>row([item.id,item.name,item.specialty,item.status,Number(item.beds)||0,Number(item.occupancy)||0,item.reception,(item.services||[]).join(', '),item.lastCapacityUpdate||'-'],item.beds>0?6:5))],widths:[15,30,28,19,18,16,16,42,24],freezeRows:1,autoFilter:`A1:I${Math.max(2,hospitals.length+1)}`},
     {name:'Mesures du prototype',rows:[row(['ID mesure','Heure','Indicateur','Valeur','Unité','Composant','Interprétation'],4,28),...metrics.map(item=>row([item.id,item.time,item.name,Number(item.value)||0,item.unit,item.source,item.detail]))],widths:[25,14,32,14,12,28,54],freezeRows:1,autoFilter:`A1:G${Math.max(2,metrics.length+1)}`},
     {name:'Journal Fog',rows:[row(['ID événement','Heure','Événement','Détail','Niveau'],4,28),...(fog.history||[]).map(item=>row([item.id,item.time,item.title,item.detail,item.tone],item.tone==='red'?5:item.tone==='green'?6:0))],widths:[27,14,34,62,14],freezeRows:1,autoFilter:`A1:E${Math.max(2,(fog.history||[]).length+1)}`},
     {name:'Journal opérationnel',rows:[row(['ID','Heure','Acteur','Catégorie','Action','Détail','Référence'],4,28),...auditLog.map(item=>row([item.id,item.time,item.actor,item.category,item.action,item.details,item.reference],item.tone==='red'?5:item.tone==='green'?6:0))],widths:[27,14,28,16,32,62,22],freezeRows:1,autoFilter:`A1:G${Math.max(2,auditLog.length+1)}`},

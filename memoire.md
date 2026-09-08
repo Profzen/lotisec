@@ -2,6 +2,133 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+
+## Plan Stratégique & Spécification d'Intégration Complète de la Console V3.1 (LOTISEC_Web_v31) (2026-09-08)
+
+Ce document acte la décision de remplacer la version V2.2 de la console d'administration (`LOTISEC-Console-Complete`) par la version V3.1 (`LOTISEC_Web_v31`) réalisée par le collègue, tout en opérant le raccordement exhaustif de l'intégralité de ses briques avec le backend Node/Express, PostgreSQL Supabase, l'application mobile Expo (`Qr-mobile`) et le portail Web citoyen (`frontend/`).
+
+### 1. Objectif & Directive Fondamentale
+- **Conservation à 100 % des apports du collègue** : L'ensemble des enrichissements graphiques, composants d'analyse spatiale (DBSCAN / K-means), dialogues d'arbitrage de décisions, workflow de test pas-à-pas à 8 étapes, contrôles de temporisation et raffinements CSS doivent être intégralement préservés.
+- **Raccordement réel sans faille** : La version du collègue ayant été développée avec des bouchons locaux (mocks) pour un backend NestJS théorique, elle doit être connectée au socle réel LOTISEC en production : API Express (`backend/`), base Supabase PostgreSQL, canal Supabase Realtime, synthèse vocale fiabilisée, authentification multi-rôles RBAC et synchronisation GPS avec l'application mobile.
+- **Aucune régression autorisée** : Tous les correctifs opérationnels récemment apportés sur la console (écran de connexion épuré 1-clic, suppression du détournement de navigation, badges d'alertes dynamiques, élimination des bips en boucle de la carte, protection mémoire de la synthèse vocale) doivent être reportés dans cette nouvelle mouture.
+
+---
+
+### 2. Inventaire Détaillé des Nouveautés V3.1 (`LOTISEC_Web_v31`) à Intégrer
+
+#### A. Analyse Spatiale Avancée des Zones Accidentogènes (`pages/NationalPilotage.jsx`)
+- Intégration du composant `AccidentClusterPanel` permettant la comparaison directe et interactive de deux méthodes de clustering sur Lomé :
+  - **DBSCAN** : identification des noyaux de densité (`eps = 350 m`, `min_samples = 6`) et mise en évidence des points de bruit isolés (`noise`).
+  - **K-means** : partitionnement géométrique de l'ensemble des observations autour de centroïdes calculés avec tracé des croix de repérage.
+- Graphiques SVG vectoriels interactifs (`ClusterPlot`) avec repères de latitude/longitude, ellipses de dispersion et sélecteur dynamique des zones accidentogènes (Carrefour GTA, Agoè Zongo, Douane Adidogomé, Bè Plage, Port Autonome, etc.).
+- Filtres multi-zones dynamiques mettant à jour le décompte d'alertes affichées en direct.
+
+#### B. Cycle de Test & Simulation Opérationnelle Séquencé (`App.jsx`, `components/Layout.jsx`)
+- Modélisation fine en **8 étapes séquentielles** (`DEMO_STEPS`) :
+  1. *Signalement* : réception d'alerte, alarme sonore et géolocalisation.
+  2. *Validation* : contrôle humain et validation traçable.
+  3. *Affectation & trafic* : sélection d'unité et détection de ralentissements.
+  4. *Départ guidé* : déplacement vers l'incident pendant 10 secondes réelles (`DEMO_INCIDENT_TRAVEL_MS`).
+  5. *Arrivée sur les lieux* : temporisation sur place de 10 secondes (`DEMO_ON_SCENE_MS`) avec prise en charge.
+  6. *Décision hôpital* : proposition et validation de l'établissement d'accueil.
+  7. *Transfert hospitalier* : trajet vers l'hôpital pendant 5 secondes (`DEMO_HOSPITAL_TRAVEL_MS`).
+  8. *Bilan* : clôture de mission et bascule vers les rapports opérationnels.
+- Gestion d'états d'attente explicites : `demoBlocked`, `demoBlockedUntil`, et messages d'information contextualisés (`demoBlockedMessage`).
+- Navigation pas-à-pas interactive : possibilité pour l'opérateur de cliquer sur n'importe quel jalon complété ou en cours (`openDemoStep`) pour inspecter la vue cartographique ou les rapports associés.
+- Volet de suivi du test rétractable (`onToggleCollapsed`) pour libérer l'espace visuel sur les petits écrans.
+
+#### C. Dialogue de Revue et d'Arbitrage Décisionnel Amélioré (`components/DecisionReviewDialog.jsx`)
+- Interface de sélection interactive des ressources alternatives (liste des autres ambulances disponibles ou autres hôpitaux partenaires avec boutons de sélection directe modifiant le choix recommandé avant confirmation).
+- Synthèse des informations opérationnelles avec icônes explicites (`Building2`, `Clock`, `Bed`, `CheckCircle2`, etc.).
+- Validation personnalisée selon la ressource sélectionnée (« Affecter cette ambulance » ou « Confirmer cet hôpital »).
+
+#### D. Rendu Cartographique & Marqueurs Dynamiques (`components/LomeMap.jsx`)
+- Prise en charge native des deux jambes de parcours (`leg === 'hospital'` affichant le badge `HÔPITAL` versus `SUR PLACE`).
+- Badges d'alerte animés pour les nouveaux incidents (`is-new`).
+- Infobulles cartographiques (Callouts) enrichies avec statut d'accueil et fraîcheur de position des véhicules.
+
+#### E. Panneau de Paramétrage & État des Liaisons (`pages/Settings.jsx`)
+- Remplacement des blocs de configuration bruts par le composant `ConnectionRow` indiquant visuellement l'état de préparation opérationnelle des 5 piliers : Serveur métier, Mises à jour en direct, Calcul des itinéraires, Authentification, et Organisation LOTISEC.
+
+---
+
+### 3. Architecture des Reconnexions & Synchronisations Réelles
+
+```mermaid
+flowchart TD
+    subgraph Mobile & Citoyen
+        MOB[App Mobile Expo Qr-mobile] -->|POST /api/v1/incidents| API
+        MOB -->|PATCH /api/v1/resources/:id/location| API
+        WEB_CIT[Web Citoyen frontend/] -->|POST /api/v1/incidents| API
+    end
+
+    subgraph Backend & Données
+        API[Backend Node.js / Express] --> DB[(PostgreSQL Supabase + PostGIS)]
+        DB -->|Change Data Capture| REALTIME[Supabase Realtime Channel: incidents]
+    end
+
+    subgraph Console Admin V3.1 LOTISEC
+        REALTIME -->|WebSocket push instantané| RT_SVC[realtime.js]
+        API -->|Polling secours 6s| RT_SVC
+        RT_SVC -->|normalizeBackendIncident| APP[App.jsx V3.1]
+        APP --> MAP[LomeMap.jsx MapLibre]
+        APP --> SOUND[sound.js Web Speech + Audio]
+        APP --> DECISION[DecisionReviewDialog.jsx]
+        LOGIN[Login.jsx 1-Clic Admin + Sandbox] -->|JWT Auth| APP
+        APP -->|PATCH /api/v1/incidents/:id/status| API
+        APP -->|POST /api/v1/incidents/:id/assignments| API
+        APP -->|PUT /api/v1/facilities/:id/capacities| API
+    end
+```
+
+#### A. Raccordement Authentification & Profils
+- Rapatriement de `components/Login.jsx` dans la console V3.1 avec :
+  - Accès 1-clic direct **Super Administrateur** (`+22800001005` / `Ls!Pass2026!`).
+  - Bouton **Mode Démo Hors-ligne (Sandbox)** initialisant le mock local autonome.
+  - Formulaire de connexion universel branché sur `api.login()`.
+- Gestion propre de la déconnexion via `api.logout()` réinitialisant le token et la session.
+
+#### B. Service API Réel (`services/api.js`)
+- Le fichier `services/api.js` de la console V3.1 sera équipé de l'ensemble des méthodes REST réelles connectées à `https://lotisec-backend.vercel.app` :
+  - `getIncidents()`, `validateIncident(id)`, `rejectIncident(id)`
+  - `getAmbulances()`, `assignAmbulance(incidentId, unitId)`
+  - `getFacilities()`, `updateFacilityCapacities(id, data)`
+  - `getActivityAudit()`
+  - Gestion du token d'authentification (`getAuthToken`, `setAuthToken`) et injection du header `Authorization: Bearer <token>`.
+
+#### C. Service Temps Réel & Normalisation (`services/realtime.js`)
+- Intégration de `@supabase/supabase-js` dans `package.json`.
+- Écoute en temps réel des insertions et modifications sur la table `incidents` via Supabase Realtime.
+- Maintien du polling de secours toutes les 6 secondes.
+- Intégration de la fonction `normalizeBackendIncident` garantissant que les propriétés envoyées par le mobile (`client_event_id`, `latitude`, `longitude`, `severity`, `type`, `victims`, `vehicles`, `address`) sont converties fidèlement dans le format attendu par la console.
+- **Sécurisation de la navigation** : interdiction formelle de rediriger automatiquement l'opérateur vers la page carte lors d'un cycle de polling sur des incidents déjà connus (`alreadyKnown === true`).
+
+#### D. Badges & Synthèse Vocale
+- Connexion dynamique du badge « Alertes & incidents » du menu latéral sur le nombre d'incidents non clôturés.
+- Synthèse vocale `lib/sound.js` sécurisée avec conservation de la référence `window.__activeUtterance` et appel systématique à `speechSynthesis.resume()` avant élocution.
+- Déclenchement des annonces opérationnelles tout au long du cycle de vie de la mission (réception, validation, affectation, départ, arrivée sur place, orientation, transfert, clôture).
+- Élimination des bips sonores parasites et recentrages caméra automatiques dans `LomeMap.jsx`.
+
+#### E. Configuration de Déploiement Vercel
+- Conservation d'un `vercel.json` configuré pour SPA Vite (`rewrites: [ { "source": "/(.*)", "destination": "/index.html" } ]`).
+- Exclusion / suppression du fichier `requirements.txt` de la racine de la console pour empêcher toute tentative erronée de compilation Python par Vercel.
+
+---
+
+### 4. Protocole d'Exécution & Recette Validatoire
+1. Préparation du répertoire `LOTISEC-Console-Complete` avec le code source de `LOTISEC_Web_v31`.
+2. Restauration et adaptation de `Login.jsx`, `services/api.js`, `services/realtime.js`, et `@supabase/supabase-js`.
+3. Intégration des branchements temps réel et normalisation d'incidents dans `App.jsx` sans altérer les 8 étapes du mode test et l'arbre décisionnel.
+4. Validation du build local de production via `npm run build` (0 erreur TypeScript / Vite).
+5. Test bout-en-bout :
+   - Connexion 1-clic Super Admin.
+   - Émission d'un incident depuis le mobile / web citoyen et vérification de la réception immédiate avec annonce vocale.
+   - Validation et affectation d'ambulance avec synchronisation GPS.
+   - Vérification du panneau DBSCAN / K-means sur l'Espace Pilotage National.
+   - Vérification du mode démo sandbox pas-à-pas avec les 8 étapes interactives.
+
+---
+
 ## Audit Opérationnel & Diagnostic Détaillé des Dysfonctionnements de la Console Web (2026-09-06)
 
 Ce rapport documente l'analyse exhaustive des points remontés concernant la console de régulation (`LOTISEC-Console-Complete`) et son raccordement avec l'application mobile (`Qr-mobile`) et le backend (`backend/`).
