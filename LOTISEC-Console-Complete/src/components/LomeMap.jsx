@@ -162,9 +162,16 @@ export default function LomeMap({
 }){
   const containerRef=useRef(null)
   const shellRef=useRef(null)
+  const mapInstanceRef=useRef(null)
+  const lastFocusedAlertIdRef=useRef(null)
   const [fallback,setFallback]=useState(false)
   const [detail,setDetail]=useState(null)
-  const focusAlert=alerts.find(a=>a.id===focusAlertId)
+  const focusAlert=useMemo(()=>alerts.find(a=>a.id===focusAlertId)||null,[alerts,focusAlertId])
+
+  const alertsKey=useMemo(()=>alerts.map(a=>`${a.id}:${a.status}:${a.lat}:${a.lng}`).join('|'),[alerts])
+  const ambulancesKey=useMemo(()=>ambulances.map(a=>`${a.id}:${a.status}:${a.lat}:${a.lng}`).join('|'),[ambulances])
+  const hospitalsKey=useMemo(()=>hospitals.map(h=>`${h.id}:${h.beds}`).join('|'),[hospitals])
+  const missionKey=mission?`${mission.id}:${mission.status}:${mission.ambulanceId}:${mission.step||0}:${mission.congestion||''}`:'none'
 
   useEffect(()=>{
     const shell=shellRef.current
@@ -174,17 +181,28 @@ export default function LomeMap({
     return ()=>shell.removeEventListener('wheel',containWheel)
   },[])
 
-  const selectAlert=(alert,map=null)=>{
-    playTargetLock()
+  const selectAlert=(alert,map=null,{playSound=false,notify=false,zoom=16.5}={})=>{
+    if(playSound) playTargetLock()
     setDetail({type:'alert',item:alert})
-    onSelectAlert?.(alert)
-    if(map) map.easeTo({center:[alert.lng,alert.lat],zoom:17,duration:900})
+    if(notify) onSelectAlert?.(alert)
+    if(map&&alert?.lng&&alert?.lat){
+      try{map.easeTo({center:[alert.lng,alert.lat],zoom,duration:650})}catch{}
+    }
   }
   const selectHospital=(hospital,map=null)=>{
     setDetail({type:'hospital',item:hospital})
     onSelectHospital?.(hospital)
-    if(map) map.easeTo({center:[hospital.lng,hospital.lat],zoom:15.2,duration:700})
+    if(map&&hospital?.lng&&hospital?.lat){
+      try{map.easeTo({center:[hospital.lng,hospital.lat],zoom:15.2,duration:700})}catch{}
+    }
   }
+
+  useEffect(()=>{
+    if(!mapInstanceRef.current||!focusAlert||mission) return
+    if(lastFocusedAlertIdRef.current===focusAlert.id) return
+    lastFocusedAlertIdRef.current=focusAlert.id
+    selectAlert(focusAlert,mapInstanceRef.current,{playSound:false,notify:false,zoom:16.5})
+  },[focusAlertId,focusAlert,mission])
 
   useEffect(()=>{
     if(!containerRef.current||fallback) return undefined
@@ -205,6 +223,7 @@ export default function LomeMap({
         doubleClickZoom:true,
         dragPan:true,
       })
+      mapInstanceRef.current=map
     }catch{fail(); return undefined}
     const resizeMap=()=>{try{map?.resize()}catch{}}
     if(typeof ResizeObserver!=='undefined'){
@@ -230,7 +249,7 @@ export default function LomeMap({
         const destinationHospital=hospitals.find(hospital=>hospital.id===(mission?.hospitalId||mission?.recommendedHospitalId))
         alerts.forEach((alert,index)=>{
           const side=alert.lng>1.2123?'left':'right'
-          const marker=new maplibregl.Marker({element:incidentElement(alert,()=>selectAlert(alert,map),alert.id===target?.id,side)}).setLngLat([alert.lng,alert.lat]).addTo(map)
+          const marker=new maplibregl.Marker({element:incidentElement(alert,()=>selectAlert(alert,map,{playSound:true,notify:true,zoom:16.5}),alert.id===target?.id,side)}).setLngLat([alert.lng,alert.lat]).addTo(map)
           markers.push(marker)
         })
         hospitals.forEach(hospital=>{
@@ -317,7 +336,10 @@ export default function LomeMap({
           if(mission.status==='Orientation hospitalière') hospitalRoute?.forEach(point=>bounds.extend(point))
           map.fitBounds(bounds,{padding:70,maxZoom:14,duration:500})
         }
-        if(focusAlert&&!mission) selectAlert(focusAlert,map)
+        if(focusAlert&&!mission){
+          lastFocusedAlertIdRef.current=focusAlert.id
+          selectAlert(focusAlert,map,{playSound:false,notify:false,zoom:16.5})
+        }
       }catch{fail()}
     })
     return ()=>{
@@ -328,9 +350,10 @@ export default function LomeMap({
       document.removeEventListener('visibilitychange',refreshVisibleMap)
       if(animationFrame) cancelAnimationFrame(animationFrame)
       markers.forEach(marker=>{try{marker.remove()}catch{}})
+      if(mapInstanceRef.current===map) mapInstanceRef.current=null
       try{map.remove()}catch{}
     }
-  },[alerts,ambulances,hospitals,mission,showRoute,showTraffic,routeVariants,followAmbulance,fallback,focusAlertId])
+  },[alertsKey,ambulancesKey,hospitalsKey,missionKey,showRoute,showTraffic,routeVariants,followAmbulance,fallback])
 
   const closeDetail=()=>setDetail(null)
   return <div ref={shellRef} className="lotisec-map-shell relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900" style={{height}} aria-label="Carte OpenStreetMap opérationnelle en direct">
