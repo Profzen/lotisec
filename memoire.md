@@ -2,6 +2,58 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Audit Approfondi : Synchronisation Alertes Mobile/Console & Validité des Codes QR d'Urgence (2026-09-08)
+
+### I. Pourquoi les Codes QR d'Urgence (`POMP2626`, `AMBU1818`, etc.) renvoient "Code invalide"
+1. **Constat terrain** :
+   - Lorsque les sapeurs-pompiers, ambulanciers ou médecins scannent le QR code d'une victime et saisissent l'un des codes maîtres institutionnels (`POMP2626`, `AMBU1818`, `POL1717`, `MEDC3737`), l'application affiche l'erreur : *« PIN ou code institutionnel invalide »*.
+2. **Cause technique identifiée dans le code** :
+   - Dans le backend (`backend/src/routers/scan.ts`, ligne 81), la vérification des codes maîtres est conditionnée par :
+     ```typescript
+     if (!authorityName && process.env.ENABLE_DEMO_MEDICAL_CODES === 'true' && MASTER_CODES[cleanPin]) {
+       authorityName = MASTER_CODES[cleanPin];
+       accessMethod = 'demo_master_code';
+     }
+     ```
+   - La variable d'environnement `ENABLE_DEMO_MEDICAL_CODES` est **absente** du fichier `backend/.env` et **absente** des variables de déploiement Vercel (`lotisec-backend.vercel.app`).
+   - Par conséquent, la condition évalue toujours à `false`. Le backend rejette alors immédiatement la requête avec une erreur `HTTP 403` (*« Accès refusé : authentification professionnelle ou PIN valide requis »*), ce qui déclenche le message d'erreur côté scanneur.
+3. **Plan de remédiation** :
+   - Rendre les codes maîtres institutionnels reconnus par défaut (ou ajouter `ENABLE_DEMO_MEDICAL_CODES=true` par défaut s'il n'est pas explicitement désactivé).
+   - Permettre également l'accès par le PIN personnel à 4 ou 6 chiffres défini par le citoyen lors de la création de son profil.
+
+---
+
+### II. Pourquoi les Alertes Mobile (App & Web) ne se synchronisent pas dans la Console
+L'analyse de bout en bout de la chaîne (Mobile App -> Mobile Web -> Backend -> Console) a révélé **4 maillons rompus** :
+
+1. **Maillon 1 — Blocage d'authentification sur le déclenchement SOS public (`backend/src/routers/operations.ts`)** :
+   - Le bouton SOS mobile (`Qr-mobile/src/screens/HomeScreen.tsx`) et web (`frontend/src/pages/Home.tsx`) appelle `POST /api/v1/incidents`.
+   - Dans le backend, la route est protégée par `router.post('/incidents', requireAuth, ...)`.
+   - Si le citoyen déclenche un SOS sans être préalablement connecté avec une session JWT valide, le backend rejette la requête avec `HTTP 401 Token manquant`. Un appel de détresse doit accepter `optionalAuth` (ou autoriser le signalement citoyen d'urgence anonymisé) pour que tout témoin ou victime puisse transmettre sa position GPS sans barrière.
+2. **Maillon 2 — Absence de diffusion temps réel dans le backend (`operations.ts`)** :
+   - Lors de la création d'un incident via `POST /api/v1/incidents`, le backend insère bien l'incident en base PostgreSQL, mais n'appelle **jamais** la fonction `broadcast()` de `wsManager.ts`. L'événement n'est donc diffusé à aucun client connecté.
+3. **Maillon 3 — Incompatibilité de protocole dans la Console (`LOTISEC-Console-Complete`)** :
+   - La console (`mobileGateway.js`) tente d'établir une connexion via le client **Socket.IO** (`io(...)`).
+   - Or, le backend LOTISEC implémente un serveur WebSocket natif standard (`ws` sur `/ws/alertes`), pas un serveur Socket.IO.
+   - De surcroît, la variable `VITE_SOCKET_URL` n'est pas définie (aucun `.env` présent dans `LOTISEC-Console-Complete`), ce qui fait que `connectRealMobileGateway` se coupe immédiatement en renvoyant `status: 'not-configured'`, forçant la console à rester en mode démo déconnecté.
+4. **Maillon 4 — Absence de chargement / polling des alertes réelles dans la Console (`App.jsx`)** :
+   - Le service `api.alerts()` dans `LOTISEC-Console-Complete/src/services/api.js` pointe vers `/api/v1/alerts` (qui n'existe pas côté backend ; l'endpoint réel est `/api/v1/incidents`).
+   - Surtout, `api.alerts()` n'est **jamais appelé** dans `App.jsx` ! La console ne fait aucun appel pour récupérer les incidents réels existants au démarrage ou périodiquement.
+   - De plus, `dataModeRef.current` démarre par défaut sur `'test'` : si un incident réel arrivait, la ligne 164 de `App.jsx` le reléguerait silencieusement dans `realEventQueue` sans l'afficher à l'écran.
+
+---
+
+### III. Plan d'Action pour une Synchronisation Réelle Parfaite
+1. **Backend** :
+   - Passer `POST /api/v1/incidents` en `optionalAuth` (autoriser le SOS même sans jeton citoyen).
+   - Activer `ENABLE_DEMO_MEDICAL_CODES=true` par défaut dans `scan.ts` pour que les codes d'urgence institutionnels fonctionnent immédiatement.
+   - Ajouter un alias `GET /api/v1/alerts` pointant vers la liste des incidents pour satisfaire le contrat d'API de la console.
+   - Diffuser l'incident via `broadcast()` lors de la création d'un incident dans `operations.ts`.
+2. **Console (`LOTISEC-Console-Complete`)** :
+   - Connecter la console au flux réel du backend : récupérer les incidents réels via `GET /api/v1/incidents` (ou `/api/v1/alerts`) au chargement et lors de la bascule en flux réel.
+   - Prévoir une synchronisation hybride robuste (Polling HTTP toutes les X secondes + WebSocket natif `/ws/alertes`), de sorte que même si la console tourne sur un hébergeur serverless (Vercel) sans WebSockets persistants, les nouveaux incidents mobiles s'affichent instantanément en temps réel avec bip d'alerte, incrémentation des compteurs et mise à jour de la carte.
+   - Assurer que les alertes reçues s'affichent directement et incrémentent les indicateurs opérationnels.
+
 ## Stabilisation Carte LomeMap & Élimination Défilement Sonore / Clignotement (2026-09-08)
 - **Constat utilisateur** : Dans l'onglet *Alertes & incidents* (colonne de droite, alerte sélectionnée), la carte et l'encadré flottant *INCIDENT MOBILE* clignotaient en permanence, la carte bougeait de façon saccadée et les bips sonores défilaient en boucle continue.
 - **Cause identifiée** :
