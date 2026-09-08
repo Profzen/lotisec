@@ -59,19 +59,23 @@ function tone(frequency,start,duration,{type='sine',gain=.06,endFrequency=freque
   }catch{}
 }
 
+let lastAlertSoundTime = 0
+let lastLockSoundTime = 0
+
 export function playEmergencyAlert(){
   unlockSound()
-  ;[0,.24,.48].forEach(start=>{
-    tone(760,start,.1,{type:'square',gain:.052})
-    tone(1120,start+.11,.1,{type:'square',gain:.058})
-  })
-  tone(1360,.73,.22,{type:'triangle',gain:.065,endFrequency:680})
+  const now = Date.now()
+  if(now - lastAlertSoundTime < 2500) return
+  lastAlertSoundTime = now
+  tone(840, 0, 0.16, {type:'sine', gain:0.042, endFrequency:1080})
 }
 
 export function playTargetLock(){
   unlockSound()
-  tone(420,0,.1,{type:'sine',gain:.035,endFrequency:820})
-  tone(880,.11,.12,{type:'triangle',gain:.04,endFrequency:1180})
+  const now = Date.now()
+  if(now - lastLockSoundTime < 1500) return
+  lastLockSoundTime = now
+  tone(520, 0, 0.12, {type:'sine', gain:0.035, endFrequency:820})
 }
 
 export function playMapExpand(){

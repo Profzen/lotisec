@@ -65,6 +65,10 @@ Le remplacement et l'alignement strict ont été exécutés avec succès :
 4. **Validation du Build Vite** :
    - `npm run build` exécuté avec succès : 1898 modules transformés, 0 erreur TypeScript / Vite.
    - Bundle de production généré dans `dist/`.
+5. **Page de Login, Déconnexion Verrouillante & Bip Unique de Simulation** :
+   - Rétablissement de `src/components/Login.jsx` : carte sobre et élégante offrant la connexion rapide Super Admin (`+22800001005`), le mode Sandbox hors-ligne et le formulaire direct connecté sur `POST /auth/login`.
+   - Le bouton **« Se déconnecter »** dans la barre latérale verrouille désormais immédiatement la console et renvoie sur la page de Login.
+   - À l'étape 2 du mode test, les bips en cascade et clignotements répétés ont été supprimés : `playEmergencyAlert()` émet désormais **un bip unique et net** protégé par un anti-rebond de 2,5 s, et la pulsation visuelle des marqueurs a été fluidifiée (2,8 s au lieu de clignotements saccadés à 1 s).
 
 ---
 

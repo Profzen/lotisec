@@ -240,27 +240,28 @@ body { margin: 0; }
 .incident-ring {
   position: absolute;
   inset: 2px;
-  border: 3px solid rgba(239,68,68,.85);
+  border: 2px solid rgba(239,68,68,.7);
   border-radius: 999px;
-  animation: incident-pulse 1.4s ease-out infinite;
+  animation: incident-pulse 2.8s ease-in-out infinite;
 }
 .lotisec-incident-anchor.is-new { z-index: 26 !important; }
 .lotisec-incident-anchor.is-new .incident-core {
-  width: 31px;
-  height: 31px;
+  width: 27px;
+  height: 27px;
   background: #dc2626;
-  font-size: 16px;
-  box-shadow: 0 0 0 5px rgba(255,255,255,.92), 0 8px 20px rgba(127,29,29,.5);
+  font-size: 14px;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.92), 0 4px 12px rgba(127,29,29,.4);
 }
 .lotisec-incident-anchor.is-new .incident-ring {
-  inset: -4px;
-  border-width: 4px;
-  border-color: rgba(220,38,38,.92);
-  animation-duration: 1s;
+  inset: -2px;
+  border-width: 2.5px;
+  border-color: rgba(220,38,38,.75);
+  animation-duration: 2.2s;
 }
 @keyframes incident-pulse {
-  0% { transform: scale(.55); opacity: 1; }
-  100% { transform: scale(1.35); opacity: 0; }
+  0% { transform: scale(.9); opacity: .75; }
+  50% { transform: scale(1.18); opacity: .2; }
+  100% { transform: scale(.9); opacity: .75; }
 }
 .lotisec-hospital-marker {
   display: flex;

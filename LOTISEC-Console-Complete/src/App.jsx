@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Login from './components/Login'
 import Layout from './components/Layout'
 import DecisionReviewDialog from './components/DecisionReviewDialog'
 import Dashboard from './pages/Dashboard'
@@ -83,6 +84,10 @@ export default function App(){
   const [missionHistory,setMissionHistory]=useState([])
   const [decisionReview,setDecisionReview]=useState(null)
   const [operator,setOperator]=useState(DEFAULT_OPERATOR)
+  const [isAuthenticated,setIsAuthenticated]=useState(()=>{
+    if(typeof window==='undefined') return true
+    return localStorage.getItem('lotisec-auth')!=='false'
+  })
   const [securityConfig,setSecurityConfig]=useState({requireHumanValidation:true,anonymizeVictims:true,auditEnabled:true,isolateTestData:true})
   const [systemHealth,setSystemHealth]=useState({checking:false,lastCheckedAt:null,backendLatency:null,backendVersion:null,services:[]})
   const [demoMode,setDemoMode]=useState(false)
@@ -589,11 +594,37 @@ export default function App(){
     try{
       sessionStorage.removeItem('lotisec-access-token')
       localStorage.removeItem('lotisec-access-token')
+      localStorage.setItem('lotisec-auth','false')
     }catch{}
     recordAudit('Déconnexion de session',`L'opérateur ${operator.name} s'est déconnecté.`,{category:'security',tone:'blue',reference:operator.id})
     setOperator({id:'USR-GUEST',name:'Session déconnectée',role:'Observateur',authenticated:false,sessionStartedAt:null})
-    setActivePage('security')
-    notify('Session déconnectée avec succès','blue')
+    setIsAuthenticated(false)
+  }
+
+  const handleLoginSuccess=(user,mode='real')=>{
+    try{localStorage.setItem('lotisec-auth','true')}catch{}
+    setOperator({
+      id:user.id||'ADM-005',
+      name:user.name||'Administrateur LOTISEC',
+      role:user.role||'Administrateur',
+      authenticated:true,
+      sessionStartedAt:new Date().toISOString()
+    })
+    setIsAuthenticated(true)
+    notify(`Bienvenue, ${user.name||'Opérateur'}`,'green')
+  }
+
+  const handleStartDemoFromLogin=()=>{
+    try{localStorage.setItem('lotisec-auth','true')}catch{}
+    setOperator({
+      id:'USR-DEMO',
+      name:'Opérateur Démo',
+      role:'Administrateur',
+      authenticated:true,
+      sessionStartedAt:new Date().toISOString()
+    })
+    setIsAuthenticated(true)
+    notify('Mode Démo Sandbox activé','green')
   }
 
   const updateSecurity=(key,value)=>{
@@ -834,6 +865,10 @@ export default function App(){
           :null
   const demoBlocked=Boolean(demoDecisionPending)||(demoStep===3&&mission?.routeState==='loading')
   const demoBlockedMessage=demoDecisionPending?'Validation opérateur attendue':demoStep===3&&mission?.routeState==='loading'?'Calcul de l’itinéraire en cours':onScenePause?'Intervention sur les lieux en cours':hospitalHandoff?'Remise à l’hôpital en cours':movementStep?'Déplacement de l’ambulance en cours':null
+
+  if(!isAuthenticated){
+    return <Login onLoginSuccess={handleLoginSuccess} onStartDemo={handleStartDemoFromLogin}/>
+  }
 
   return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} onLogout={handleLogout} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
 }
