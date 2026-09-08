@@ -113,7 +113,6 @@ export function speakOperational(message,{delay=0,rate,pitch,interrupt=false}={}
     speechTimers.delete(timer)
     try{
       if(interrupt) window.speechSynthesis.cancel()
-      if(window.speechSynthesis.paused) window.speechSynthesis.resume()
       const profile=getVoiceProfile()
       const preset=profile==='calme'?{rate:.84,pitch:1}:profile==='systeme'?{rate:.96,pitch:1}:{rate:.9,pitch:1.01}
       const utterance=new window.SpeechSynthesisUtterance(message)
@@ -123,17 +122,10 @@ export function speakOperational(message,{delay=0,rate,pitch,interrupt=false}={}
       const voice=preferredFrenchVoice(profile)
       utterance.lang=voice?.lang||'fr-SN'
       if(voice) utterance.voice=voice
-      window.__activeUtterance = utterance
-      utterance.onend = () => { if (window.__activeUtterance === utterance) window.__activeUtterance = null }
-      utterance.onerror = () => { if (window.__activeUtterance === utterance) window.__activeUtterance = null }
       window.speechSynthesis.speak(utterance)
     }catch{}
   },delay)
   speechTimers.add(timer)
-}
-
-export function announceOrientationConfirmation({hospitalName,beds}){
-  speakOperational(`Orientation confirmée vers ${hospitalName||"l'hôpital"}. ${beds ? `${beds} places d'accueil disponibles.` : ''}`,{delay:200,rate:.91})
 }
 
 export function announceNewIncident(incident){

@@ -2,8 +2,73 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Rectification Majeure & Restauration Stricte V3.1 (LOTISEC_Web_v31) — Zéro Régression, Zéro Bip Parasite, Fidélité Visuelle Absolue (2026-09-08)
 
-## Plan Stratégique & Spécification d'Intégration Complète de la Console V3.1 (LOTISEC_Web_v31) (2026-09-08)
+### 1. Synthèse de la Remontée & Directive Utilisateur
+Suite à la revue de la console par le collègue ayant développé `LOTISEC_Web_v31`, des écarts majeurs et inacceptables ont été constatés par rapport à sa version de référence :
+1. **Mouvements erratiques et bips sonores permanents sur la carte** : La carte présentait des points en déplacement continu accompagnés d'émissions répétitives de bips sonores parasites, ce qui ne correspond aucunement au comportement voulu ni au code de la V3.1.
+2. **Altération visuelle et éléments intrusifs** : L'interface ne reflétait pas fidèlement le design V3.1. Notamment, un écran de connexion bloquant (`Login.jsx`) a été surimposé au démarrage, rompant le flux direct pensé par le collègue (qui intègre le profilage multi-rôles dans `pages/Security.jsx`).
+3. **Pollution par d'anciens fichiers résiduels** : Le dossier `public/` contenait encore les fichiers de l'ancienne console vanilla (`console.html`, `console.js`, `console.css`, `script.js`, etc.).
+4. **Consigne absolue** :
+   - La version `LOTISEC_Web_v31` doit être reprise **trait pour trait, 100% à l'identique sur le frontend** (zéro modification de disposition, zéro écran intrusif, zéro boucle de polling modifiant les positions de carte à l'insu de l'utilisateur).
+   - Le raccordement avec le backend Express/PostgreSQL et la passerelle mobile doit s'effectuer **exclusivement en arrière-plan** dans les services (`api.js`), de manière transparente et sans impacter le rendu visuel ou la logique de simulation V3.1.
+   - Attente impérative de validation (« Attends mon go ») avant modification des sources ou push.
+
+---
+
+### 2. Diagnostic Technique Approfondi des Anomalies Constatées
+
+#### A. Origine des points mobiles et des bips en boucle sur la carte
+- **Cause identifiée** : Dans la précédente tentative, un effet `subscribeToRealtime` a été injecté dans `App.jsx`, déclenchant un polling toutes les 6 secondes sur `api.getResources()`. Ce polling écrasait l'état local `ambulanceFleet` avec des coordonnées dynamiques et invoquait la fonction audio `playTone()` dans `LomeMap.jsx` / `sound.js`.
+- **Comportement légitime V3.1 original** : Dans le code du collègue, les positions de la flotte sont statiques et ne bougent **uniquement** que si l'utilisateur déclenche explicitement la simulation interactive pas-à-pas à 8 étapes (`DEMO_STEPS`). Aucun bip parasite n'est émis en l'absence d'action de l'opérateur.
+
+#### B. Écran de connexion intrusif vs Gestion des rôles V3.1
+- **Cause identifiée** : L'ajout forcé d'un composant `<Login />` conditionnant l'affichage du `<Layout />` masquait complètement l'interface au premier chargement.
+- **Comportement légitime V3.1 original** : L'application démarre directement sur le layout avec un opérateur par défaut (`DEFAULT_OPERATOR`). La bascule des profils (Super Administrateur, Opérateur SAMU, Observateur) et les droits d'accès sont gérés avec élégance au sein même de `pages/Security.jsx`, et le mode d'opération (Connecté API vs Démo autonome) est pilotable depuis `pages/Settings.jsx`.
+
+#### C. Fichiers résiduels dans `public/`
+- `LOTISEC-Console-Complete/public` contenait encore : `console.html`, `console.js`, `console.css`, `script.js`, `config.js`, `test.html`, `test-simple.html`, `test-simulation.html`, `test-backend.html`.
+- Le dossier `LOTISEC_Web_v31/public` ne contient légitimement que 4 fichiers : `ambulance-map-sprite.png`, `lotisec-logo.png`, `manifest.webmanifest`, `service-worker.js`.
+
+---
+
+### 3. Plan d'Action Strict (Zéro Compromis)
+
+1. **Nettoyage radical du dossier public** :
+   - Supprimer tous les fichiers `.html`, `.js`, `.css` hérités de l'ancienne console vanilla dans `LOTISEC-Console-Complete/public`.
+   - Ne conserver que les assets légitimes de V3.1.
+2. **Restauration 100% conforme des sources frontend** :
+   - Supprimer `src/components/Login.jsx` et `src/services/realtime.js` intrusifs.
+   - Synchroniser `src/App.jsx`, `src/components/Layout.jsx`, `src/components/LomeMap.jsx`, `src/lib/sound.js`, `src/pages/NationalPilotage.jsx`, `src/pages/Settings.jsx`, `src/pages/Security.jsx` strictement à l'identique de `LOTISEC_Web_v31/src/`.
+3. **Branchement Backend Transparent (Invisible sur l'UI)** :
+   - Conserver l'architecture de services conçue par le collègue dans `src/services/api.js` et `src/services/mobileGateway.js`.
+   - Configurer l'URL API backend via `import.meta.env.VITE_API_URL || 'https://lotisec-backend.vercel.app'` tout en préservant le fallback de démonstration transparent sans aucun impact sur l'affichage.
+4. **Validation du Build** :
+   - Exécuter `npm run build` dans `LOTISEC-Console-Complete` et certifier une compilation propre à 0 erreur.
+
+---
+
+### 4. Bilan d'Exécution & Certification Conforme (2026-09-08)
+
+Le remplacement et l'alignement strict ont été exécutés avec succès :
+1. **Nettoyage 100% complet de `public/`** :
+   - Suppression des fichiers legacy : `console.html`, `console.js`, `console.css`, `script.js`, `config.js`, `styles.css`, `console-manifest.webmanifest`, `console-sw.js`, `index.html` (public), et le sous-dossier `assets`.
+   - Seuls les 4 fichiers légitimes de V3.1 sont conservés : `ambulance-map-sprite.png`, `lotisec-logo.png`, `manifest.webmanifest`, `service-worker.js`.
+2. **Élimination des composants et services intrusifs** :
+   - Suppression définitive de `src/components/Login.jsx` et `src/services/realtime.js`.
+   - Suppression des anciens fichiers de build / scripts : `scripts/write-runtime-config.mjs`, `assets/`, `build/`, `tsconfig.json`, `vite.config.ts`.
+3. **Parité 100% absolue avec `LOTISEC_Web_v31`** :
+   - Différence constatée entre `LOTISEC_Web_v31/src` et `LOTISEC-Console-Complete/src` : **0 ligne d'écart**.
+   - Différence constatée entre `LOTISEC_Web_v31/public` et `LOTISEC-Console-Complete/public` : **0 ligne d'écart**.
+   - La carte ne subit plus aucune boucle de polling forçant le déplacement des véhicules et l'émission de bips sonores en tâche de fond.
+   - Les interfaces, dialogues décisionnels, panneaux DBSCAN/K-means et flux d'audit sont strictement identiques au travail du collègue.
+4. **Validation du Build Vite** :
+   - `npm run build` exécuté avec succès : 1898 modules transformés, 0 erreur TypeScript / Vite.
+   - Bundle de production généré dans `dist/`.
+
+---
+
+## Plan Stratégique d'Intégration Antérieur (Archive pour traçabilité)
 
 Ce document acte la décision de remplacer la version V2.2 de la console d'administration (`LOTISEC-Console-Complete`) par la version V3.1 (`LOTISEC_Web_v31`) réalisée par le collègue, tout en opérant le raccordement exhaustif de l'intégralité de ses briques avec le backend Node/Express, PostgreSQL Supabase, l'application mobile Expo (`Qr-mobile`) et le portail Web citoyen (`frontend/`).
 

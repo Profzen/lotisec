@@ -1,0 +1,35 @@
+{
+  "incident:new": {
+    "id": "INC-2026-000123",
+    "type": "Collision routière",
+    "severity": "Critique",
+    "latitude": 6.1723,
+    "longitude": 1.21952,
+    "accuracy": 6,
+    "address": "DRSI, Université de Lomé",
+    "victims": 2,
+    "vehicles": 2,
+    "timestamp": "2026-09-08T10:00:00.000Z",
+    "schemaVersion": "1.0",
+    "correlationId": "mobile-incident-000123",
+    "deviceId": "android-001",
+    "reporterReference": "ANON-001"
+  },
+  "ambulance:position": {
+    "ambulanceId": "AMB-07",
+    "missionId": "MISSION-2026-000123",
+    "latitude": 6.1718,
+    "longitude": 1.2184,
+    "heading": 72,
+    "speed": 38,
+    "accuracy": 5,
+    "timestamp": "2026-09-08T10:00:05.000Z"
+  },
+  "hospital:capacity": {
+    "hospitalId": "HSP-01",
+    "availableBeds": 5,
+    "occupancy": 76,
+    "status": "Ouverte",
+    "timestamp": "2026-09-08T10:00:08.000Z"
+  }
+}

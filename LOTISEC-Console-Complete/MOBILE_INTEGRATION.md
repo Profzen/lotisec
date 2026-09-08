@@ -39,6 +39,15 @@ VITE_ENABLE_DEMO_FALLBACK=true
 
 Le backend doit autoriser l’origine publique de la plateforme dans sa configuration CORS et accepter les transports Socket.IO `websocket` et `polling`.
 
+## Jeton d’accès du poste web
+
+Le fichier `src/services/auth.js` fournit deux points d’intégration :
+
+- `configureAccessTokenProvider(() => keycloak.updateToken(30).then(() => keycloak.token))` pour brancher Keycloak ;
+- `setSessionAccessToken(token)` pour un essai local temporaire.
+
+Le jeton est envoyé dans `socket.auth.token`. Le backend doit le vérifier avant d’autoriser l’accès au namespace `/operations`. Aucun secret client ne doit être ajouté aux variables `VITE_*`.
+
 ## Séparation des trois portails
 
 | Portail | Namespace | Client Keycloak | Périmètre |
@@ -88,11 +97,11 @@ Règles recommandées :
 
 ## Séparation stricte réel / test
 
-1. `VITE_OPERATION_MODE=test` charge uniquement le bac à sable.
+1. `VITE_OPERATION_MODE=test` charge uniquement le mode test.
 2. Le client réel peut rester connecté, mais ses messages sont placés dans `realEventQueue`.
 3. Ces messages ne modifient ni la carte, ni les missions, ni les statistiques de test.
 4. Le passage explicite en mode réel sauvegarde l’état du test, restaure l’espace réel et traite la file terrain.
-5. Le retour au mode test restaure exactement l’état du bac à sable.
+5. Le retour au mode test restaure exactement l’état de simulation précédent.
 6. Le lancement du scénario guidé force toujours l’environnement test.
 
 ## Événements entrants vers le web
@@ -104,6 +113,8 @@ Règles recommandées :
 | `hospital:capacity` | Service hôpitaux | Capacité actualisée et nouveau classement |
 
 Alias déjà tolérés : `incident:created`, `alert:new`, `emergency:new`, `sos:new`, `gps:update`, `vehicle:position` et `health-center:capacity`.
+
+Les schémas JSON sont fournis dans `docs/mobile-incident.schema.json`, `docs/ambulance-position.schema.json` et `docs/hospital-capacity.schema.json`. Le fichier `docs/mobile-events.example.json` contient un exemple complet des trois messages.
 
 ## Événements sortants du web
 

@@ -78,7 +78,7 @@ const emergencyContacts=[
   {name:'Secours Abalo',detail:'Ambulance privée',number:'8880'},
 ]
 
-export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,alertsCount,onLogout,demo,children}){
+export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,children}){
   const [theme,setTheme] = useState(initialTheme())
   const [notificationsOpen,setNotificationsOpen]=useState(false)
   const [emergencyOpen,setEmergencyOpen]=useState(false)
@@ -118,9 +118,8 @@ export default function Layout({activePage,onNavigate,portal='operations',onChan
             {group.items.map(item=>{
               const Icon = item.icon
               const isActive=activePage===pageId(item.to)
-              const badge = item.to === '/alerts' && typeof alertsCount === 'number' ? (alertsCount > 0 ? alertsCount : null) : item.badge
               return <button key={item.to} type="button" onClick={()=>onNavigate(pageId(item.to))} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${isActive?activeNavClass:'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-                <Icon size={18}/><span className="flex-1">{item.label}</span>{badge!=null&&<span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] text-white">{badge}</span>}
+                <Icon size={18}/><span className="flex-1">{item.label}</span>{item.badge&&<span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] text-white">{item.badge}</span>}
               </button>
             })}
           </div>
@@ -128,7 +127,6 @@ export default function Layout({activePage,onNavigate,portal='operations',onChan
       </nav>
       <div className="shrink-0 space-y-2 border-t border-slate-100 p-3 dark:border-slate-800">
         {portal==='operations'&&<button type="button" onClick={()=>setEmergencyOpen(true)} className="flex w-full items-center gap-3 rounded-xl bg-red-600 px-3 py-3 text-left text-sm font-bold text-white shadow-lg shadow-red-900/15 transition hover:bg-red-700"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/15"><PhoneCall size={17}/></span><span className="flex-1">Contacter les urgences</span><ChevronRight size={16}/></button>}
-        {onLogout&&<button type="button" onClick={onLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:text-red-400"><span>Se déconnecter</span></button>}
       </div>
     </aside>
 

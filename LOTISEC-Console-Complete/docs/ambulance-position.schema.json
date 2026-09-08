@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lotisec.tg/schemas/ambulance-position-1.0.json",
+  "title": "Position ambulance LOTISEC",
+  "type": "object",
+  "required": ["ambulanceId", "latitude", "longitude", "timestamp"],
+  "properties": {
+    "ambulanceId": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "missionId": { "type": "string", "maxLength": 80 },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "heading": { "type": "number", "minimum": 0, "maximum": 360 },
+    "speed": { "type": "number", "minimum": 0 },
+    "accuracy": { "type": "number", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

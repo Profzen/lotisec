@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lotisec.tg/schemas/hospital-capacity-1.0.json",
+  "title": "Capacité hospitalière LOTISEC",
+  "type": "object",
+  "required": ["hospitalId", "availableBeds", "occupancy", "timestamp"],
+  "properties": {
+    "hospitalId": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "availableBeds": { "type": "integer", "minimum": 0 },
+    "occupancy": { "type": "number", "minimum": 0, "maximum": 100 },
+    "status": { "enum": ["Ouverte", "Limitée", "Fermée"] },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

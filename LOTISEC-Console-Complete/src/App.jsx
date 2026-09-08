@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from './components/Layout'
-import Login from './components/Login'
 import DecisionReviewDialog from './components/DecisionReviewDialog'
 import Dashboard from './pages/Dashboard'
 import Alerts from './pages/Alerts'
@@ -25,23 +24,8 @@ import { getRoadRoute, localRoutePlan } from './services/routing'
 import { rankAmbulances, rankHospitals } from './services/decision'
 import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, probeBackendHealth } from './services/mobileGateway'
 import { getAccessToken } from './services/auth'
-import { api, getAuthToken } from './services/api'
-import { subscribeToRealtime } from './services/realtime'
 import { useFogEngine } from './hooks/useFogEngine'
-import {
-  announceAmbulanceAssignment,
-  announceCongestion,
-  announceMissionStage,
-  announceNewIncident,
-  announceOrientationConfirmation,
-  announcePreDepartureDecision,
-  getSoundsEnabled,
-  playTargetLock,
-  setSoundsEnabled as persistSounds,
-  speakOperational,
-  stopOperationalAudio,
-  unlockSound,
-} from './lib/sound'
+import { announceAmbulanceAssignment, announceCongestion, announceMissionStage, announceNewIncident, announcePreDepartureDecision, getSoundsEnabled, playTargetLock, setSoundsEnabled as persistSounds, speakOperational, stopOperationalAudio, unlockSound } from './lib/sound'
 
 const MISSION_STAGES=['Analyse trafic','Affectée','En route','Sur place','Orientation hospitalière','Vers le centre de santé','Pris en charge','Terminée']
 const DEMO_STEPS=[
@@ -80,41 +64,6 @@ function initialPortalLocation(){
   return {portal,page:valid?page:PORTAL_DEFAULTS[portal]}
 }
 
-function normalizeBackendIncident(inc) {
-  const lat = Number(inc.latitude || inc.lat || 6.1375)
-  const lng = Number(inc.longitude || inc.lng || 1.2125)
-  const statusMap = {
-    new: 'Nouveau',
-    validated: 'Validée',
-    rejected: 'Rejetée',
-    assigned: 'Affectée',
-    en_route: 'En route',
-    on_scene: 'Sur place',
-    transporting: 'Vers le centre de santé',
-    admitted: 'Pris en charge',
-    closed: 'Terminée',
-  }
-  return {
-    id: String(inc.id || `INC-${Date.now()}`),
-    externalId: String(inc.client_event_id || inc.id || ''),
-    type: inc.type || 'Urgence signalée depuis le mobile',
-    severity: inc.severity === 'critical' ? 'Critique' : inc.severity === 'high' ? 'Élevée' : 'Moyenne',
-    location: inc.address || `Lomé (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-    victims: Number(inc.victims || 1),
-    vehicles: Number(inc.vehicles || 1),
-    lat,
-    lng,
-    accuracy: inc.accuracy ? `${inc.accuracy} m` : 'GPS mobile',
-    status: statusMap[inc.status] || inc.status || 'Nouveau',
-    source: inc.source === 'mobile' ? 'Application mobile réelle' : 'Web Citoyen',
-    receivedAt: inc.created_at || new Date().toISOString(),
-    received: new Date(inc.created_at || Date.now()).toLocaleTimeString('fr-FR'),
-    messageState: inc.status === 'new' ? 'Reçu · en attente de validation' : 'Validé · en cours',
-    connectionState: 'Temps réel Supabase / API',
-    raw: inc,
-  }
-}
-
 export default function App(){
   const initialLocation=useMemo(()=>initialPortalLocation(),[])
   const [portal,setPortal]=useState(initialLocation.portal)
@@ -148,18 +97,6 @@ export default function App(){
   const seenIncidentIds=useRef(new Set((mobileConfig.operationMode==='real'?[]:initialAlerts).map(item=>item.id)))
   const missionStatusKeyRef=useRef('')
   const fog=useFogEngine()
-
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const token = getAuthToken()
-      const params = new URLSearchParams(window.location.search)
-      if (params.get('demo') === '1' || params.get('sandbox') === '1') return true
-      return Boolean(token)
-    }
-    return false
-  })
-
   const activeAlert=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
   const ambulanceRanking=useMemo(()=>rankAmbulances(activeAlert,ambulanceFleet),[activeAlert,ambulanceFleet])
   const hospitalRanking=useMemo(()=>rankHospitals(activeAlert,healthCenters),[activeAlert,healthCenters])
@@ -168,79 +105,6 @@ export default function App(){
   const notify=(message,tone='blue')=>{
     setNotice({message,tone,id:Date.now()})
   }
-
-  const handleLogout = async () => {
-    await api.logout()
-    setIsAuthenticated(false)
-    setMission(null)
-    notify('Déconnexion réussie', 'blue')
-  }
-
-  // Supabase Realtime & Polling synchronization for real production events
-  useEffect(() => {
-    if (!isAuthenticated || dataMode !== 'real') return undefined
-
-    const unsubscribe = subscribeToRealtime({
-      onIncident: (rawInc, eventType) => {
-        if (!rawInc) return
-        const normalized = normalizeBackendIncident(rawInc)
-        const alreadyKnown = seenIncidentIds.current.has(normalized.id)
-
-        setAlerts((current) => {
-          const exists = current.some((item) => item.id === normalized.id)
-          if (exists) {
-            return current.map((item) => (item.id === normalized.id ? { ...item, ...normalized } : item))
-          }
-          return [normalized, ...current]
-        })
-
-        seenIncidentIds.current.add(normalized.id)
-
-        if (!alreadyKnown && eventType !== 'POLL') {
-          announceNewIncident({
-            severity: normalized.severity,
-            location: normalized.location,
-            victims: normalized.victims,
-          })
-          notify(`Nouvel incident reçu : ${normalized.id} (${normalized.location})`, 'red')
-        }
-      },
-      onResource: (rawRes) => {
-        if (!rawRes) return
-        setAmbulanceFleet((current) =>
-          current.map((amb) => {
-            if (amb.id === rawRes.id || amb.id === rawRes.call_sign) {
-              return {
-                ...amb,
-                lat: Number(rawRes.latitude || amb.lat),
-                lng: Number(rawRes.longitude || amb.lng),
-                status: rawRes.status === 'available' ? 'Disponible' : 'En mission',
-              }
-            }
-            return amb
-          })
-        )
-      },
-      onAdmission: (rawFac, eventType) => {
-        if (eventType === 'POLL_FACILITY' && rawFac) {
-          setHealthCenters((current) =>
-            current.map((h) => {
-              if (h.id === rawFac.id || h.name === rawFac.name) {
-                return {
-                  ...h,
-                  beds: Number(rawFac.available_beds ?? h.beds),
-                  status: rawFac.is_active ? 'Opérationnel' : h.status,
-                }
-              }
-              return h
-            })
-          )
-        }
-      },
-    })
-
-    return () => unsubscribe()
-  }, [isAuthenticated, dataMode])
 
   const changePortal=nextPortal=>{
     const next=Object.hasOwn(PORTAL_DEFAULTS,nextPortal)?nextPortal:'operations'
@@ -302,8 +166,7 @@ export default function App(){
     seenIncidentIds.current.add(enriched.id)
     setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
     setSelectedAlertId(enriched.id)
-    // Never hijack navigation away from operator if already known!
-    if(portalRef.current==='operations' && !alreadyKnown) setActivePage('map')
+    if(portalRef.current==='operations') setActivePage('map')
     if(!alreadyKnown) announceNewIncident(enriched)
     notify(`${alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement du mode test reçu'} : ${enriched.location}`,alreadyKnown?'blue':'red')
     recordAudit(alreadyKnown?'Signalement mobile actualisé':real?'Urgence mobile reçue':'Signalement mobile reçu',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:alreadyKnown?'blue':'red',reference:enriched.id,actor:real?'Application mobile réelle':'Application mobile - mode test'})
@@ -644,7 +507,6 @@ export default function App(){
       getRoadRoute(alert,hospital).then(plan=>setMission(current=>current?.id===missionId&&current.hospitalId===hospital.id?{...current,hospitalRoute:plan.coordinates,hospitalRouteMeta:plan}:current))
     }
     notify(`Orientation confirmée vers ${hospital.name}`,'green')
-    announceOrientationConfirmation({hospitalName:hospital.name,beds:hospital.beds})
     recordAudit('Orientation validée par l’opérateur',`${hospital.name} · ${hospital.beds} place(s) disponible(s) · ${validation.note||'Recommandation conforme.'}`,{category:'security',tone:'green',reference:mission?.id||hospital.id,actor:validation.operator||operator.name,operatorId:validation.operatorId||operator.id,operatorRole:validation.role||operator.role})
     fog.enqueue('mission.orientation',{missionId:mission?.id,hospitalId:hospital.id,places:hospital.beds,confirmedAt:new Date().toISOString()},'Opérateur LOTISEC')
     publishRealtime('mission:orientation',{missionId:mission?.id,incidentId:mission?.alertId,hospitalId:hospital.id,availableBeds:hospital.beds,status:'confirmed',operatorId:validation.operatorId||operator.id})
@@ -921,28 +783,6 @@ export default function App(){
 
   const toggleDemo=()=>demoMode?setDemoMode(false):startDemo()
 
-  // If user is not authenticated, show Login screen
-  if (!isAuthenticated) {
-    return (
-      <Login
-        onLoginSuccess={(user, mode = 'real') => {
-          setOperator(user)
-          setIsAuthenticated(true)
-          setDataMode(mode)
-          dataModeRef.current = mode
-          notify(`Bienvenue, ${user.name} (${user.role})`, 'green')
-        }}
-        onStartDemo={() => {
-          setOperator({ id: 'DEMO-USER', name: 'Opérateur Démo', role: 'Administrateur', authenticated: true })
-          setIsAuthenticated(true)
-          setDataMode('test')
-          dataModeRef.current = 'test'
-          startDemo(false)
-        }}
-      />
-    )
-  }
-
   let content
   if(portal==='health'){
     content=<HealthPortal view={activePage} hospitals={healthCenters} alerts={alerts} mission={mission} auditLog={auditLog} mobileFeedStatus={mobileFeedStatus} onUpdateHospital={updateHealthCenter} onPublishEvent={publishRealtime} onNotify={notify}/>
@@ -984,48 +824,5 @@ export default function App(){
   const demoBlocked=Boolean(demoDecisionPending)||(demoStep===3&&mission?.routeState==='loading')
   const demoBlockedMessage=demoDecisionPending?'Validation opérateur attendue':demoStep===3&&mission?.routeState==='loading'?'Calcul de l’itinéraire en cours':onScenePause?'Intervention sur les lieux en cours':hospitalHandoff?'Remise à l’hôpital en cours':movementStep?'Déplacement de l’ambulance en cours':null
 
-  const activeAlertsCount = alerts.filter(a => a.status === 'Nouveau' || a.status === 'new').length || alerts.length
-
-  return (
-    <>
-      <Layout
-        activePage={activePage}
-        onNavigate={setActivePage}
-        portal={portal}
-        onChangePortal={changePortal}
-        notice={notice}
-        onDismissNotice={()=>setNotice(null)}
-        soundsEnabled={soundsEnabled}
-        onToggleSounds={toggleSounds}
-        mobileFeedStatus={mobileFeedStatus}
-        dataMode={dataMode}
-        operator={operator}
-        fog={fog}
-        alertsCount={activeAlertsCount}
-        onLogout={handleLogout}
-        demo={{
-          active:demoMode,
-          busy:demoBusy,
-          blocked:demoBlocked,
-          blockedUntil:demoBlockedUntil,
-          blockedMessage:demoBlockedMessage,
-          step:demoStep,
-          steps:DEMO_STEPS,
-          onToggle:toggleDemo,
-          onNext:runNextDemoStep,
-          onStepClick:openDemoStep,
-          onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}
-        }}
-      >
-        {content}
-      </Layout>
-      <DecisionReviewDialog
-        review={decisionReview}
-        operator={operator}
-        onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)}
-        onConfirm={confirmDecisionReview}
-        onCancel={cancelDecisionReview}
-      />
-    </>
-  )
+  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
 }
