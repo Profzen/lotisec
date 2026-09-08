@@ -2,6 +2,18 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Stabilisation Carte LomeMap & Élimination Défilement Sonore / Clignotement (2026-09-08)
+- **Constat utilisateur** : Dans l'onglet *Alertes & incidents* (colonne de droite, alerte sélectionnée), la carte et l'encadré flottant *INCIDENT MOBILE* clignotaient en permanence, la carte bougeait de façon saccadée et les bips sonores défilaient en boucle continue.
+- **Cause identifiée** :
+  1. Recréation de tableaux en mémoire à chaque cycle (`alerts={[selected]}` et `ambulances.slice(0,2)`).
+  2. Effet `useEffect` de `LomeMap` détruisant et recréant l'instance MapLibre à chaque nouveau tableau.
+  3. Ré-exécution de `selectAlert(focusAlert, map)` à chaque chargement de style, déclenchant `playTargetLock()` en boucle et notifiant circulairement le composant parent.
+- **Correctif apporté** :
+  1. **Mémorisation stricte** (`useMemo`) dans `Alerts.jsx` pour `mapAlerts`, `mapAmbulances` et garde conditionnelle sur `setSelectedId`.
+  2. **Clés d'état stables** (`alertsKey`, `ambulancesKey`, `hospitalsKey`, `missionKey`) dans `LomeMap.jsx` pour empêcher la destruction du canvas de la carte lors des rafraîchissements de props.
+  3. **Gestion dédiée du focus** via `lastFocusedAlertIdRef` et effet indépendant : glissement fluide `easeTo` sans son au chargement, son réservé au clic explicite de l'opérateur (`playSound: true`).
+- **Résultat** : Carte stable et fluide, aucun clignotement, silence opérationnel préservé, build Vite validé (code 0) et push effectué sur `main`.
+
 ## Rectification Majeure & Restauration Stricte V3.1 (LOTISEC_Web_v31) — Zéro Régression, Zéro Bip Parasite, Fidélité Visuelle Absolue (2026-09-08)
 
 ### 1. Synthèse de la Remontée & Directive Utilisateur
