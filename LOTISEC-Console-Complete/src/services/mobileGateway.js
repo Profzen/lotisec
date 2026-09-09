@@ -127,6 +127,7 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
     }
   }catch{}
 
+  let initialPollDone=false
   const pollIncidents=async()=>{
     if(!active) return
     try{
@@ -142,10 +143,12 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
         const body=await res.json()
         const incidents=body.incidents||body.alerts||(Array.isArray(body)?body:[])
         if(Array.isArray(incidents)){
+          const isInitial=!initialPollDone
           incidents.forEach(item=>{
             const normalized=normalizeMobileIncident(item)
-            if(normalized) onIncident?.(normalized,'incident:polled')
+            if(normalized) onIncident?.(normalized,'incident:polled',{initial:isInitial})
           })
+          initialPollDone=true
         }
       }
     }catch{}

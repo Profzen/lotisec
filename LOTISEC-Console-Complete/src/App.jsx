@@ -104,6 +104,8 @@ export default function App(){
   const dataModeRef=useRef(mobileConfig.operationMode)
   const dataSnapshotsRef=useRef({test:null,real:null})
   const seenIncidentIds=useRef(new Set((mobileConfig.operationMode==='real'?[]:initialAlerts).map(item=>item.id)))
+  const activePageRef=useRef(initialLocation.page)
+  const dashboardBeepPlayedRef=useRef(false)
   const missionStatusKeyRef=useRef('')
   const fog=useFogEngine()
   const activeAlert=alerts.find(item=>item.id===selectedAlertId)||alerts[0]
@@ -126,6 +128,7 @@ export default function App(){
 
   useEffect(()=>{
     portalRef.current=portal
+    activePageRef.current=activePage
     const params=new URLSearchParams(window.location.search)
     params.set('espace',portal)
     params.set('page',activePage)
@@ -164,15 +167,22 @@ export default function App(){
     if(portalRef.current==='operations') setActivePage('map')
   }
 
-  const receiveIncident=(incident,{real=false}={})=>{
+  const receiveIncident=(incident,{real=false,silent=false}={})=>{
     const started=performance.now()
     const enriched={receivedAt:new Date().toISOString(),transport:real?'Flux mobile réel':'WebSocket simulé',eventName:'incident:new',messageState:'Reçu · normalisé · en attente de validation',connectionState:'Temps réel',...incident}
     const alreadyKnown=seenIncidentIds.current.has(enriched.id)
     seenIncidentIds.current.add(enriched.id)
     setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
-    if(!alreadyKnown){
+    if(!alreadyKnown && !silent){
       setSelectedAlertId(enriched.id)
-      announceNewIncident(enriched)
+      if(activePageRef.current==='dashboard'){
+        if(!dashboardBeepPlayedRef.current){
+          dashboardBeepPlayedRef.current=true
+          announceNewIncident(enriched)
+        }
+      }else{
+        announceNewIncident(enriched)
+      }
       notify(`🚨 Urgence mobile reçue : ${enriched.type} (${enriched.location})`,'red')
       recordAudit('Urgence mobile reçue',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:'red',reference:enriched.id,actor:enriched.source||'Application mobile réelle'})
     }
@@ -220,7 +230,13 @@ export default function App(){
     const gateway=connectRealMobileGateway({
       getAccessToken,
       onStatus:status=>setMobileFeedStatus(status==='not-configured'?'demo':status),
-      onIncident:incident=>receiveIncident(incident,{real:true}),
+      onIncident:(incident,meta={})=>{
+        if(dataModeRef.current!=='real'){
+          setRealEventQueue(current=>[...current,{kind:'incident',payload:incident,receivedAt:new Date().toISOString()}].slice(-100))
+          return
+        }
+        receiveIncident(incident,{real:true,silent:Boolean(meta?.initial)})
+      },
       onPosition:position=>{
         if(dataModeRef.current!=='real'){setRealEventQueue(current=>[...current,{kind:'position',payload:position,receivedAt:new Date().toISOString()}].slice(-100));return}
         setAmbulanceFleet(current=>current.map(item=>item.id===position.id?{...item,lat:position.lat,lng:position.lng,heading:position.heading,liveSpeed:position.speed,updated:"à l'instant",gpsSource:'GPS réel'}:item))

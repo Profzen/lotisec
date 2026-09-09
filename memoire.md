@@ -2,6 +2,18 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Élimination des Bips Répétés sur le Tableau de Bord & Maintien du Bip Unique d'Arrivée (2026-09-09)
+- **Constat utilisateur** : Lorsqu'on clique sur l'onglet *Tableau de bord* dans la barre latérale, la carte visible sur le tableau de bord émettait des bips de manière fréquente et constante. L'objectif requis était qu'un seul et unique bip soit émis (pour notifier la présence d'alertes à l'arrivée), puis plus aucun bip par la suite sur le tableau de bord.
+- **Origine technique** :
+  1. La passerelle mobile `mobileGateway.js` interrogeait `/api/v1/incidents` toutes les 4 secondes. Lors du premier cycle de polling, les incidents existants en base PostgreSQL étaient tous considérés comme nouveaux, provoquant l'annonce répétée `announceNewIncident()` avec `playEmergencyAlert()`.
+  2. En mode `test` (par défaut), les incidents réels du backend n'étaient pas isolés dans `realEventQueue` contrairement aux positions et capacités.
+  3. Il manquait un verrouillage « single-shot » dédié au tableau de bord pour garantir qu'un seul bip retentisse à l'ouverture, et que tout rafraîchissement ultérieur en arrière-plan demeure 100% silencieux.
+- **Correctif apporté** :
+  1. **Flag de charge initiale silencieuse (`mobileGateway.js`)** : Le premier batch d'incidents existants est marqué avec `meta.initial = true` afin d'être injecté silencieusement sans déclencher une rafale d'alarmes.
+  2. **Isolation en mode test & Garde Dashboard (`App.jsx`)** : Les incidents réels sont désormais isolés dans `realEventQueue` tant que le mode réel n'est pas activé. Lorsqu'on se trouve sur le tableau de bord (`activePage === 'dashboard'`), `dashboardBeepPlayedRef` veille à ce qu'un seul bip soit émis au maximum.
+  3. **Bip unique garanti à l'arrivée (`Dashboard.jsx`)** : Un effet dédié avec garde `hasEmittedDashboardBeepRef` émet un bip d'attention net et unique (`playTargetLock()`) si des alertes prioritaires sont actives, puis garantit un silence opérationnel absolu sur le tableau de bord.
+- **Résultat** : Build Vite validé (code 0, 1900 modules), un seul bip net lors de l'accès au tableau de bord, zéro répétition parasite.
+
 ## Audit Approfondi : Synchronisation Alertes Mobile/Console & Validité des Codes QR d'Urgence (2026-09-08)
 
 ### I. Pourquoi les Codes QR d'Urgence (`POMP2626`, `AMBU1818`, etc.) renvoient "Code invalide"

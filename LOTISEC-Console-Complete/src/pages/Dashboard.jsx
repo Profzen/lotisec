@@ -1,11 +1,24 @@
+import { useEffect, useRef } from 'react'
 import { Ambulance, BellRing, Building2, Clock3, MonitorPlay } from 'lucide-react'
 import { interventions, routes } from '../data/demo'
 import LomeMap from '../components/LomeMap'
 import { Kpi, MiniRoute, PageTitle, SectionHeader, Status } from '../components/UI'
+import { playTargetLock } from '../lib/sound'
 
 export default function Dashboard({alerts,ambulances,hospitals,hospitalRanking,mission,onNavigate,onSimulateMobile,onOpenAlert,onStartDemo,fog}){
   const recommendedId=mission?.hospitalId||mission?.recommendedHospitalId||hospitalRanking?.find(item=>item.recommended)?.id
   const criticalCount=alerts.filter(item=>['Critique','Élevée','Haute'].includes(item.severity)&&!['Clôturée','Rejetée'].includes(item.status)).length
+
+  // Émission d'un seul et unique bip d'entrée sur le tableau de bord, puis silence complet garanti
+  const hasEmittedDashboardBeepRef = useRef(false)
+  useEffect(()=>{
+    if(!hasEmittedDashboardBeepRef.current){
+      hasEmittedDashboardBeepRef.current = true
+      if(criticalCount > 0){
+        playTargetLock()
+      }
+    }
+  },[])
   return <>
     <PageTitle title="Tableau de bord opérationnel" subtitle="Vue synthétique de la situation et aide à la décision." action={<div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={()=>onStartDemo(true)}><MonitorPlay size={17}/>Lancer le mode test</button><button type="button" className="btn-primary" onClick={onSimulateMobile}>Simuler un signalement</button></div>}/>
     <div className="lotisec-sticky-kpis grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
