@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import { BedDouble, Crosshair, MapPin, Minus, Plus, X } from 'lucide-react'
 import { playTargetLock } from '../lib/sound'

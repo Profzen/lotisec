@@ -85,8 +85,12 @@ export default function App(){
   const [decisionReview,setDecisionReview]=useState(null)
   const [operator,setOperator]=useState(DEFAULT_OPERATOR)
   const [isAuthenticated,setIsAuthenticated]=useState(()=>{
-    if(typeof window==='undefined') return true
-    return localStorage.getItem('lotisec-auth')!=='false'
+    if(typeof window==='undefined') return false
+    try{
+      return localStorage.getItem('lotisec-auth')==='true'
+    }catch{
+      return false
+    }
   })
   const [securityConfig,setSecurityConfig]=useState({requireHumanValidation:true,anonymizeVictims:true,auditEnabled:true,isolateTestData:true})
   const [systemHealth,setSystemHealth]=useState({checking:false,lastCheckedAt:null,backendLatency:null,backendVersion:null,services:[]})

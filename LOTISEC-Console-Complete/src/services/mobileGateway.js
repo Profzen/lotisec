@@ -109,20 +109,22 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
   let ws=null
 
   try{
-    const wsUrl=apiUrl.replace(/^http/,'ws')+'/ws/alertes'
-    ws=new WebSocket(wsUrl)
-    ws.onopen=()=>{onStatus?.('connected')}
-    ws.onmessage=(event)=>{
-      try{
-        const data=JSON.parse(event.data)
-        if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.incident){
-          const payload=data.incident||data
-          const normalized=normalizeMobileIncident(payload)
-          if(normalized) onIncident?.(normalized,'incident:ws')
-        }
-      }catch{}
+    if(apiUrl && !apiUrl.includes('vercel.app')){
+      const wsUrl=apiUrl.replace(/^http/,'ws')+'/ws/alertes'
+      ws=new WebSocket(wsUrl)
+      ws.onopen=()=>{onStatus?.('connected')}
+      ws.onmessage=(event)=>{
+        try{
+          const data=JSON.parse(event.data)
+          if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.incident){
+            const payload=data.incident||data
+            const normalized=normalizeMobileIncident(payload)
+            if(normalized) onIncident?.(normalized,'incident:ws')
+          }
+        }catch{}
+      }
+      ws.onerror=()=>{}
     }
-    ws.onerror=()=>{}
   }catch{}
 
   const pollIncidents=async()=>{
