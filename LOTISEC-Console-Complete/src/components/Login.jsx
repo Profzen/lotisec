@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, Lock, Phone, ArrowRight, Sparkles, AlertCircle } from 'lucide-react'
+import { Shield, Lock, Phone, ArrowRight, AlertCircle } from 'lucide-react'
 import { api } from '../services/api'
 import { setSessionAccessToken } from '../services/auth'
 
@@ -177,9 +177,8 @@ export default function Login({ onLoginSuccess, onStartDemo }) {
             <button
               type="button"
               onClick={handleSandboxDemo}
-              className="w-full py-2 px-3 rounded-xl text-xs text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/5 transition flex items-center justify-center gap-1.5"
+              className="w-full py-2 px-3 rounded-xl text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition flex items-center justify-center text-center"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
               <span>Mode Démo Hors-ligne (Sandbox)</span>
             </button>
           </div>
