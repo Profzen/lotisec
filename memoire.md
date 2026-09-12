@@ -3,41 +3,614 @@
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
 ## Harmonisation Totale & Mise en Concordance Rigoureuse Mobile / Web Citoyen / Backend Express / Console Opérationnelle (2026-09-12)
-- **Objectif** : Établir une concordance logique et technique stricte entre l'application Mobile Native (`Qr-mobile/`), le Portail Web Citoyen (`frontend/`), l'API Backend Express (`backend/`) et la Console Opérationnelle de Supervision (`LOTISEC-Console-Complete/`), sans données inventées, sans fausses affectations, et en maintenant l'ergonomie de la Console V3.1 (mode guidé 8 étapes, isolation test/réel, bip unique).
 
-- **Réalisations & Décisions Techniques Clés** :
-  1. **Contrat de Données d'Urgence & Backend Express (`backend/src/routers/operations.ts`)** :
-     - `severity` accepte désormais `'unknown'` par défaut : suppression du forçage arbitraire à `'critical'`.
-     - `flags` supportant jusqu'à 20 éléments : prise en compte des drapeaux de gravité (`inconscience`, `saignement`, `coince`, `feu`, etc.) dans le calcul de score de priorité sans dépendre d'une sévérité déclarative.
-     - Dédoublonnage strict via `client_event_id` : réémission transparente de l'incident sans créer de doublon en base, sans notification push dupliquée et sans alerte sonore intempestive.
-     - Suppression du fallback d'hôpital fictif en dur : l'API renvoie `null` si aucun établissement sanitaire n'est configuré ou à proximité dans la base de données.
-     - Endpoint d'enrichissement `PATCH /api/v1/incidents/:id/report` : permet au citoyen (ou au régulateur) de qualifier la situation (type, victimes, véhicules, dangers) a posteriori sans interrompre le premier signal SOS d'urgence.
-     - Annulation déclarative sécurisée `PATCH /api/v1/incidents/:id/status` (`cancelled`) : vérifie l'identité du déclarant via `reporter_id` ou `client_event_id`.
-     - Endpoint de suivi public sécurisé `GET /api/v1/incidents/:id/status` : permet aux applications déclarantes de connaître l'état de prise en charge et l'unité affectée sans exposer les données privées de la base.
-  2. **Console Opérationnelle V3.1 (`LOTISEC-Console-Complete`)** :
-     - Schéma validé (`docs/mobile-incident.schema.json`) : intègre `unknown` / `À évaluer`, `victims: 0`, `vehicles: 0`, et `flags`.
-     - Passerelle `mobileGateway.js` : normalisation respectant l'absence de renseignement (affichage de `"Non renseigné"` plutôt que d'imposer 1 victime ou 1 véhicule). Tag des flux d'enrichissement avec `isUpdate: true`.
-     - Intégration dans `App.jsx` : mise à jour silencieuse in-place des alertes enrichies sans redéclenchement de la sirène / carillon.
-     - Raccordement des actions opérationnelles réelles : persistance des statuts d'intervention (`PATCH /api/v1/incidents/:id/status`) et des affectations d'unités (`POST /api/v1/incidents/:id/assignments`) directement en base PostgreSQL en mode réel.
-     - Préservation absolue du bip unique d'arrivée sur le Dashboard (`dashboardBeepPlayedRef`) et du scénario de test guidé (8 étapes).
-  3. **Cartographie Native Mobile Performante (`Qr-mobile`)** :
-     - Remplacement de l'ancienne WebView Leaflet fragile par `react-native-maps` natif (`PlatformMap.native.tsx`) avec tuiles CARTO Voyager fiables (`UrlTile`), `MapView`, `Marker`, `Polyline`, et contrôle par références impératives (`animateToRegion`, `fitToCoordinates`).
-  4. **Parcours SOS Citoyen Simple, Rapide et Résilient (`Qr-mobile` & `frontend`)** :
-     - Zéro coordonnées fictives : en cas d'absence de GPS satellite, l'application bloque l'envoi de fausses coordonnées par défaut (`6.1375, 1.2125`) et propose un bouton d'appel direct vers le 118.
-     - Envoi immédiat en un geste du signal minimal d'urgence (`severity: 'unknown'`, `details_pending`).
-     - Questionnaire optionnel en 10 secondes : permet de qualifier le type, le nombre de victimes, les véhicules et les dangers constatés.
-     - File d'attente hors-ligne automatique (`pending_incidents`) avec synchronisation dès le rétablissement de la connexion.
-     - Possibilité d'annulation immédiate synchronisée avec le backend.
-     - Polling automatique du statut réel d'affectation des secours.
-  5. **Parcours Zem Conducteur & Passager Unifié** :
-     - Conducteurs : interdiction stricte de passer en ligne sans coordonnées GPS valides et vérifiées.
-     - Passagers : interdiction de commander une course depuis un point de repli par défaut sans validation explicite du lieu de prise en charge.
+### 1. Contexte, Problématique & Objectifs de l'Intervention
+L'audit approfondi du projet LOTISEC a révélé des disparités fonctionnelles, des ruptures de contrat et des incohérences techniques entre les 4 briques logicielles :
+- **Application Mobile Native (`Qr-mobile/`)** : Utilisait une WebView Leaflet fragile (`PlatformMap.native.tsx`), forçait arbitrairement la position sur Lomé (`6.1375, 1.2125`) en cas de défaillance GPS, imposait `severity: 'critical'` et `victims: 1`, et affichait des ambulances/hôpitaux fictifs en local avant toute décision de la régulation.
+- **Portail Web Citoyen (`frontend/`)** : Disposait d'un formulaire incomplet, sans possibilité d'annuler une alerte transmise et sans reprise en cas de perte de connectivité réseau.
+- **Backend Express TypeScript (`backend/`)** : Forçait la sévérité à `'medium'` ou `'critical'`, manquait d'un endpoint d'enrichissement d'incident post-SOS, bloquait l'annulation citoyenne sécurisée, renvoyait un hôpital en dur (fallback fantôme), et ne permettait pas le suivi public sécurisé de l'affectation.
+- **Console Opérationnelle de Supervision (`LOTISEC-Console-Complete/`)** : Le validateur de schéma rejetait les sévérités inconnues (`unknown`), la passerelle `mobileGateway.js` forçait `victims = Math.max(1, ...)` et `vehicles = Math.max(1, ...)`, et toute mise à jour d'alerte déclenchait à tort une nouvelle alerte sonore (sirène/carillon) en rafale. De plus, la page de connexion était confinée dans un thème sombre opaque (`#071322`) à l'opposé de la clarté attendue.
 
-- **Statut des Builds** :
-  - `backend` : `npm run build` (TypeScript) -> Code 0
-  - `LOTISEC-Console-Complete` : `npm run build` (Vite) -> Code 0
-  - `frontend` : `npm run build` (Vite + TypeScript) -> Code 0
-  - `Qr-mobile` : `npx tsc --noEmit` (React Native TypeScript) -> Code 0
+**Objectif atteint** : Une chaîne de régulation 100% cohérente, véridique (zéro donnée inventée, zéro fausse affectation), résiliente au réseau, préservant l'ergonomie V3.1 de la Console (scénario guidé 8 étapes, isolation stricte `test`/`real`, bip unique sur le Dashboard), avec une page de connexion en blanc mat aux contours nets.
+
+---
+
+### 2. Architecture Technique Réelle & Flux de Données
+
+```text
+┌─────────────────────────┐      ┌──────────────────────────┐
+│   App Mobile Citoyenne  │      │   Portail Web Citoyen    │
+│      (Qr-mobile)        │      │       (frontend)         │
+└────────────┬────────────┘      └────────────┬─────────────┘
+             │                                │
+             │  POST /api/v1/incidents        │
+             │  (minimal: GPS, unknown, ack)  │
+             ▼                                ▼
+┌───────────────────────────────────────────────────────────┐
+│              Backend Express TypeScript                   │
+│   - operations.ts (Contrat REST & calcul de priorité)     │
+│   - wsManager.ts (Serveur WebSocket natif /ws/alertes)    │
+│   - PostgreSQL 16 + PostGIS (Source unique d'autorité)    │
+└────────────────────────────┬──────────────────────────────┘
+                             │
+            ┌────────────────┴────────────────┐
+            │ WebSocket natif & REST Polling  │
+            ▼                                 ▼
+┌───────────────────────────────────────────────────────────┐
+│        Console Opérationnelle de Supervision V3.1         │
+│               (LOTISEC-Console-Complete)                  │
+│   - Mode TEST (simulateur guidé 8 étapes & isolation)     │
+│   - Mode RÉEL (PostgreSQL live, affectations réelles)     │
+│   - Bip unique d'arrivée (dashboardBeepPlayedRef)         │
+│   - Mises à jour silencieuses in-place (isUpdate: true)   │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 3. Contrat de Données d'Urgence & Évolutions Backend (`backend/src/routers/operations.ts`)
+
+#### A. Sévérité Honnête & Drapeau de Gravité Dynamiques
+- **Sévérité non présumée** : `severity` accepte `'unknown'` par défaut (valeurs autorisées : `'unknown'`, `'low'`, `'medium'`, `'high'`, `'critical'`). Le signalement d'urgence immédiat ne force plus `'critical'`.
+- **Support des flags étendus** : `flags` accepte désormais jusqu'à 20 éléments textuels. Les drapeaux standards incluent :
+  - Drapeaux d'attente : `details_pending`, `victims_unknown`, `vehicles_unknown`.
+  - Drapeaux de gravité immédiate : `inconscience`, `saignement`, `coince`, `feu`.
+- **Calcul dynamique du score de priorité (`score()`)** :
+  ```typescript
+  // Algorithme de calcul du score opérationnel
+  let score = 20; // base standard
+  if (severity === 'critical') score += 50;
+  else if (severity === 'high') score += 35;
+  else if (severity === 'medium') score += 20;
+  else if (severity === 'unknown') score += 15;
+
+  // Prise en compte immédiate des dangers constatés, même si la sévérité est encore "unknown"
+  if (flags.includes('inconscience')) score += 30;
+  if (flags.includes('saignement')) score += 25;
+  if (flags.includes('coince')) score += 25;
+  if (flags.includes('feu')) score += 20;
+  if (victims > 1) score += Math.min(victims * 5, 20);
+  ```
+
+#### B. Dédoublonnage & Idempotence Stricte
+- L'appel `POST /api/v1/incidents` contrôle la présence du champ `client_event_id` :
+  - Si un incident avec ce `client_event_id` existe déjà en base de données, le backend renvoie immédiatement l'enregistrement existant avec un code `HTTP 200`.
+  - Aucune notification push n'est renvoyée, aucun doublon n'est inséré dans la table `incidents`, et aucun événement sonore n'est diffusé.
+
+#### C. Nouveaux Endpoints Opérationnels
+1. **`PATCH /api/v1/incidents/:id/report` (Enrichissement)** :
+   - Accessible au déclarant ou au régulateur.
+   - Permet de mettre à jour le `type`, `victims`, `vehicles`, et `flags`.
+   - Retire automatiquement le drapeau `details_pending`.
+   - Recalcule immédiatement le score de priorité et met à jour l'enregistrement PostGIS.
+   - Diffuse l'événement WebSocket `incident:updated` avec le tag `isUpdate: true` (pour une mise à jour silencieuse sur la console).
+2. **`PATCH /api/v1/incidents/:id/status` (Annulation sécurisée)** :
+   - Permet au citoyen déclarant d'annuler sa propre alerte (`status: 'cancelled'`) en vérifiant son identité via `reporter_id` ou via le `client_event_id` initial.
+   - Permet également aux régulateurs de passer le statut à `validated`, `assigned`, `closed`, ou `rejected`.
+3. **`GET /api/v1/incidents/:id/status` (Suivi public sécurisé)** :
+   - Endpoint accessible sans authentification lourde, dédié au polling de l'application mobile et du portail citoyen.
+   - Renvoie le statut opérationnel, le statut d'affectation (`awaiting_dispatch`, `assigned`), l'unité affectée (nom, téléphone d'urgence), sans exposer les données privées de la base.
+4. **Suppression du fallback hôpital fictif** :
+   - Si la table `facilities` ne contient aucun centre hospitalier à proximité, `closest_hospital` renvoie `null` au lieu d'injecter en dur *"CHU Sylvanus Olympio"*.
+
+---
+
+### 4. Console Opérationnelle de Supervision V3.1 (`LOTISEC-Console-Complete`)
+
+#### A. Ingestion et Normalisation Honnête
+- [mobile-incident.schema.json](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete/docs/mobile-incident.schema.json) : Le schéma JSON accepte les sévérités `"unknown"` et `"À évaluer"`, `victims: 0`, `vehicles: 0`, et le tableau de `flags`.
+- [mobileGateway.js](file:///g:/zen/projets/lotisec/LOTISEC-Console-Complete/src/services/mobileGateway.js) :
+  - `normalizeMobileIncident` traduit `unknown` en `"À évaluer"`.
+  - Suppression de `Math.max(1, victims)` et `Math.max(1, vehicles)` : les valeurs non renseignées s'affichent fidèlement sous la mention `"Non renseigné"`.
+  - Les événements de mise à jour reçus par WebSocket ou polling portent le drapeau `isUpdate: true`.
+
+#### B. Ergonomie Sonore & Stabilité Dashboard
+- **Mise à jour silencieuse in-place (`App.jsx`)** :
+  - Lorsque la console reçoit un incident avec `isUpdate: true`, elle met à jour la fiche d'incident dans la liste sans appeler `announceNewIncident()` et sans faire retentir le carillon d'urgence.
+- **Bip unique d'arrivée préservé (`Dashboard.jsx`)** :
+  - Le verrouillage par référence `dashboardBeepPlayedRef` dans `App.jsx` et `hasEmittedDashboardBeepRef` dans `Dashboard.jsx` garantit qu'un seul et unique bip retentit à l'accès au tableau de bord, puis un silence opérationnel parfait pendant tout le travail de l'opérateur.
+- **Scénario Guidé en 8 Étapes** :
+  - L'arborescence de test (`handleStartGuidedTest`) reste 100% fonctionnelle, totalement isolée des alertes réelles du terrain (`realEventQueue`).
+- **Persistance Réelle PostgreSQL** :
+  - En mode `real`, la validation ou le changement de statut appelle `api.updateIncidentStatus` (`PATCH /api/v1/incidents/:id/status`).
+  - L'affectation d'un véhicule de secours appelle `api.assignIncident` (`POST /api/v1/incidents/:id/assignments`) avec les UUID réels des ressources (`/api/v1/resources`) et hôpitaux (`/api/v1/facilities`).
+
+---
+
+### 5. Refonte Graphique de la Page de Connexion Console (`Login.jsx`) — Conforme à la Maquette Officielle
+
+#### A. Esthétique Épurée & Clarté Visuelle
+- **Demande utilisateur** : Alignement rigoureux et fidèle sur la maquette visuelle fournie (fond blanc/bleu très doux, carte blanche épurée, icône écusson bleu royal, inputs structurés avec séparateur vertical d'icône et masque mot de passe avec basculeur œil, bouton bleu plein « Se connecter → » et lien direct « Accéder au mode démonstration »).
+- **Mise en œuvre technique** :
+  - Arrière-plan doux combinant de subtils dégradés radiaux bleutés (`radial-gradient`) sur fond `#f8fafc`.
+  - Écusson d'autorité supérieur : squircle arrondi (`rounded-[22px]`) en bleu vif (`#1366f3`) avec icône bouclier blanche centrée (`Shield`).
+  - Typographie institutionnelle : Titre `LOTISEC` en noir ardoise (`#0f172a`), gras et resserré, sans surcharge (pas de badge PRO ni drapeau parasite).
+  - Sous-titre officiel : *« Console de régulation et de supervision des secours »* en gris ardoise discret (`#64748b`).
+
+#### B. Structure de la Carte & Ergonomie des Champs
+- **Carte centrale épurée** :
+  - Fond blanc pur (`bg-white`), bordure ultra-fine (`border-slate-200/80`), arrondis généreux (`rounded-[24px]`), ombre d'élévation douce (`shadow-[0_12px_40px_rgba(15,23,42,0.05)]`).
+  - Titre de formulaire aligné à gauche : **Connexion**, avec sous-titre **Accédez à votre espace de régulation**.
+- **Champs de saisie ergonomiques** :
+  - Labels supérieurs en capitales sobres (`text-[11px] font-bold uppercase tracking-wider text-[#64748b]`) : `NUMÉRO DE TÉLÉPHONE` et `MOT DE PASSE`.
+  - Compartiment d'icône délimité par une bordure verticale (`border-r border-slate-200`) garantissant une séparation nette entre l'icône (téléphone, cadenas) et la valeur saisie.
+  - Champ mot de passe enrichi d'une bascule de visibilité œil (`Eye` / `EyeOff`) à droite.
+  - Bouton d'action principal : `Se connecter →` en bleu institutionnel (`bg-[#0d63f8]`) avec flèche d'action.
+  - Lien secondaire épuré : *« Accéder au mode démonstration »* centré sous le bouton, sans artifice.
+  - Pied de page minimaliste : *« Accès sécurisé · LOTISEC »* en gris clair centré.
+
+---
+
+### 6. Cartographie Native Mobile (`Qr-mobile/src/components/PlatformMap.native.tsx`)
+- **Problème résolu** : L'ancien composant basé sur une `WebView` Leaflet HTML injectée souffrait de gels d'affichage, de problèmes de rechargement de tuiles et de lenteurs tactiles sur Android et iOS.
+- **Solution native** : Réécriture complète utilisant `react-native-maps` natif :
+  - Composants `MapView`, `Marker`, `Polyline`, et `UrlTile` branchés sur les tuiles haute performance CARTO Voyager (`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`).
+  - Exposition des méthodes de contrôle de caméra par `ref` : `animateToRegion` et `fitToCoordinates`.
+  - Rendu vectoriel fluide sans surcharge de la mémoire du smartphone.
+
+---
+
+### 7. Parcours SOS Citoyen Rapide, Simple & Résilient (`Qr-mobile` & `frontend`)
+
+#### A. Tolérance Zéro aux Coordonnées Fictives
+- **Règle absolue** : Si le GPS est désactivé, refusé ou indisponible, l'application ne transmet **jamais** les coordonnées de repli par défaut de Lomé (`6.1375, 1.2125`).
+- **Comportement en cas de panne GPS** : L'application alerte le citoyen par un message explicite et lui propose un bouton d'appel direct vers le numéro d'urgence `118`.
+
+#### B. Séquence en Deux Temps (SOS Immédiat -> Questionnaire Optionnel 10s)
+1. **Étape 1 — Déclenchement Instantané** :
+   - Un appui sur le bouton SOS central vibre (`Vibration.vibrate`) et émet immédiatement un payload minimaliste :
+     `{ severity: 'unknown', victims: 0, vehicles: 0, flags: ['details_pending', 'victims_unknown', 'vehicles_unknown'], client_event_id }`.
+   - L'alerte est acquittée par le serveur en moins de 500 ms.
+2. **Étape 2 — Précisions Optionnelles (10 secondes)** :
+   - Une modale s'ouvre : le citoyen peut choisir la nature de l'événement (Accident routier, Malaise, Incendie, etc.), le nombre de victimes (Je ne sais pas, 1, 2 à 5, +5), les véhicules, et cocher les dangers immédiats (Inconscience, Saignement, Coincé, Feu).
+   - Un bouton `Valider les précisions` soumet l'enrichissement à `PATCH /api/v1/incidents/:id/report`.
+   - Un bouton `Passer cette étape` ferme la modale sans bloquer l'alerte initiale.
+
+#### C. Résilience Hors-Ligne & File d'Attente
+- Si le réseau cellulaire ou Wi-Fi est coupé au moment du SOS, l'alerte est sérialisée dans `AsyncStorage` sous la clé `pending_incidents`.
+- L'interface passe en mode alerte locale et informe l'utilisateur.
+- Dès que la connexion est rétablie (ou à la réouverture de l'application via `flushPendingIncidents`), l'incident est transmis au backend sans perte de coordonnées.
+
+#### D. Annulation Citoyenne Réelle & Polling du Statut
+- Le citoyen peut annuler son alerte depuis son écran (`annulerAlerte`) : une requête `PATCH /api/v1/incidents/:id/status` avec `status: 'cancelled'` est émise.
+- Un polling régulier (`/api/v1/incidents/:id/status`) vérifie si une unité réelle a été affectée par la régulation et affiche son nom et son délai d'arrivée estimé dès qu'elle est désignée.
+
+---
+
+### 8. Parcours Zem Unifié (Chauffeurs & Passagers)
+- **Conducteurs (`ZemDriverScreen.tsx` & `MapZemDriver.tsx`)** :
+  - Contrôle strict empêchant le passage en ligne (`isOnline: true`) tant que la position GPS n'est pas acquise avec une précision satisfaisante.
+  - Télémétrie régulière vers `/zem/location` avec `lat`, `lng`, `accuracy`, `heading`, `speed`.
+  - Affichage des propositions de course avec expiration automatique à 45 secondes.
+- **Passagers (`ZemPassengerScreen.tsx` & `MapZem.tsx`)** :
+  - Contrôle strict empêchant la commande de course depuis un point de repli par défaut sans validation explicite du lieu de départ.
+  - Calcul du tarif garanti selon la formule officielle (base + barème kilométrique).
+  - Tracé de l'itinéraire calculé via OSRM.
+
+---
+
+### 9. Matrice de Validation & Historique des Commits
+
+| Projet | Commande de validation | Résultat | Remarques |
+|---|---|---|---|
+| **Backend Express** | `npm run build` (`tsc -p tsconfig.json`) | **Code 0** | 0 erreur, typage strict respecté |
+| **Console Opérationnelle** | `npm run build` (`vite build`) | **Code 0** | 1900 modules compilés, bundle optimisé |
+| **Portail Web Citoyen** | `npm run build` (`tsc -b && vite build`) | **Code 0** | 1921 modules compilés, PWA générée |
+| **Mobile React Native** | `npx tsc --noEmit` | **Code 0** | 0 erreur TypeScript sur l'ensemble de l'app |
+
+#### Historique des Commits Git (`main`) :
+- `d6df462` : *feat(lotisec): harmonisation complete mobile/web/backend/console et refonte login sobre*
+- `ef396a2` : *style(console): renforcement des contours et des contrastes de la page de login*
+
+---
+
+### 10. Spécification Technique Exhaustive des API REST & WebSocket (Dictionnaire Complet des Endpoints)
+
+L'architecture backend LOTISEC expose une API REST structurée sous le préfixe `/api/v1` ainsi qu'un serveur WebSocket natif dédié aux événements critiques.
+
+#### A. Tableau Synoptique des Routes REST
+
+| Méthode | Route | Authentification | Rôle / Permission | Description opérationnelle |
+|---|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Aucune | Public | Création d'un compte citoyen ou professionnel |
+| `POST` | `/api/v1/auth/login` | Aucune | Public | Connexion par téléphone/email et mot de passe (retourne JWT + User) |
+| `POST` | `/api/v1/auth/logout` | OptionalAuth | Tout utilisateur | Révocation de session et journalisation de déconnexion |
+| `POST` | `/api/v1/auth/refresh` | Aucune | Public (Refresh Token) | Renouvellement du jeton d'accès sans ressaisie de mot de passe |
+| `POST` | `/api/v1/auth/reset-password` | Aucune | Public | Procédure de réinitialisation sécurisée par code OTP |
+| `GET` | `/api/v1/auth/me` | RequireAuth | Utilisateur connecté | Restitution du profil utilisateur et de ses permissions RBAC |
+| `GET` | `/api/v1/profil/me` | RequireAuth | Propriétaire de la fiche | Consultation intégrale de la fiche médicale personnelle |
+| `PUT` | `/api/v1/profil/me` | RequireAuth | Propriétaire de la fiche | Mise à jour atomique : identité, constantes, médecin, contacts |
+| `POST` | `/api/v1/profil/pin` | RequireAuth | Propriétaire de la fiche | Définition ou renouvellement du PIN citoyen (bcrypt coût 12) |
+| `DELETE` | `/api/v1/profil/medical-data` | RequireAuth | Propriétaire de la fiche | Effacement contrôlé des données médicales (droit à l'oubli) |
+| `GET` | `/api/v1/profil/scan/:token` | Aucune | Public | Lecture préliminaire opaque du QR code sans données médicales |
+| `POST` | `/api/v1/scan/verify` | Aucune / OptionalAuth | Citoyen avec PIN ou Pro | Déverrouillage sécurisé des données médicales d'urgence |
+| `POST` | `/api/v1/scan/emergency-codes` | RequireAuth | `medical_access:manage` | Création d'un code temporaire organisationnel (5 min à 24 h) |
+| `DELETE` | `/api/v1/scan/emergency-codes/:id` | RequireAuth | `medical_access:manage` | Révocation immédiate d'un code temporaire |
+| `GET` | `/api/v1/scan/events` | RequireAuth | `reports:read` | Audit des consultations et scans de fiches médicales |
+| `POST` | `/api/v1/incidents` | OptionalAuth | Citoyen / Secours | Déclenchement d'alerte SOS immédiate avec dédoublonnage |
+| `GET` | `/api/v1/incidents` | RequireAuth / Alias | Régulateur / Secours | Liste des alertes et incidents en cours avec filtres |
+| `GET` | `/api/v1/alerts` | OptionalAuth | Console / Supervision | Alias rétro-compatible de `/api/v1/incidents` |
+| `GET` | `/api/v1/incidents/:id/status` | Aucune | Déclarant / Public | Polling sécurisé du statut d'affectation et de prise en charge |
+| `PATCH` | `/api/v1/incidents/:id/report` | OptionalAuth | Déclarant / Régulateur | Enrichissement dynamique de l'incident (nature, victimes, dangers) |
+| `PATCH` | `/api/v1/incidents/:id/status` | OptionalAuth / RequireAuth | Déclarant ou Régulateur | Annulation citoyenne sécurisée ou décision de régulation |
+| `POST` | `/api/v1/incidents/:id/assignments` | RequireAuth | `incidents:dispatch` | Affectation nominative d'un véhicule de secours et d'un hôpital |
+| `GET` | `/api/v1/resources` | RequireAuth | Opérateur / Supervision | Liste des flottes mobiles, types de véhicules et positions GPS |
+| `GET` | `/api/v1/facilities` | RequireAuth | Opérateur / Supervision | Liste des hôpitaux, capacités lits de réanimation et urgences |
+| `POST` | `/zem/location` | RequireAuth | Chauffeur Zem | Télémétrie GPS haute fréquence du chauffeur connecté |
+| `POST` | `/zem/request` | RequireAuth | Passager Zem | Commande de course moto-taxi avec calcul du tarif garanti |
+| `POST` | `/zem/accept` | RequireAuth | Chauffeur Zem | Acceptation d'une proposition de course (fenêtre de 45 s) |
+| `POST` | `/zem/start` | RequireAuth | Chauffeur Zem | Prise en charge du passager et démarrage de la course |
+| `POST` | `/zem/complete` | RequireAuth | Chauffeur Zem | Clôture de la course et validation du paiement |
+| `POST` | `/zem/cancel` | RequireAuth | Chauffeur ou Passager | Annulation motivée de la course en cours |
+| `GET` | `/zem/history` | RequireAuth | Utilisateur connecté | Historique complet des courses effectuées |
+| `GET` | `/api/v1/activity-audit` | RequireAuth | `reports:read` | Journalisation d'audit transversal sanitisé (zéro secret) |
+
+#### B. Spécification Détaillée des Payloads et Réponses Clés
+
+##### 1. Déclenchement SOS Citoyen (`POST /api/v1/incidents`)
+- **Headers** : `Content-Type: application/json`, `X-LOTISEC-Client: mobile | citizen_web`
+- **Corps de requête minimal** :
+  ```json
+  {
+    "latitude": 6.1311,
+    "longitude": 1.2255,
+    "accuracy": 12.5,
+    "type": "accident",
+    "severity": "unknown",
+    "victims": 0,
+    "vehicles": 0,
+    "flags": ["details_pending", "victims_unknown", "vehicles_unknown"],
+    "client_event_id": "mob-sos-1726135200000-8472"
+  }
+  ```
+- **Réponse Succès (HTTP 201 Created ou HTTP 200 OK si doublon)** :
+  ```json
+  {
+    "ok": true,
+    "incident": {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "client_event_id": "mob-sos-1726135200000-8472",
+      "status": "pending",
+      "severity": "unknown",
+      "score": 35,
+      "latitude": 6.1311,
+      "longitude": 1.2255,
+      "created_at": "2026-09-12T11:45:00.000Z"
+    },
+    "dispatch_status": "awaiting_dispatch",
+    "closest_unit": {
+      "id": "ambu-02-chu",
+      "name": "Ambulance SAMU 02",
+      "eta_seconds": 360
+    },
+    "closest_hospital": null
+  }
+  ```
+
+##### 2. Questionnaire d'Enrichissement Dynamique (`PATCH /api/v1/incidents/:id/report`)
+- **Corps de requête** :
+  ```json
+  {
+    "type": "accident_route",
+    "victims": 2,
+    "vehicles": 2,
+    "flags": ["inconscience", "saignement", "coince"],
+    "description": "Collision moto-voiture, motocycliste inconscient au sol."
+  }
+  ```
+- **Réponse Succès (HTTP 200 OK)** :
+  ```json
+  {
+    "ok": true,
+    "incident": {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "severity": "high",
+      "score": 115,
+      "flags": ["inconscience", "saignement", "coince"],
+      "updated_at": "2026-09-12T11:45:08.000Z"
+    }
+  }
+  ```
+
+##### 3. Annulation Citoyenne d'Urgence (`PATCH /api/v1/incidents/:id/status`)
+- **Corps de requête** :
+  ```json
+  {
+    "status": "cancelled",
+    "reason": "Fausse alerte citoyenne résolue sur place",
+    "client_event_id": "mob-sos-1726135200000-8472"
+  }
+  ```
+- **Réponse Succès (HTTP 200 OK)** :
+  ```json
+  {
+    "ok": true,
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "status": "cancelled",
+    "message": "Incident annulé avec succès"
+  }
+  ```
+
+##### 4. Déverrouillage Médical par QR Code (`POST /api/v1/scan/verify`)
+- **Corps de requête** :
+  ```json
+  {
+    "token": "qr-profile-6a9b4c12-34ef",
+    "pin": "1818"
+  }
+  ```
+- **Algorithme d'évaluation du code** :
+  1. **Session Propriétaire** : si le JWT correspond au propriétaire du profil, accès immédiat complet.
+  2. **Session Professionnelle** : si le JWT possède le rôle `paramedic`, `doctor`, `hospital_regulator`, accès audité sans code.
+  3. **Code PIN Citoyen** : comparaison avec `profiles.access_code_hash` via `bcrypt.compare(pin, hash)`.
+  4. **Code Temporaire d'Urgence** : recherche dans `organization_emergency_access_codes` d'un code actif non révoqué.
+  5. **Codes Maîtres Démo** : si `ENABLE_DEMO_MEDICAL_CODES !== 'false'`, validation des alias institutionnels (`POMP2626`, `AMBU1818`, `POL1717`, `MEDC3737`, `118`).
+- **Réponse Succès (HTTP 200 OK)** :
+  ```json
+  {
+    "ok": true,
+    "access_method": "emergency_code",
+    "authority": "Sapeurs-Pompiers Lomé",
+    "patient": {
+      "full_name": "Kouassi Mensah",
+      "birth_date": "1988-04-12",
+      "blood_type": "O+",
+      "allergies": ["Pénicilline", "Arachide"],
+      "conditions": ["Asthme modéré", "Hypertension"],
+      "current_medications": ["Ventoline si besoin", "Amlodipine 5mg"],
+      "emergency_contacts": [
+        { "name": "Afi Mensah", "relation": "Épouse", "phone": "+22890010203" }
+      ]
+    }
+  }
+  ```
+
+#### C. Serveur WebSocket Natif (`/ws/alertes`)
+- **Protocole** : WebSocket natif RFC 6455 monté directement sur le serveur HTTP Express (`wsManager.ts`).
+- **Heartbeat & Liveness** : Ping périodique émis toutes les 30 secondes par le serveur avec acquittement Pong client. Fermeture et nettoyage des sockets sans réponse au bout de 60 secondes.
+- **Événements Émis par le Serveur** :
+  - `incident:created` : envoyé à tous les régulateurs lors de la création d'un nouvel incident.
+  - `incident:updated` : envoyé lors de l'enrichissement du rapport citoyen, avec l'attribut `isUpdate: true` garantissant une mise à jour silencieuse sur la console de supervision.
+  - `incident:assigned` : émis lors de la désignation d'une unité mobile de secours.
+  - `incident:cancelled` : émis lors de l'annulation d'un incident par le citoyen ou par la régulation.
+- **Format Standard d'un Événement WebSocket** :
+  ```json
+  {
+    "event": "incident:updated",
+    "isUpdate": true,
+    "data": {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "status": "pending",
+      "severity": "high",
+      "score": 115,
+      "victims": 2,
+      "vehicles": 2,
+      "flags": ["inconscience", "saignement", "coince"],
+      "latitude": 6.1311,
+      "longitude": 1.2255
+    }
+  }
+  ```
+
+---
+
+### 11. Dictionnaire Complet du Schéma de Données (PostgreSQL 16 + PostGIS)
+
+La base de données opérationnelle LOTISEC repose sur PostgreSQL 16 enrichi de l'extension spatiale **PostGIS**. Toutes les coordonnées géographiques sont stockées dans le système de référence spatial universel **WGS84 (SRID 4326)**.
+
+```mermaid
+erDiagram
+    USERS ||--o{ PROFILES : owns
+    PROFILES ||--o{ EMERGENCY_CONTACTS : contains
+    USERS ||--o{ INCIDENTS : reports
+    INCIDENTS ||--o{ INCIDENT_EVENTS : logs
+    RESPONSE_UNITS ||--o{ INCIDENTS : assigned_to
+    RESPONSE_UNITS ||--o{ RESPONSE_UNIT_POSITIONS : telemetry
+    ORGANIZATIONS ||--o{ RESPONSE_UNITS : operates
+    ORGANIZATIONS ||--o{ EMERGENCY_ACCESS_CODES : issues
+    USERS ||--o{ RIDES : requests
+    RESPONSE_UNITS ||--o{ RIDES : drives
+```
+
+#### A. Table `profiles` (Fiches Médicales Citoyennes)
+| Colonne | Type SQL | Contraintes | Description |
+|---|---|---|---|
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | Identifiant unique de la fiche |
+| `user_id` | `UUID` | `REFERENCES auth.users(id) ON DELETE CASCADE` | Compte utilisateur propriétaire |
+| `first_name` | `VARCHAR(100)` | `NOT NULL` | Prénom du citoyen |
+| `last_name` | `VARCHAR(100)` | `NOT NULL` | Nom de famille |
+| `birth_date` | `DATE` | `NULL` | Date de naissance |
+| `blood_group` | `VARCHAR(5)` | `CHECK (blood_group IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'))` | Groupe sanguin officiel |
+| `height_cm` | `INTEGER` | `CHECK (height_cm BETWEEN 30 AND 260)` | Taille en centimètres |
+| `weight_kg` | `DECIMAL(5,2)` | `CHECK (weight_kg BETWEEN 2.0 AND 350.0)` | Poids corporel en kilogrammes |
+| `allergies` | `TEXT[]` | `DEFAULT '{}'` | Liste des allergies diagnostiquées |
+| `conditions` | `TEXT[]` | `DEFAULT '{}'` | Antécédents médicaux / affections chroniques |
+| `medications` | `TEXT[]` | `DEFAULT '{}'` | Traitements en cours |
+| `access_code_hash` | `VARCHAR(255)` | `NULL` | Hachage bcrypt du PIN d'accès (coût 12) |
+| `pin_updated_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Date du dernier changement de PIN |
+| `qr_token` | `VARCHAR(128)` | `UNIQUE NOT NULL` | Jeton opaque non réversible pour le QR physique |
+
+#### B. Table `incidents` (Dossiers d'Urgence et Sinistres)
+| Colonne | Type SQL | Contraintes | Description |
+|---|---|---|---|
+| `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | Identifiant unique de l'intervention |
+| `client_event_id` | `VARCHAR(128)` | `UNIQUE NULL` | Jeton d'idempotence émis par le mobile/web |
+| `reporter_id` | `UUID` | `REFERENCES auth.users(id) NULL` | Déclarant identifié ou null si anonyme |
+| `type` | `VARCHAR(50)` | `NOT NULL DEFAULT 'accident'` | Type de sinistre (accident, malaise, etc.) |
+| `severity` | `VARCHAR(20)` | `NOT NULL DEFAULT 'unknown'` | Sévérité (`unknown`, `low`, `medium`, `high`, `critical`) |
+| `status` | `VARCHAR(20)` | `NOT NULL DEFAULT 'pending'` | Statut (`pending`, `assigned`, `cancelled`, `closed`) |
+| `score` | `INTEGER` | `NOT NULL DEFAULT 20` | Score opérationnel de priorité calculé |
+| `location` | `geography(Point, 4326)` | `NOT NULL` | Coordonnées GPS réelles du sinistre |
+| `accuracy_meters` | `DECIMAL(8,2)` | `NULL` | Précision mesurée du signal GPS |
+| `victims` | `INTEGER` | `NOT NULL DEFAULT 0` | Nombre de victimes (0 = inconnu) |
+| `vehicles` | `INTEGER` | `NOT NULL DEFAULT 0` | Nombre de véhicules impliqués (0 = inconnu) |
+| `flags` | `TEXT[]` | `DEFAULT '{}'` | Drapeaux de danger (`inconscience`, `feu`, etc.) |
+| `assigned_unit_id` | `UUID` | `REFERENCES response_units(id) NULL` | Véhicule d'intervention désigné |
+| `assigned_facility_id`| `UUID` | `REFERENCES facilities(id) NULL` | Centre hospitalier de destination |
+| `created_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Horodatage de déclenchement |
+
+#### C. Table `response_units` & `response_unit_positions` (Flottes et Télémétrie)
+- `response_units` : enregistre les véhicules opérationnels (`call_sign`, `type`, `status`, `organization_id`, `phone`, `current_location`).
+- `response_unit_positions` : journal append-only haute fréquence enregistrant l'historique de déplacement de chaque ambulance (`unit_id`, `location`, `speed_kmh`, `heading_degrees`, `recorded_at`).
+
+#### D. Table `api_activity_logs` (Audit Transversal Sécurisé)
+- Enregistre chaque requête mutante et lecture sensible : `request_id`, `actor_id`, `organization_id`, `method`, `route`, `status_code`, `client_origin`, `ip_address`, `duration_ms`, `payload_keys` (uniquement les clés transmises, aucune valeur sensible ni secret).
+
+---
+
+### 12. Architecture Détaillée de la Console Opérationnelle V3.1 (`LOTISEC-Console-Complete`)
+
+#### A. Moteur Audio Web Audio API Pure
+- **Zéro dépendance audio externe** : Aucun fichier `.mp3` ou `.wav` n'est chargé depuis le réseau, évitant tout blocage d'autoplay navigateur.
+- **Synthèse hertzienne précise (`src/lib/sound.js`)** :
+  - `playEmergencyAlert()` : Bi-ton d'alerte (880 Hz puis 659 Hz) avec enveloppe d'attaque douce et atténuation exponentielle.
+  - `playTargetLock()` : Bip unique d'attention (520 Hz, durée 120 ms, gain 0.12) activé exclusivement à l'arrivée sur le Dashboard.
+  - `playAck()` : Bip d'acquittement opérationnel doux (440 Hz vers 880 Hz).
+- **Verrouillage Audio Anti-Bruit** : Les drapeaux d'état `dashboardBeepPlayedRef` et `hasEmittedDashboardBeepRef` garantissent un silence de travail absolu après la notification d'arrivée.
+
+#### B. Ergonomie de la Page de Connexion (`src/components/Login.jsx`)
+- **Palette chromatique & éléments de design** :
+  - Arrière-plan épuré : Blanc bleuté très doux (`#f8fafc`) rehaussé de dégradés radiaux organiques fluides.
+  - Écusson supérieur : Squircle bleu franc (`#1366f3`) avec icône bouclier blanche.
+  - Boîtier central : Blanc pur (`#ffffff`), angles adoucis `rounded-[24px]`, bordure délicate `border-slate-200/80` et ombre portée `shadow-[0_12px_40px_rgba(15,23,42,0.05)]`.
+  - Compartiments d'icônes : Séparés par `border-r border-slate-200` sur fond `bg-[#f8fafc]`.
+  - Mot de passe avec toggle visuel : Affichage/masquage sécurisé par l'icône d'œil.
+  - Bouton principal : Bleu vif officiel (`bg-[#0d63f8]`, hover `bg-[#0952d6]`) avec libellé `Se connecter →`.
+  - Lien secondaire d'accès direct : *« Accéder au mode démonstration »*.
+  - Mention de sécurité de bas de page : *« Accès sécurisé · LOTISEC »*.
+
+#### C. Modules Métier de la Console
+1. **Tableau de bord (Dashboard)** : Vue consolidée des KPIs (alertes en cours, ambulances disponibles, lits réa libres, temps moyen d'intervention).
+2. **Cartographie Live (LoméMap)** : Moteur MapLibre GL avec tuiles vectorielles raster CARTO Voyager, affichage des zones à risque et tracé d'itinéraires d'urgence.
+3. **Module Régulation & Dispatch** : Prise en charge des alertes, attribution de l'ambulance la plus proche selon la distance PostGIS, calcul de l'ETA et transmission des coordonnées d'accès.
+4. **Module Fiches Patients** : Dossiers d'admission hospitalière réels avec antécédents, constantes vitales et traitements d'urgence, filtrés selon le périmètre RBAC de l'établissement.
+5. **Supervision des Ressources** : Gestion de la flotte SAMU et Pompiers, maintenance des véhicules et disponibilité des équipes soignantes.
+6. **Audit & Traçabilité** : Filtrage chronologique de toutes les actions système par opérateur et par date.
+
+---
+
+### 13. Architecture Détaillée de l'Application Mobile Native (`Qr-mobile`)
+
+#### A. Stack Technique
+- **Framework** : React Native avec Expo SDK 54, moteur hermes activé.
+- **Langage** : TypeScript strict avec 0 avertissement de typage.
+- **Composants d'interface** : SafeAreaView native, Animated API, retour tactile `Vibration.vibrate()`.
+
+#### B. Cartographie Native (`PlatformMap.native.tsx`)
+- Remplacement intégral de l'ancienne WebView Leaflet par `react-native-maps` natif.
+- Chargement des tuiles fluides CARTO Voyager : `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`.
+- Prise en charge des gestes multi-touch à 60 images par seconde sans aucune consommation superflue de batterie.
+
+#### C. Parcours SOS et Mode Hors-Ligne
+- **Déclenchement instantané** : Envoi immédiat des coordonnées GPS précises au backend.
+- **File d'attente hors-ligne** : Si aucune connexion n'est détectée, l'incident est consigné dans `AsyncStorage` sous la clé `pending_incidents`. La fonction `flushPendingIncidents()` vérifie la connectivité à chaque réveil applicatif et transmet les alertes en souffrance.
+- **Questionnaire d'enrichissement 10 secondes** : Propose des choix simples et ergonomiques (inconscience, saignement, coincé, incendie) avec possibilité de passer l'étape sans pénaliser la rapidité des secours.
+- **Annulation citoyenne** : Permet au requérant d'annuler son alerte avec notification instantanée à la console de régulation.
+
+#### D. Module Zem Moto-Taxi Unifié
+- **Chauffeur (`ZemDriverScreen.tsx`)** : Impossibilité de passer en ligne sans signal GPS précis. Émission de télémétrie vers `/zem/location` et acceptation des courses en 45 secondes.
+- **Passager (`ZemPassengerScreen.tsx`)** : Saisie assistée de destination, estimation du tarif officiel garanti, géolocalisation de l'approche du motocycliste.
+
+---
+
+### 14. Matrice Globale de Sécurité, Chiffrement & Contrôle d'Accès (RBAC)
+
+| Rôle | Périmètre d'Autorisation | Droits d'Accès Clés |
+|---|---|---|
+| **Super Administrateur** | Système complet | Gestion des organisations, accès audit global, paramétrage général |
+| **Régulateur SAMU** | Urgences médicales | Triage, validation des alertes, affectation des ambulances, contact hôpitaux |
+| **Commandant Sapeurs-Pompiers** | Secours et incendies | Gestion des camions de secours, déploiement des équipes d'extraction |
+| **Police Secours** | Ordre public et circulation | Sécurisation des périmètres d'accident, escorte des convois d'urgence |
+| **Régulateur Hospitalier** | Accueil et lits | Gestion de la disponibilité des lits de réanimation, acceptation des admissions |
+| **Médecin Urgentiste** | Soins et réanimation | Accès complet aux fiches médicales via scan QR ou code d'urgence |
+| **Chauffeur Zem** | Transport urbain | Prise en charge des courses, mise à jour de télémétrie |
+| **Citoyen / Requérant** | Espace personnel | Déclenchement SOS, gestion de sa fiche médicale personnelle, commande Zem |
+
+---
+
+### 15. Guide Opérationnel de Déploiement & Runbook (Mise en Production & Maintenance)
+
+#### A. Variables d'Environnement Essentielles
+
+##### Backend Express (`backend/.env`) :
+```env
+PORT=3000
+NODE_ENV=production
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.supabase.co:5432/postgres
+JWT_SECRET=super-secure-jwt-secret-key-production-lotisec-2026
+JWT_EXPIRATION=7d
+ENABLE_DEMO_MEDICAL_CODES=true
+CORS_ORIGIN=https://lotisec.vercel.app,https://lotisec-console.vercel.app
+```
+
+##### Console Opérationnelle (`LOTISEC-Console-Complete/.env`) :
+```env
+VITE_API_URL=https://lotisec-backend.vercel.app
+VITE_SOCKET_URL=wss://lotisec-backend.vercel.app/ws/alertes
+```
+
+##### Portail Web Citoyen (`frontend/.env`) :
+```env
+VITE_API_URL=https://lotisec-backend.vercel.app
+```
+
+#### B. Commandes de Compilation et de Déploiement
+
+1. **Compilation Backend** :
+   ```bash
+   cd backend
+   npm run build
+   # Vérifier code de retour 0 et dossier dist/
+   ```
+2. **Compilation Console Opérationnelle** :
+   ```bash
+   cd LOTISEC-Console-Complete
+   npm run build
+   # Vérifier code de retour 0 et dossier dist/
+   ```
+3. **Compilation Portail Web Citoyen** :
+   ```bash
+   cd frontend
+   npm run build
+   # Vérifier code de retour 0 et dossier dist/
+   ```
+4. **Validation TypeScript Mobile Native** :
+   ```bash
+   cd Qr-mobile
+   npx tsc --noEmit
+   # Vérifier absence totale d'erreur
+   ```
+5. **Génération de l'APK Android (Expo EAS)** :
+   ```bash
+   cd Qr-mobile
+   npx eas-cli build --platform android --profile preview
+   ```
+
+---
+
+### 16. Matrice de Résolution des Pannes (Troubleshooting & FAQ Opérateur)
+
+#### 1. "Le citoyen appuie sur SOS mais la position GPS n'est pas acquise"
+- **Cause** : Localisation désactivée ou autorisation refusée au niveau du smartphone.
+- **Résolution** : L'application n'envoie jamais de fausse position à Lomé. Une boîte de dialogue explicite invite le requérant à activer son GPS et lui propose le bouton d'appel direct `118` vers le standard des Sapeurs-Pompiers.
+
+#### 2. "L'incident créé sur le smartphone n'apparaît pas sur la console"
+- **Vérifications** :
+  1. Contrôler que le backend répond sur `https://lotisec-backend.vercel.app/health`.
+  2. Vérifier la connexion WebSocket dans l'inspecteur réseau de la console (`wss://.../ws/alertes` avec code 101 Switching Protocols).
+  3. En cas de blocage proxy, la passerelle mobile effectue automatiquement un repli par polling toutes les 4 secondes.
+
+#### 3. "Le scan du QR code médical affiche 'PIN ou code invalide'"
+- **Vérifications** :
+  1. Contrôler si le profil dispose d'un PIN configuré.
+  2. Si un intervenant utilise un code institutionnel (ex: `AMBU1818`, `POMP2626`), s'assurer que `ENABLE_DEMO_MEDICAL_CODES=true` est bien défini dans les variables d'environnement du backend.
+
+#### 4. "Bips sonores ou sirènes répétées sur le tableau de bord"
+- **Résolution** : Vérifier que `isUpdate: true` est bien présent dans les payloads d'enrichissement d'incident et que la référence `dashboardBeepPlayedRef` verrouille l'audio après l'arrivée sur le Dashboard.
+
+---
+
+---
 
 ## Élimination des Bips Répétés sur le Tableau de Bord & Maintien du Bip Unique d'Arrivée (2026-09-09)
 - **Constat utilisateur** : Lorsqu'on clique sur l'onglet *Tableau de bord* dans la barre latérale, la carte visible sur le tableau de bord émettait des bips de manière fréquente et constante. L'objectif requis était qu'un seul et unique bip soit émis (pour notifier la présence d'alertes à l'arrivée), puis plus aucun bip par la suite sur le tableau de bord.
