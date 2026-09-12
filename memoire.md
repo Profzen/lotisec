@@ -2,6 +2,43 @@
 
 Document de reprise opérationnelle. Ce fichier centralise l'état réel du projet, les décisions actées, les tests effectués, les incidents observés, les blocages et le plan d'exécution.
 
+## Harmonisation Totale & Mise en Concordance Rigoureuse Mobile / Web Citoyen / Backend Express / Console Opérationnelle (2026-09-12)
+- **Objectif** : Établir une concordance logique et technique stricte entre l'application Mobile Native (`Qr-mobile/`), le Portail Web Citoyen (`frontend/`), l'API Backend Express (`backend/`) et la Console Opérationnelle de Supervision (`LOTISEC-Console-Complete/`), sans données inventées, sans fausses affectations, et en maintenant l'ergonomie de la Console V3.1 (mode guidé 8 étapes, isolation test/réel, bip unique).
+
+- **Réalisations & Décisions Techniques Clés** :
+  1. **Contrat de Données d'Urgence & Backend Express (`backend/src/routers/operations.ts`)** :
+     - `severity` accepte désormais `'unknown'` par défaut : suppression du forçage arbitraire à `'critical'`.
+     - `flags` supportant jusqu'à 20 éléments : prise en compte des drapeaux de gravité (`inconscience`, `saignement`, `coince`, `feu`, etc.) dans le calcul de score de priorité sans dépendre d'une sévérité déclarative.
+     - Dédoublonnage strict via `client_event_id` : réémission transparente de l'incident sans créer de doublon en base, sans notification push dupliquée et sans alerte sonore intempestive.
+     - Suppression du fallback d'hôpital fictif en dur : l'API renvoie `null` si aucun établissement sanitaire n'est configuré ou à proximité dans la base de données.
+     - Endpoint d'enrichissement `PATCH /api/v1/incidents/:id/report` : permet au citoyen (ou au régulateur) de qualifier la situation (type, victimes, véhicules, dangers) a posteriori sans interrompre le premier signal SOS d'urgence.
+     - Annulation déclarative sécurisée `PATCH /api/v1/incidents/:id/status` (`cancelled`) : vérifie l'identité du déclarant via `reporter_id` ou `client_event_id`.
+     - Endpoint de suivi public sécurisé `GET /api/v1/incidents/:id/status` : permet aux applications déclarantes de connaître l'état de prise en charge et l'unité affectée sans exposer les données privées de la base.
+  2. **Console Opérationnelle V3.1 (`LOTISEC-Console-Complete`)** :
+     - Schéma validé (`docs/mobile-incident.schema.json`) : intègre `unknown` / `À évaluer`, `victims: 0`, `vehicles: 0`, et `flags`.
+     - Passerelle `mobileGateway.js` : normalisation respectant l'absence de renseignement (affichage de `"Non renseigné"` plutôt que d'imposer 1 victime ou 1 véhicule). Tag des flux d'enrichissement avec `isUpdate: true`.
+     - Intégration dans `App.jsx` : mise à jour silencieuse in-place des alertes enrichies sans redéclenchement de la sirène / carillon.
+     - Raccordement des actions opérationnelles réelles : persistance des statuts d'intervention (`PATCH /api/v1/incidents/:id/status`) et des affectations d'unités (`POST /api/v1/incidents/:id/assignments`) directement en base PostgreSQL en mode réel.
+     - Préservation absolue du bip unique d'arrivée sur le Dashboard (`dashboardBeepPlayedRef`) et du scénario de test guidé (8 étapes).
+  3. **Cartographie Native Mobile Performante (`Qr-mobile`)** :
+     - Remplacement de l'ancienne WebView Leaflet fragile par `react-native-maps` natif (`PlatformMap.native.tsx`) avec tuiles CARTO Voyager fiables (`UrlTile`), `MapView`, `Marker`, `Polyline`, et contrôle par références impératives (`animateToRegion`, `fitToCoordinates`).
+  4. **Parcours SOS Citoyen Simple, Rapide et Résilient (`Qr-mobile` & `frontend`)** :
+     - Zéro coordonnées fictives : en cas d'absence de GPS satellite, l'application bloque l'envoi de fausses coordonnées par défaut (`6.1375, 1.2125`) et propose un bouton d'appel direct vers le 118.
+     - Envoi immédiat en un geste du signal minimal d'urgence (`severity: 'unknown'`, `details_pending`).
+     - Questionnaire optionnel en 10 secondes : permet de qualifier le type, le nombre de victimes, les véhicules et les dangers constatés.
+     - File d'attente hors-ligne automatique (`pending_incidents`) avec synchronisation dès le rétablissement de la connexion.
+     - Possibilité d'annulation immédiate synchronisée avec le backend.
+     - Polling automatique du statut réel d'affectation des secours.
+  5. **Parcours Zem Conducteur & Passager Unifié** :
+     - Conducteurs : interdiction stricte de passer en ligne sans coordonnées GPS valides et vérifiées.
+     - Passagers : interdiction de commander une course depuis un point de repli par défaut sans validation explicite du lieu de prise en charge.
+
+- **Statut des Builds** :
+  - `backend` : `npm run build` (TypeScript) -> Code 0
+  - `LOTISEC-Console-Complete` : `npm run build` (Vite) -> Code 0
+  - `frontend` : `npm run build` (Vite + TypeScript) -> Code 0
+  - `Qr-mobile` : `npx tsc --noEmit` (React Native TypeScript) -> Code 0
+
 ## Élimination des Bips Répétés sur le Tableau de Bord & Maintien du Bip Unique d'Arrivée (2026-09-09)
 - **Constat utilisateur** : Lorsqu'on clique sur l'onglet *Tableau de bord* dans la barre latérale, la carte visible sur le tableau de bord émettait des bips de manière fréquente et constante. L'objectif requis était qu'un seul et unique bip soit émis (pour notifier la présence d'alertes à l'arrivée), puis plus aucun bip par la suite sur le tableau de bord.
 - **Origine technique** :

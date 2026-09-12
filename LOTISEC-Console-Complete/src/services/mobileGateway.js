@@ -37,23 +37,45 @@ export function normalizeMobileIncident(payload={},eventName='incident:new'){
   const lng=Number(payload.lng??payload.longitude??payload.location?.lng??payload.position?.lng??coordinates?.[0])
   if(!Number.isFinite(lat)||!Number.isFinite(lng)) return null
   const receivedAt=payload.receivedAt||payload.timestamp||payload.createdAt||payload.created_at||new Date().toISOString()
-  const severityMap = { critical:'Critique', high:'Élevée', medium:'Modérée', low:'Faible' }
-  const rawSev = String(payload.severity || payload.priority || 'Critique').toLowerCase()
-  const severity = severityMap[rawSev] || payload.severity || 'Critique'
+  const severityMap = { critical:'Critique', high:'Élevée', medium:'Modérée', low:'Faible', unknown:'À évaluer' }
+  const rawSev = String(payload.raw_severity || payload.severity || payload.priority || 'unknown').toLowerCase()
+  const severity = severityMap[rawSev] || (rawSev === 'critique' ? 'Critique' : rawSev === 'élevée' ? 'Élevée' : rawSev === 'modérée' ? 'Modérée' : rawSev === 'faible' ? 'Faible' : 'À évaluer')
   const sourceName = payload.source === 'web' ? 'Portail citoyen web' : String(payload.source||'').includes('mobile') ? 'Application mobile' : (payload.source || 'Application mobile réelle')
+
+  const flags = Array.isArray(payload.flags) ? payload.flags : []
+  const victimsUnknown = flags.includes('victims_unknown')
+  const vehiclesUnknown = flags.includes('vehicles_unknown')
+
+  let victims = payload.victims ?? payload.victimCount
+  if (victimsUnknown || victims === null || victims === undefined) {
+    victims = 'Non renseigné'
+  } else {
+    victims = Number(victims)
+  }
+
+  let vehicles = payload.vehicles ?? payload.vehicleCount
+  if (vehiclesUnknown || vehicles === null || vehicles === undefined) {
+    vehicles = 'Non renseigné'
+  } else {
+    vehicles = Number(vehicles)
+  }
+
+  const statusMap = { new:'Nouveau', validated:'Validée', assigned:'Affectée', rejected:'Rejetée', cancelled:'Rejetée' }
+  const currentStatus = statusMap[payload.status] || payload.status || 'Nouveau'
 
   return {
     id:String(payload.id||payload.alertId||payload.incidentId||`ALT-MOB-${Date.now()}`),
     externalId:String(payload.externalId||payload.mobileReportId||payload.id||''),
     type:payload.type||payload.category||'Urgence signalée depuis le mobile',
     severity,
-    location:payload.address||payload.location?.address||payload.locationName||'Position transmise par le mobile',
-    victims:Math.max(1,Number(payload.victims??payload.victimCount??1)),
-    vehicles:Math.max(0,Number(payload.vehicles??payload.vehicleCount??0)),
+    location:payload.address||payload.location?.address||payload.locationName||payload.location||'Position transmise par le mobile',
+    victims,
+    vehicles,
+    flags,
     source:sourceName,
     received:new Date(receivedAt).toLocaleTimeString('fr-FR'),
     receivedAt,
-    accuracy:payload.accuracy?`${payload.accuracy} m`:'GPS mobile',
+    accuracy:payload.accuracy?(String(payload.accuracy).includes('m')?payload.accuracy:`${payload.accuracy} m`):'GPS mobile',
     heading:Number(payload.heading??0),
     speed:Number(payload.speed??0),
     deviceId:String(payload.deviceId||payload.device?.id||'mobile-anonyme'),
@@ -65,7 +87,7 @@ export function normalizeMobileIncident(payload={},eventName='incident:new'){
     correlationId:String(payload.correlationId||payload.traceId||''),
     messageState:'Reçu · normalisé · en attente de validation',
     connectionState:'Temps réel',
-    lat,lng,status:payload.status==='new'?'Nouveau':(payload.status||'Nouveau'),
+    lat,lng,status:currentStatus,
   }
 }
 
@@ -116,10 +138,11 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
       ws.onmessage=(event)=>{
         try{
           const data=JSON.parse(event.data)
-          if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.incident){
+          if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.type==='INCIDENT_MODIFIE'||data.type==='INCIDENT_STATUT_MODIFIE'||data.incident){
             const payload=data.incident||data
-            const normalized=normalizeMobileIncident(payload)
-            if(normalized) onIncident?.(normalized,'incident:ws')
+            const isUpdate = data.event === 'incident:updated' || data.type === 'INCIDENT_MODIFIE' || data.type === 'INCIDENT_STATUT_MODIFIE'
+            const normalized=normalizeMobileIncident(payload, isUpdate ? 'incident:updated' : 'incident:new')
+            if(normalized) onIncident?.(normalized,{initial:false, isUpdate})
           }
         }catch{}
       }
@@ -146,7 +169,7 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
           const isInitial=!initialPollDone
           incidents.forEach(item=>{
             const normalized=normalizeMobileIncident(item)
-            if(normalized) onIncident?.(normalized,'incident:polled',{initial:isInitial})
+            if(normalized) onIncident?.(normalized,{initial:isInitial, isUpdate:!isInitial})
           })
           initialPollDone=true
         }

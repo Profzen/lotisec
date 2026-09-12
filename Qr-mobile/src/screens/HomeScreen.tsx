@@ -83,6 +83,15 @@ export default function HomeScreen({ navigation }: Props) {
   const [assignedUnit, setAssignedUnit] = useState<any>(null);
   const [assignedHospital, setAssignedHospital] = useState<any>(null);
   const [dispatchStatus, setDispatchStatus] = useState<'assigned'|'recommended'|'awaiting_dispatch'>('awaiting_dispatch');
+  const [sosIncidentId, setSosIncidentId] = useState<string | null>(null);
+  const [sosClientEventId, setSosClientEventId] = useState<string | null>(null);
+  const [complementModalVisible, setComplementModalVisible] = useState(false);
+  const [complementType, setComplementType] = useState('Accident routier');
+  const [complementVictims, setComplementVictims] = useState('Je ne sais pas');
+  const [complementDangers, setComplementDangers] = useState<string[]>([]);
+  const [complementVehicles, setComplementVehicles] = useState('Je ne sais pas');
+  const [complementLoading, setComplementLoading] = useState(false);
+  const [complementDone, setComplementDone] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [qrToken, setQrToken] = useState<string | null>(null);
@@ -111,6 +120,64 @@ export default function HomeScreen({ navigation }: Props) {
     divider: isDark ? '#1C3854' : colors.border,
   };
 
+  // Reprise hors-ligne
+  const PENDING_QUEUE_KEY = 'pending_incidents';
+  const queuePendingIncident = async (payload: any) => {
+    try {
+      const raw = await AsyncStorage.getItem(PENDING_QUEUE_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      list.push({ payload, created_at: new Date().toISOString(), attempts: 0 });
+      await AsyncStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(list));
+    } catch {}
+  };
+
+  const flushPendingIncidents = async (token?: string) => {
+    try {
+      const raw = await AsyncStorage.getItem(PENDING_QUEUE_KEY);
+      if (!raw) return;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) return;
+      const remaining: any[] = [];
+      for (const item of list) {
+        try {
+          await api('/api/v1/incidents', 'POST', item.payload, token);
+        } catch {
+          remaining.push({ ...item, attempts: (item.attempts || 0) + 1 });
+        }
+      }
+      await AsyncStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(remaining));
+    } catch {}
+  };
+
+  // Polling du statut réel côté supervision LOTISEC
+  useEffect(() => {
+    if (!sosActif || !sosIncidentId) return;
+    const interval = setInterval(async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const res = await api('/api/v1/incidents/' + sosIncidentId + '/status', 'GET', undefined, token || undefined);
+        if (res?.incident) {
+          if (res.incident.status === 'cancelled' || res.incident.status === 'rejected') {
+            setSosActif(false);
+            setAlerteEnvoyee(false);
+            setSosIncidentId(null);
+          } else if (res.incident.status === 'assigned') {
+            setDispatchStatus('assigned');
+          }
+        }
+        if (res?.intervention?.unit_name) {
+          setAssignedUnit({
+            name: res.intervention.unit_name,
+            phone: res.intervention.unit_phone || '118',
+            status: 'assigned'
+          });
+          setDispatchStatus('assigned');
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [sosActif, sosIncidentId]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -135,6 +202,7 @@ export default function HomeScreen({ navigation }: Props) {
         setProfile(currentUser);
         setQrToken(token || null);
         setQrState(token ? 'ready' : 'missing');
+        void flushPendingIncidents(session.token);
 
         const history = await api('/scans/me?page_size=10', 'GET', undefined, session.token).catch(() => ({ items: [] }));
         setScans((history.items || []).map((item: any) => ({
@@ -186,96 +254,165 @@ export default function HomeScreen({ navigation }: Props) {
 
   const envoyerSOS = async () => {
     Vibration.vibrate([0, 500, 100, 500]);
+    let coords: { latitude: number; longitude: number; accuracy: number } | null = null;
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      let coords = { latitude: 6.1375, longitude: 1.2125, accuracy: 10 };
-      if (status === 'granted') {
-        try {
-          const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          coords = { latitude: location.coords.latitude, longitude: location.coords.longitude, accuracy: location.coords.accuracy || 10 };
-        } catch {}
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Position GPS requise',
+          'L’accès à votre géolocalisation est indispensable pour que LOTISEC transmette votre position exacte aux services de secours.',
+          [
+            { text: 'Appeler le 118', onPress: () => Linking.openURL('tel:118') },
+            { text: 'Réessayer', onPress: envoyerSOS },
+            { text: 'Annuler', style: 'cancel' }
+          ]
+        );
+        return;
       }
-      
-      const token = await AsyncStorage.getItem('token');
-      const storedUser = await AsyncStorage.getItem('user');
-      const currentUser = storedUser ? JSON.parse(storedUser) : null;
-      
-      const res = await api('/api/v1/incidents', 'POST', {
-        source: 'mobile', type: 'SOS citoyen', severity: 'critical',
-        latitude: coords.latitude, longitude: coords.longitude,
-        accuracy: coords.accuracy, address: 'Position GPS certifiée', victims: 1,
-        vehicles: 0, description: 'SOS déclenché depuis l’application mobile LOTISEC',
-        qr_token: currentUser?.qr_token,
-        client_event_id: `mobile-${currentUser?.id || 'unknown'}-${Date.now()}`
-      }, token || undefined);
-
-      const unit = res?.closest_unit || {
-        name: 'Sapeurs-Pompiers Lomé (118)',
-        phone: '118',
-        distance_km: 2.1,
-        eta_minutes: 5,
-        status: 'en_route'
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy || 10
       };
-      const hospital = res?.closest_hospital || {
-        name: 'CHU Sylvanus Olympio',
-        phone: '+228 22 21 25 01',
-        distance_km: 1.8,
-        eta_minutes: 4
-      };
+    } catch {
+      Alert.alert(
+        'Signal GPS indisponible',
+        'Impossible d’obtenir votre position satellite actuelle. Vérifiez que votre GPS est actif ou appelez directement le 118.',
+        [
+          { text: 'Appeler le 118', onPress: () => Linking.openURL('tel:118') },
+          { text: 'Réessayer', onPress: envoyerSOS },
+          { text: 'Annuler', style: 'cancel' }
+        ]
+      );
+      return;
+    }
 
-      setAssignedUnit(unit);
-      setAssignedHospital(hospital);
+    if (!coords) return;
+
+    const token = await AsyncStorage.getItem('token');
+    const storedUser = await AsyncStorage.getItem('user');
+    const currentUser = storedUser ? JSON.parse(storedUser) : null;
+    const clientEventId = `mobile-${currentUser?.id || 'anon'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const payload = {
+      source: 'mobile',
+      type: 'Urgence citoyenne',
+      severity: 'unknown',
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+      address: 'Position GPS mobile',
+      victims: 0,
+      vehicles: 0,
+      flags: ['details_pending', 'victims_unknown', 'vehicles_unknown'],
+      qr_token: currentUser?.qr_token,
+      client_event_id: clientEventId
+    };
+
+    try {
+      const res = await api('/api/v1/incidents', 'POST', payload, token || undefined);
+      const incId = res?.incident?.id || null;
+      setSosIncidentId(incId);
+      setSosClientEventId(clientEventId);
+      setAssignedUnit(res?.closest_unit || null);
+      setAssignedHospital(res?.closest_hospital || null);
       setDispatchStatus(res?.dispatch_status || 'awaiting_dispatch');
       setSosActif(true);
       setAlerteEnvoyee(true);
-
+      setComplementModalVisible(true);
+    } catch {
+      await queuePendingIncident(payload);
+      setSosActif(true);
+      setAlerteEnvoyee(true);
       Alert.alert(
-        res?.dispatch_status === 'assigned' ? "UNITÉ AFFECTÉE" : "ALERTE TRANSMISE",
-        res?.dispatch_status === 'assigned'
-          ? `La mission a été affectée à ${unit.name}.\n\nStatut : unité alertée\nETA indicative : ~${unit.eta_minutes} min (${unit.distance_km} km)\n\nHôpital de référence : ${hospital.name}`
-          : `Votre position a été transmise à la supervision. ${unit?.name ? `L'unité la plus proche identifiée est ${unit.name}, sous réserve de disponibilité.` : 'Une unité doit encore être affectée.'}`,
+        'Alerte enregistrée en local',
+        'Réseau indisponible. Votre alerte d’urgence a été sauvegardée et sera transmise dès le rétablissement de la connexion.',
         [
-          { text: "Appeler le 118", onPress: () => Linking.openURL(`tel:${unit.phone}`) },
-          { text: "Compris", style: "cancel" }
+          { text: 'Appeler le 118', onPress: () => Linking.openURL('tel:118') },
+          { text: 'OK' }
         ]
       );
-    } catch (e) {
-      Alert.alert("Échec de transmission", "LOTISEC n’a pas pu transmettre l’alerte. Vérifiez votre connexion.");
     }
   };
 
-  const contactService = async (contact:typeof CONTACTS[number]) => {
-    if(!contact.service)return Linking.openURL(`tel:${contact.phone}`);
-    try{
-      const permission=await Location.requestForegroundPermissionsAsync();
-      if(permission.status!=='granted')return Alert.alert('GPS requis','La position permet au service de vous localiser.');
-      const location=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
-      const storedUser=await AsyncStorage.getItem('user');
-      const currentUser=storedUser?JSON.parse(storedUser):null;
-      await api('/api/v1/incidents','POST',{
-        source:'mobile',type:`Demande ${contact.name}`,severity:'high',requested_service:contact.service,
-        latitude:location.coords.latitude,longitude:location.coords.longitude,accuracy:location.coords.accuracy||0,
-        address:'Position GPS mobile',description:`Demande de contact avec ${contact.name}`,
-        client_event_id:`service-${contact.service}-${currentUser?.id||'unknown'}-${Date.now()}`
-      });
-      Alert.alert('Demande transmise',`${contact.name} et la supervision LOTISEC ont reçu votre position.`,[
-        {text:'Fermer',style:'cancel'},{text:'Appeler maintenant',onPress:()=>Linking.openURL(`tel:${contact.phone}`)}
-      ]);
-    }catch(error:any){Alert.alert('Transmission impossible',error?.message||'Réessayez dans un instant.');}
+  const annulerAlerte = () => {
+    Alert.alert(
+      "Annuler l'alerte ?",
+      "Confirmez-vous l'annulation de l'alerte d'urgence ?",
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui, annuler',
+          style: 'destructive',
+          onPress: async () => {
+            const token = await AsyncStorage.getItem('token');
+            if (sosIncidentId) {
+              try {
+                await api('/api/v1/incidents/' + sosIncidentId + '/status', 'PATCH', {
+                  status: 'cancelled',
+                  client_event_id: sosClientEventId
+                }, token || undefined);
+              } catch (e) {
+                console.log('Erreur annulation alerte:', e);
+              }
+            }
+            setSosActif(false);
+            setAlerteEnvoyee(false);
+            setComplementModalVisible(false);
+            setSosIncidentId(null);
+            setSosClientEventId(null);
+          }
+        }
+      ]
+    );
+  };
+
+  const submitComplement = async (skip: boolean = false) => {
+    setComplementLoading(true);
+    try {
+      if (!skip && sosIncidentId) {
+        const token = await AsyncStorage.getItem('token');
+        const flags = [...complementDangers];
+        if (complementVictims === 'Je ne sais pas') flags.push('victims_unknown');
+        if (complementVehicles === 'Je ne sais pas') flags.push('vehicles_unknown');
+
+        let victimsCount = 0;
+        if (complementVictims === '1') victimsCount = 1;
+        else if (complementVictims === '2 à 5') victimsCount = 3;
+        else if (complementVictims === '+ de 5') victimsCount = 6;
+
+        let vehiclesCount = 0;
+        if (complementVehicles === '1') vehiclesCount = 1;
+        else if (complementVehicles === '2') vehiclesCount = 2;
+        else if (complementVehicles === 'Plusieurs') vehiclesCount = 3;
+
+        await api('/api/v1/incidents/' + sosIncidentId + '/report', 'PATCH', {
+          type: complementType,
+          victims: victimsCount,
+          vehicles: vehiclesCount,
+          flags
+        }, token || undefined);
+      }
+    } catch (e) {
+      console.log('Erreur envoi complément:', e);
+    } finally {
+      setComplementLoading(false);
+      setComplementModalVisible(false);
+      setComplementDone(true);
+    }
   };
 
   const handleSOS = () => {
     if (sosActif) {
-      Alert.alert('Annuler l\'alerte ?', 'Les secours ont déjà été notifiés.', [
-        { text: 'Garder l\'alerte', style: 'cancel' },
-        { text: 'Annuler', style: 'destructive', onPress: () => { setSosActif(false); setAlerteEnvoyee(false); setAssignedUnit(null); }},
-      ]);
+      annulerAlerte();
     } else {
-      Alert.alert('SOS IMMÉDIAT', 'L’ambulance ou l’unité de pompiers la plus proche sera automatiquement désignée et dépêchée vers vous.', [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'CONFIRMER L’ALERTE', style: 'destructive', onPress: envoyerSOS },
-      ]);
+      void envoyerSOS();
     }
+  };
+
+  const contactService = (contact: any) => {
+    Linking.openURL('tel:' + contact.phone);
   };
 
   const generatePDF = async () => {
@@ -497,6 +634,154 @@ export default function HomeScreen({ navigation }: Props) {
             <TouchableOpacity onPress={() => setQrModalVisible(false)} style={{ marginTop: 20 }}>
               <Text style={{ color: th.text2 }}>Fermer</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL COMPLÉMENT D'ALERTE */}
+      <Modal visible={complementModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: th.cardBg, maxHeight: '85%', width: '92%' }]}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                  <FontAwesome name="check-circle" size={24} color="#DC2626" />
+                </View>
+                <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: th.text, textAlign: 'center' }}>
+                  Précisions d'urgence
+                </Text>
+                <Text style={{ fontSize: 12, color: th.text2, textAlign: 'center', marginTop: 4 }}>
+                  Alerte transmise aux secours. Vous pouvez affiner la situation si vous êtes en sécurité.
+                </Text>
+              </View>
+
+              <Text style={{ fontSize: 12, fontFamily: fonts.semiBold, color: th.text2, textTransform: 'uppercase', marginBottom: 6 }}>
+                Type de situation
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {['Accident routier', 'Malaise / Inconscience', 'Incendie', 'Chute / Traumatisme', 'Autre'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 14,
+                      backgroundColor: complementType === t ? colors.primary : (isDark ? '#162F4A' : '#F1F5F9'),
+                      borderWidth: 1,
+                      borderColor: complementType === t ? colors.primary : th.cardBorder,
+                    }}
+                    onPress={() => setComplementType(t)}
+                  >
+                    <Text style={{ fontSize: 12, color: complementType === t ? '#FFF' : th.text, fontWeight: '600' }}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={{ fontSize: 12, fontFamily: fonts.semiBold, color: th.text2, textTransform: 'uppercase', marginBottom: 6 }}>
+                Nombre de victimes
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {['Je ne sais pas', '1', '2 à 5', '+ de 5'].map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 14,
+                      backgroundColor: complementVictims === v ? colors.primary : (isDark ? '#162F4A' : '#F1F5F9'),
+                      borderWidth: 1,
+                      borderColor: complementVictims === v ? colors.primary : th.cardBorder,
+                    }}
+                    onPress={() => setComplementVictims(v)}
+                  >
+                    <Text style={{ fontSize: 12, color: complementVictims === v ? '#FFF' : th.text, fontWeight: '600' }}>{v}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={{ fontSize: 12, fontFamily: fonts.semiBold, color: th.text2, textTransform: 'uppercase', marginBottom: 6 }}>
+                Véhicules impliqués
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {['Aucun', '1', '2', 'Plusieurs', 'Je ne sais pas'].map((vh) => (
+                  <TouchableOpacity
+                    key={vh}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 14,
+                      backgroundColor: complementVehicles === vh ? colors.primary : (isDark ? '#162F4A' : '#F1F5F9'),
+                      borderWidth: 1,
+                      borderColor: complementVehicles === vh ? colors.primary : th.cardBorder,
+                    }}
+                    onPress={() => setComplementVehicles(vh)}
+                  >
+                    <Text style={{ fontSize: 12, color: complementVehicles === vh ? '#FFF' : th.text, fontWeight: '600' }}>{vh}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={{ fontSize: 12, fontFamily: fonts.semiBold, color: th.text2, textTransform: 'uppercase', marginBottom: 6 }}>
+                Dangers immédiats constatés
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+                {[
+                  { label: 'Inconscience', flag: 'inconscience' },
+                  { label: 'Saignement grave', flag: 'saignement' },
+                  { label: 'Victime coincée', flag: 'coince' },
+                  { label: 'Feu / Fumée', flag: 'feu' },
+                ].map((d) => {
+                  const active = complementDangers.includes(d.flag);
+                  return (
+                    <TouchableOpacity
+                      key={d.flag}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: 14,
+                        backgroundColor: active ? '#DC2626' : (isDark ? '#162F4A' : '#F1F5F9'),
+                        borderWidth: 1,
+                        borderColor: active ? '#DC2626' : th.cardBorder,
+                      }}
+                      onPress={() => {
+                        if (active) {
+                          setComplementDangers(complementDangers.filter((f) => f !== d.flag));
+                        } else {
+                          setComplementDangers([...complementDangers, d.flag]);
+                        }
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, color: active ? '#FFF' : th.text, fontWeight: '600' }}>{d.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}
+                disabled={complementLoading}
+                onPress={() => void submitComplement(false)}
+              >
+                {complementLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 14 }}>Valider les précisions</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => void submitComplement(true)}
+              >
+                <Text style={{ color: th.text2, fontSize: 13, fontWeight: '500' }}>Passer cette étape</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>

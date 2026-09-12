@@ -1,155 +1,104 @@
 # Contrat d’intégration mobile ↔ backend ↔ web LOTISEC
 
-## Architecture cible
+## Architecture opérationnelle réelle
 
-L’application mobile ne doit pas communiquer directement avec le navigateur de l’opérateur. Elle transmet le signalement au backend NestJS. Le backend valide les données, les persiste dans PostgreSQL/PostGIS, puis diffuse l’événement via Socket.IO. Cette séparation permet l’authentification, la traçabilité, le dédoublonnage et la reprise après une coupure réseau.
+L’application mobile ne communique pas directement avec le navigateur de l’opérateur. Elle transmet le signalement au backend Express TypeScript. Le backend valide les données, les persiste dans PostgreSQL/PostGIS, puis diffuse l’événement via WebSocket natif (`/ws/alertes`) et API REST (`/api/v1/incidents`). Cette séparation garantit l’authentification, la traçabilité, le dédoublonnage et la reprise après coupure réseau.
 
 ```text
-Application mobile → API NestJS → PostgreSQL/PostGIS → Socket.IO → Plateforme web
+Application mobile / Web citoyen → API Express TypeScript → PostgreSQL/PostGIS → WebSocket & REST Polling → Console Opérationnelle
 ```
 
-Le module `src/services/mobileGateway.js` contient le contrat exécutable : configuration, normalisation, accusé de réception, positions GPS, capacités hospitalières et reconnexion. Le simulateur utilise `createTestIncident()` et ne réutilise jamais la connexion réelle.
+Le module `src/services/mobileGateway.js` contient le contrat exécutable côté Console : configuration, normalisation honnête, mise à jour in-place sans fausse alarme (`isUpdate: true`), gestion des positions GPS et bascule test / réel.
 
-## Variables de la plateforme web
+---
 
-```env
-VITE_OPERATION_MODE=test
-VITE_API_URL=https://api.exemple.tld/api
-VITE_SOCKET_URL=https://api.exemple.tld
-VITE_SOCKET_PATH=/socket.io
-VITE_MOBILE_NAMESPACE=/operations
-VITE_HEALTH_NAMESPACE=/health-network
-VITE_NATIONAL_NAMESPACE=/national-pilotage
-VITE_MOBILE_TENANT_ID=lotisec-togo
-VITE_HEALTH_PATH=/health
-VITE_MOBILE_INCIDENT_EVENTS=incident:created,incident:new
-VITE_MOBILE_POSITION_EVENTS=ambulance:position,gps:update,vehicle:position
-VITE_HEALTH_CENTER_EVENTS=hospital:capacity,health-center:capacity
-VITE_MOBILE_ACK_EVENT=incident:web:ack
-VITE_KEYCLOAK_URL=https://auth.exemple.tld
-VITE_KEYCLOAK_REALM=lotisec
-VITE_KEYCLOAK_CLIENT_ID=lotisec-operator-web
-VITE_KEYCLOAK_HEALTH_CLIENT_ID=lotisec-health-web
-VITE_KEYCLOAK_NATIONAL_CLIENT_ID=lotisec-national-web
-VITE_KEYCLOAK_HEALTH_ROLE=health_professional
-VITE_KEYCLOAK_NATIONAL_ROLE=national_analyst
-VITE_OSRM_URL=https://router.project-osrm.org
-VITE_ENABLE_DEMO_FALLBACK=true
+## 1. Cycle de vie d'un incident d'urgence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Citoyen (App/Web)
+    participant B as Backend Express
+    participant DB as PostgreSQL / PostGIS
+    participant OP as Console Régulation V3.1
+
+    C->>B: POST /api/v1/incidents (minimal: GPS, severity: 'unknown', details_pending)
+    B->>DB: INSERT incident (client_event_id unique)
+    B->>OP: WebSocket & Polling broadcast (incident:new)
+    OP-->>OP: Affichage carte, sonnette d'attention (alerte sonore unique)
+    B-->>C: ACK { incident_id, dispatch_status: 'awaiting_dispatch' }
+    
+    opt Questionnaire 10s (Optionnel)
+        C->>B: PATCH /api/v1/incidents/:id/report (type, victimes, véhicules, flags)
+        B->>DB: UPDATE incident & recalcule score priorité
+        B->>OP: Broadcast update (isUpdate: true)
+        OP-->>OP: Mise à jour silencieuse in-place (zéro doublon de son)
+    end
+
+    OP->>B: POST /api/v1/incidents/:id/assignments (unité réelle)
+    B->>DB: INSERT assignment & UPDATE status='assigned'
+    
+    C->>B: GET /api/v1/incidents/:id/status (polling citoyen)
+    B-->>C: { status: 'assigned', unit: 'Ambulance Samu 01' }
 ```
 
-Le backend doit autoriser l’origine publique de la plateforme dans sa configuration CORS et accepter les transports Socket.IO `websocket` et `polling`.
+---
 
-## Jeton d’accès du poste web
+## 2. Structure normalisée du signalement citoyen
 
-Le fichier `src/services/auth.js` fournit deux points d’intégration :
-
-- `configureAccessTokenProvider(() => keycloak.updateToken(30).then(() => keycloak.token))` pour brancher Keycloak ;
-- `setSessionAccessToken(token)` pour un essai local temporaire.
-
-Le jeton est envoyé dans `socket.auth.token`. Le backend doit le vérifier avant d’autoriser l’accès au namespace `/operations`. Aucun secret client ne doit être ajouté aux variables `VITE_*`.
-
-## Séparation des trois portails
-
-| Portail | Namespace | Client Keycloak | Périmètre |
-|---|---|---|---|
-| Centre opérationnel | `/operations` | `lotisec-operator-web` | Incidents, ambulances, missions et orientation |
-| Professionnels de santé | `/health-network` | `lotisec-health-web` | Admissions anonymisées, capacités et transferts |
-| Pilotage national | `/national-pilotage` | `lotisec-national-web` | Agrégats, performance, qualité et rapports |
-
-Le backend reste la source d’autorité. Il vérifie le rôle du jeton Keycloak avant de rejoindre un namespace et filtre les événements selon le périmètre. Le portail national ne reçoit ni identité, ni téléphone, ni média de victime.
-
-Événements complémentaires prévus : `hospital:admission:decision`, `mission:arrival:expected`, `mission:handover:update`, `national:indicator:update`, `national:data-quality:alert` et `national:report:generated`.
-
-## Signalement mobile normalisé
-
-Le backend peut accepter des noms de champs adaptés au mobile, mais il doit diffuser au minimum cette structure :
+Le backend et la console s'accordent sur le schéma sans inventer d'information manquante :
 
 ```json
 {
-  "id": "INC-2026-000123",
-  "type": "Collision routière",
-  "severity": "Critique",
-  "latitude": 6.1639,
-  "longitude": 1.2058,
-  "accuracy": 6,
-  "address": "Carrefour GTA, Lomé",
-  "victims": 2,
-  "vehicles": 2,
-  "timestamp": "2026-08-31T18:03:00.000Z",
-  "schemaVersion": "1.0",
-  "correlationId": "5f371b8f-6402-4b4f-93ce-3fe4084abc10",
-  "deviceId": "android-2f81a",
-  "reporterReference": "ANON-7C91",
-  "mediaCount": 1
+  "id": "c7a6e15e-f001-4999-9801-4601170aa001",
+  "source": "mobile",
+  "type": "Urgence citoyenne",
+  "severity": "unknown",
+  "latitude": 6.1725,
+  "longitude": 1.2215,
+  "accuracy": 8.5,
+  "address": "Position GPS mobile",
+  "victims": 0,
+  "vehicles": 0,
+  "flags": ["details_pending", "victims_unknown", "vehicles_unknown"],
+  "client_event_id": "mobile-anon-1726135000000-abcd",
+  "created_at": "2026-09-12T10:00:00.000Z"
 }
 ```
 
-Règles recommandées :
+### Règles d'honnêteté des données :
+1. **Sévérité non présumée** : `severity` vaut `'unknown'` (affiché *« À évaluer »* sur la console) tant qu'un opérateur ou le questionnaire d'enrichissement n'a pas statué.
+2. **Victimes & Véhicules** : Ne sont jamais forcés à `1`. S'ils ne sont pas précisés, ils valent `0` avec le flag `victims_unknown` / `vehicles_unknown`, et s'affichent *« Non renseigné »*.
+3. **Score de priorité dynamique** : Les drapeaux critiques (`inconscience`, `saignement`, `coince`, `feu`) augmentent directement le score d'urgence même si la sévérité déclarée est encore `unknown`.
+4. **Pas d'affectation fantôme** : Tant qu'un régulateur n'a pas confirmé l'envoi d'une unité réelle, le statut reste `awaiting_dispatch`. L'application mobile n'invente jamais d'ambulance ou d'hôpital fictif.
 
-- `id` est stable et unique afin d’éviter les doublons lors d’une retransmission mobile ;
-- latitude et longitude sont des nombres et doivent être validées côté backend ;
-- `timestamp` est au format ISO 8601 UTC ;
-- les données sensibles sont filtrées avant diffusion aux postes opérateurs ;
-- `correlationId` relie la requête mobile, l’enregistrement backend et l’accusé web ;
-- `schemaVersion` permet de faire évoluer le contrat sans casser les anciennes applications ;
-- `reporterReference` doit être pseudonymisée : le nom et le téléphone ne sont pas diffusés au navigateur ;
-- le backend enregistre l’incident avant de diffuser `incident:new`.
+---
 
-## Séparation stricte réel / test
+## 3. Endpoints REST Clés
 
-1. `VITE_OPERATION_MODE=test` charge uniquement le mode test.
-2. Le client réel peut rester connecté, mais ses messages sont placés dans `realEventQueue`.
-3. Ces messages ne modifient ni la carte, ni les missions, ni les statistiques de test.
-4. Le passage explicite en mode réel sauvegarde l’état du test, restaure l’espace réel et traite la file terrain.
-5. Le retour au mode test restaure exactement l’état de simulation précédent.
-6. Le lancement du scénario guidé force toujours l’environnement test.
-
-## Événements entrants vers le web
-
-| Événement | Producteur backend | Effet dans la plateforme |
+| Méthode | Route | Rôle |
 |---|---|---|
-| `incident:new` | Service incidents | Ajout ou mise à jour, son, zoom, journal, Fog et statistiques |
-| `ambulance:position` | Service GPS | Déplacement de l’ambulance sur la carte |
-| `hospital:capacity` | Service hôpitaux | Capacité actualisée et nouveau classement |
+| `POST` | `/api/v1/incidents` | Déclenchement SOS minimaliste avec dédoublonnage par `client_event_id` |
+| `PATCH` | `/api/v1/incidents/:id/report` | Enrichissement citoyen ou opérateur (retire `details_pending`) |
+| `PATCH` | `/api/v1/incidents/:id/status` | Changement de statut d'incident (annulation citoyenne ou clôture régulation) |
+| `GET` | `/api/v1/incidents/:id/status` | Suivi public sécurisé du statut et de l'unité affectée |
+| `POST` | `/api/v1/incidents/:id/assignments` | Affectation d'un véhicule/équipe réel(le) à l'incident |
+| `GET` | `/api/v1/resources` | Liste des véhicules et unités de secours opérationnelles |
+| `GET` | `/api/v1/facilities` | Liste des hôpitaux et centres de santé récepteurs |
 
-Alias déjà tolérés : `incident:created`, `alert:new`, `emergency:new`, `sos:new`, `gps:update`, `vehicle:position` et `health-center:capacity`.
+---
 
-Les schémas JSON sont fournis dans `docs/mobile-incident.schema.json`, `docs/ambulance-position.schema.json` et `docs/hospital-capacity.schema.json`. Le fichier `docs/mobile-events.example.json` contient un exemple complet des trois messages.
+## 4. Séparation stricte Mode Test & Mode Réel
 
-## Événements sortants du web
-
-| Événement | Moment | Données principales |
-|---|---|---|
-| `web:operator:ready` | Connexion du poste | Client et capacités actives |
-| `incident:web:ack` | Réception d’un incident | Incident, état `received`, horodatage |
-| `incident:status:update` | Validation ou rejet | Incident, statut, opérateur |
-| `mission:created` | Affectation | Mission, ambulance, incident, hôpital recommandé |
-| `mission:status:update` | Progression | Mission, ambulance, nouveau statut |
-| `mission:rerouted` | Congestion | Mission, numéro de reroutage, motif |
-| `mission:orientation` | Hôpital confirmé | Mission, hôpital, places disponibles |
-| `hospital:capacity:update` | Saisie opérateur | Hôpital et nouvelle capacité |
-
-Tous les événements sortants sensibles incluent `operatorId`, `operatorRole`, `emittedAt`, `source` et `tenantId`. Le backend doit recalculer les autorisations depuis le jeton Keycloak et ne jamais faire confiance au rôle envoyé par le navigateur.
-
-Le backend doit persister ces changements puis les rediffuser aux clients autorisés, notamment au mobile du déclarant et aux terminaux terrain.
-
-## Reconnexion, dédoublonnage et reprise
-
-1. Le client Socket.IO se reconnecte automatiquement.
-2. Un incident déjà connu est fusionné par son identifiant sans rejouer l’alarme.
-3. Chaque nouvelle réception produit `incident:web:ack`.
-4. En connectivité dégradée, la file Fog locale conserve les événements.
-5. Au retour du réseau, le backend acquitte la synchronisation avant suppression locale.
-
-## Vérification minimale avec le développeur mobile
-
-1. Envoyer un incident depuis un téléphone réel.
-2. Vérifier sa persistance PostGIS et la diffusion `incident:new`.
-3. Vérifier le ciblage cartographique, le son et l’incrément des statistiques.
-4. Affecter une ambulance et observer `mission:created` côté backend/mobile.
-5. Émettre plusieurs `ambulance:position` et vérifier le déplacement continu.
-6. Mettre à jour une capacité avec `hospital:capacity` et vérifier le reclassement.
-7. Couper puis rétablir le réseau pour vérifier la reprise sans doublon.
-8. Laisser le web en mode test, envoyer un incident réel et vérifier qu’il reste isolé.
-9. Activer le flux réel et vérifier l’import de la file sans modifier le scénario sauvegardé.
-10. Comparer le bilan prévu/réalisé et le journal d’audit après clôture.
+1. **Mode Test (`test`)** :
+   - Environnement par défaut au chargement de la console.
+   - Embarque le scénario guidé en 8 étapes pour les démonstrations et formations d'opérateurs.
+   - Les événements réels reçus du terrain sont isolés dans `realEventQueue` sans perturber la carte ni les statistiques de test.
+2. **Mode Réel (`real`)** :
+   - Activé par la bascule d'environnement dans la barre latérale.
+   - Charge les ressources réelles depuis `/api/v1/resources` et les hôpitaux depuis `/api/v1/facilities`.
+   - Les interventions déclenchées depuis le mobile et le portail web y sont injectées en direct.
+   - Les affectations et validations d'opérateurs sont persistées directement dans PostgreSQL.
+3. **Gestion Sonore Impeccable** :
+   - Le bip d'arrivée sur le Dashboard est garanti unique (`dashboardBeepPlayedRef`).
+   - Les mises à jour et enrichissements d'incidents existants (`isUpdate: true`) sont traités in-place sans faire retentir d'alarme sonore supplémentaire.

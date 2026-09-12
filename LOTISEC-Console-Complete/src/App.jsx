@@ -221,7 +221,40 @@ export default function App(){
     dataModeRef.current=next;setDataMode(next)
     setAlerts(nextAlerts);setAmbulanceFleet(nextAmbulances);setHealthCenters(nextHospitals);setMission(snapshot.mission);setMissionHistory(snapshot.missionHistory);setSelectedAlertId(snapshot.selectedAlertId||nextAlerts[0]?.id||'')
     seenIncidentIds.current=new Set(nextAlerts.map(item=>item.id))
-    if(next==='real') setRealEventQueue([])
+    if(next==='real') {
+      setRealEventQueue([])
+      api.resources().then(res=>{
+        const units=res?.resources||res?.ambulances||(Array.isArray(res)?res:[])
+        if(Array.isArray(units) && units.length>0){
+          setAmbulanceFleet(units.map(u=>({
+            id: u.id,
+            name: u.name || `Unité ${u.call_sign||u.registration||u.id}`,
+            type: u.type || 'Ambulance',
+            status: u.status === 'available' ? 'Disponible' : u.status === 'assigned' ? 'En mission' : u.status,
+            lat: Number(u.latitude || 6.1375),
+            lng: Number(u.longitude || 1.2125),
+            organization_id: u.organization_id,
+            speed: 0,
+            updated: "à l'instant",
+            gpsSource: 'Backend réel'
+          })))
+        }
+      }).catch(()=>{})
+      api.facilities().then(res=>{
+        const facs=res?.facilities||res?.hospitals||(Array.isArray(res)?res:[])
+        if(Array.isArray(facs) && facs.length>0){
+          setHealthCenters(facs.map(f=>({
+            id: f.id,
+            name: f.name,
+            address: f.address || '',
+            lat: Number(f.latitude || 6.1375),
+            lng: Number(f.longitude || 1.2125),
+            beds: f.emergency_capacity || 10,
+            reception: 'Ouverte'
+          })))
+        }
+      }).catch(()=>{})
+    }
     recordAudit('Environnement de données changé',next==='test'?'Mode test restauré, sans données terrain.':`Flux réel activé · ${queued.length} événement(s) isolé(s) importé(s).`,{category:'security',tone:next==='test'?'blue':'green',reference:'DATA-MODE',dataMode:next})
     notify(next==='test'?'Mode test restauré':'Flux mobile réel activé','green')
   }
@@ -235,7 +268,7 @@ export default function App(){
           setRealEventQueue(current=>[...current,{kind:'incident',payload:incident,receivedAt:new Date().toISOString()}].slice(-100))
           return
         }
-        receiveIncident(incident,{real:true,silent:Boolean(meta?.initial)})
+        receiveIncident(incident,{real:true,silent:Boolean(meta?.initial || meta?.isUpdate)})
       },
       onPosition:position=>{
         if(dataModeRef.current!=='real'){setRealEventQueue(current=>[...current,{kind:'position',payload:position,receivedAt:new Date().toISOString()}].slice(-100));return}
@@ -263,6 +296,16 @@ export default function App(){
 
   const updateAlert=(id,status,options={})=>{
     if(!requireOperate('modifier le statut d’un signalement')) return
+    const backendStatus = status === 'Validée' ? 'validated' : status === 'Rejetée' ? 'rejected' : status === 'Affectée' ? 'assigned' : status
+    if(dataModeRef.current==='real'){
+      api.updateIncidentStatus(id, backendStatus).then(res=>{
+        if(res?.incident){
+          recordAudit('Statut persisté',`L'incident ${id} est passé au statut ${backendStatus} en base PostgreSQL.`,{category:'security',tone:status==='Rejetée'?'red':'green',reference:id})
+        }
+      }).catch(err=>{
+        console.warn('Erreur mise à jour statut backend:', err)
+      })
+    }
     setAlerts(current=>current.map(alert=>alert.id===id?{...alert,status,messageState:status==='Validée'?'Reçu · normalisé · validé par l’opérateur':status==='Rejetée'?'Reçu · contrôlé · rejeté':alert.messageState}:alert))
     if(!options.silent) notify(status==='Rejetée'?'Alerte classée comme rejetée':`Alerte ${status.toLowerCase()}` ,status==='Rejetée'?'red':'green')
     recordAudit(`Alerte ${status.toLowerCase()}`,`Le statut du signalement ${id} a été modifié par validation humaine.`,{category:'security',tone:status==='Rejetée'?'red':'green',reference:id,actor:options.actor||operator.name})
@@ -288,6 +331,22 @@ export default function App(){
     const createdAt=Date.now()
     const fallback=localRoutePlan(chosenAmbulance,alert)
     const fallbackHospitalRoute=nearestHospital?localRoutePlan(alert,nearestHospital):null
+
+    if(dataModeRef.current==='real'){
+      const backendOrgId = chosenAmbulance?.organization_id
+      if(backendOrgId && targetId){
+        api.assignIncident(targetId, {
+          organization_id: backendOrgId,
+          response_unit_id: chosenAmbulance.id
+        }).then(res=>{
+          if(res?.intervention){
+            recordAudit('Mission persistée en base',`Intervention ${res.intervention.id} créée sur PostgreSQL pour ${targetId}.`,{category:'mission',tone:'green',reference:res.intervention.id})
+          }
+        }).catch(err=>{
+          console.warn('Erreur persistance affectation backend:', err)
+        })
+      }
+    }
     setMission({
       id:missionId,
       ambulanceId:chosenAmbulance.id,

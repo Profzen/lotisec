@@ -1,20 +1,70 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
-import {WebView} from 'react-native-webview';
+import { StyleSheet, View } from 'react-native';
+import MapView, { Marker, Polyline, UrlTile, Region } from 'react-native-maps';
 
-type Coordinate={latitude:number;longitude:number};
-type MapProps={children?:React.ReactNode;style?:any;initialRegion?:Coordinate&{latitudeDelta:number;longitudeDelta:number};onPress?:(event:{nativeEvent:{coordinate:Coordinate}})=>void;onMapReady?:()=>void;showsUserLocation?:boolean};
-const safeJson=(value:any)=>JSON.stringify(value).replace(/</g,'\\u003c');
+type Coordinate = { latitude: number; longitude: number };
 
-export default class PlatformMap extends React.Component<MapProps>{
-  private web=React.createRef<WebView>();
-  animateToRegion(region:Coordinate&{latitudeDelta?:number},duration=800){const zoom=region.latitudeDelta&&region.latitudeDelta<.02?16:14;this.web.current?.injectJavaScript(`window.lotisecMap&&window.lotisecMap.flyTo([${region.latitude},${region.longitude}],${zoom},{duration:${duration/1000}});true;`);}
-  fitToCoordinates(coords:Coordinate[]){if(!coords?.length)return;this.web.current?.injectJavaScript(`window.lotisecMap&&window.lotisecMap.fitBounds(${safeJson(coords.map(c=>[c.latitude,c.longitude]))},{padding:[40,40]});true;`);}
-  private layers(){const markers:any[]=[];const lines:any[]=[];React.Children.forEach(this.props.children,(child:any)=>{if(!child)return;if(child.type===Marker&&child.props.coordinate)markers.push({coordinate:child.props.coordinate,title:child.props.title||'',color:child.props.pinColor||'#1565D8'});if(child.type===Polyline&&child.props.coordinates?.length>1)lines.push({coordinates:child.props.coordinates,color:child.props.strokeColor||'#1565D8',width:child.props.strokeWidth||4,dashed:Boolean(child.props.lineDashPattern)});});if(this.props.showsUserLocation&&this.props.initialRegion)markers.unshift({coordinate:this.props.initialRegion,title:'Ma position',color:'#1565D8'});return {markers,lines};}
-  private html(){const region=this.props.initialRegion||{latitude:6.1375,longitude:1.2125,latitudeDelta:.05};const zoom=region.latitudeDelta<.02?16:14;return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>html,body,#map{height:100%;width:100%;margin:0;background:#eaf1f7}.leaflet-control-attribution{font:9px sans-serif}.pin{width:22px;height:22px;border:3px solid white;border-radius:50%;box-shadow:0 2px 7px #0007}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>const map=window.lotisecMap=L.map('map',{zoomControl:true,attributionControl:true}).setView([${region.latitude},${region.longitude}],${zoom});L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);const data=${safeJson(this.layers())};data.markers.forEach(m=>{const icon=L.divIcon({className:'',html:'<div class="pin" style="background:'+m.color+'"></div>',iconSize:[28,28],iconAnchor:[14,14]});const marker=L.marker([m.coordinate.latitude,m.coordinate.longitude],{icon}).addTo(map);if(m.title)marker.bindTooltip(m.title);});data.lines.forEach(l=>L.polyline(l.coordinates.map(c=>[c.latitude,c.longitude]),{color:l.color,weight:l.width,dashArray:l.dashed?'6,6':null}).addTo(map));map.on('click',e=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'press',latitude:e.latlng.lat,longitude:e.latlng.lng})));map.whenReady(()=>window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'})));</script></body></html>`;}
-  render(){return <View style={[styles.container,this.props.style]}><WebView ref={this.web} source={{html:this.html()}} originWhitelist={['*']} javaScriptEnabled domStorageEnabled mixedContentMode="never" setSupportMultipleWindows={false} onMessage={event=>{try{const message=JSON.parse(event.nativeEvent.data);if(message.type==='ready')this.props.onMapReady?.();if(message.type==='press')this.props.onPress?.({nativeEvent:{coordinate:{latitude:message.latitude,longitude:message.longitude}}});}catch{}}}/></View>;}
+type MapProps = {
+  children?: React.ReactNode;
+  style?: any;
+  initialRegion?: Coordinate & { latitudeDelta: number; longitudeDelta: number };
+  onPress?: (event: { nativeEvent: { coordinate: Coordinate } }) => void;
+  onMapReady?: () => void;
+  showsUserLocation?: boolean;
+};
+
+export default class PlatformMap extends React.Component<MapProps> {
+  private mapRef = React.createRef<MapView>();
+
+  animateToRegion(region: Coordinate & { latitudeDelta?: number; longitudeDelta?: number }, duration = 800) {
+    const r: Region = {
+      latitude: region.latitude,
+      longitude: region.longitude,
+      latitudeDelta: region.latitudeDelta ?? 0.03,
+      longitudeDelta: region.longitudeDelta ?? 0.03,
+    };
+    this.mapRef.current?.animateToRegion(r, duration);
+  }
+
+  fitToCoordinates(coords: Coordinate[], options?: { edgePadding?: { top: number; right: number; bottom: number; left: number }; animated?: boolean }) {
+    if (!coords?.length) return;
+    this.mapRef.current?.fitToCoordinates(coords, {
+      edgePadding: options?.edgePadding ?? { top: 40, right: 40, bottom: 40, left: 40 },
+      animated: options?.animated ?? true,
+    });
+  }
+
+  render() {
+    return (
+      <View style={[styles.container, this.props.style]}>
+        <MapView
+          ref={this.mapRef}
+          style={StyleSheet.absoluteFillObject}
+          initialRegion={this.props.initialRegion}
+          onPress={this.props.onPress}
+          onMapReady={this.props.onMapReady}
+          showsUserLocation={this.props.showsUserLocation}
+          loadingEnabled
+        >
+          <UrlTile
+            urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={-1}
+          />
+          {this.props.children}
+        </MapView>
+      </View>
+    );
+  }
 }
-export function Marker(_props:any){return null;}
-export function Polyline(_props:any){return null;}
-export function UrlTile(_props:any){return null;}
-const styles=StyleSheet.create({container:{flex:1,overflow:'hidden',backgroundColor:'#EAF1F7'}});
+
+export { Marker, Polyline, UrlTile };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#EAF1F7',
+    overflow: 'hidden',
+  },
+});

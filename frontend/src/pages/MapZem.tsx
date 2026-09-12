@@ -222,6 +222,14 @@ export function MapZem() {
 
   const requestRide = async () => {
     if (!destination || !origin || !user || !routeData) return;
+
+    if (gpsError && originName.includes('Défaut')) {
+      toast.error("Veuillez définir votre lieu de prise en charge avant de commander.");
+      setSearchTarget('origin');
+      setShowResults(true);
+      return;
+    }
+
     const price = Math.round(routeData.distanceKm * 75);
 
     try {

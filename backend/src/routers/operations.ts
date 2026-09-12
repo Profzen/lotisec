@@ -21,40 +21,87 @@ async function audit(actorId:string|null|undefined,organizationId:string|null|un
 
 const incidentSchema = z.object({
   source: z.enum(['mobile','web','operator','ussd','partner']).default('mobile'),
-  type: z.string().min(2), severity: z.enum(['critical','high','medium','low','unknown']).default('medium'),
-  latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180),
-  accuracy: z.number().min(0).max(5000).default(0), address: z.string().optional(),
-  victims: z.number().int().min(0).max(99).default(0), vehicles: z.number().int().min(0).max(30).default(0),
-  vehicle_type: z.string().optional(), description: z.string().max(2000).optional(),
-  requested_service:z.enum(['fire','ambulance','samu','police']).optional(),
-  flags: z.array(z.string()).max(12).default([]), qr_token: z.string().optional(), client_event_id: z.string().max(120).optional()
+  type: z.string().min(2),
+  severity: z.enum(['critical','high','medium','low','unknown']).default('unknown'),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).max(5000).default(0),
+  address: z.string().optional(),
+  victims: z.number().int().min(0).max(99).default(0),
+  vehicles: z.number().int().min(0).max(30).default(0),
+  vehicle_type: z.string().optional(),
+  description: z.string().max(2000).optional(),
+  requested_service: z.enum(['fire','ambulance','samu','police']).optional(),
+  flags: z.array(z.string()).max(20).default([]),
+  qr_token: z.string().optional(),
+  client_event_id: z.string().max(120).optional()
 });
 
 function score(severity: string, victims: number, vehicles: number, flags: string[]) {
   const base: Record<string, number> = { critical: 78, high: 62, medium: 42, low: 24, unknown: 35 };
-  return Math.min(99, base[severity] + Math.min(victims * 3, 12) + Math.min(vehicles * 2, 8) + Math.min(flags.length * 2, 6));
+  let s = base[severity] ?? 35;
+  if (victims > 0) s += Math.min(victims * 3, 15);
+  if (vehicles > 0) s += Math.min(vehicles * 2, 8);
+  const dangerFlags = ['unconscious', 'bleeding', 'entrapped', 'fire', 'smoke', 'blocked_road', 'inconscient', 'saignement', 'coince'];
+  const matchedDangers = (flags || []).filter(f => dangerFlags.some(d => String(f).toLowerCase().includes(d)));
+  s += Math.min(matchedDangers.length * 6, 18);
+  s += Math.min((flags || []).length * 1, 5);
+  return Math.min(99, Math.max(10, s));
 }
 
 router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
   const parsed = incidentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Payload invalide' });
   const d = parsed.data;
+
+  // Dédoublonnage strict par client_event_id (reprise réseau sans doublon)
+  if (d.client_event_id) {
+    const existing = await query<any>('SELECT * FROM incidents WHERE client_event_id=$1', [d.client_event_id]);
+    if (existing.rows[0]) {
+      return res.status(200).json({
+        incident: existing.rows[0],
+        closest_unit: null,
+        closest_hospital: null,
+        intervention: null,
+        dispatch_status: existing.rows[0].status || 'new',
+        deduplicated: true
+      });
+    }
+  }
+
   const allowedSource = req.permissions?.some((p) => p === '*' || p === 'incidents:manage') ? d.source : (d.source === 'web' ? 'web' : 'mobile');
+  const priorityScore = score(d.severity, d.victims, d.vehicles, d.flags);
+
   const saved = await query<any>(
     `INSERT INTO incidents (reporter_id, organization_id, source, type, severity, latitude, longitude, accuracy, address,
-      victims, vehicles, vehicle_type, description, flags, priority_score, qr_token, client_event_id,requested_service)
+      victims, vehicles, vehicle_type, description, flags, priority_score, qr_token, client_event_id, requested_service)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (client_event_id) DO UPDATE SET client_event_id=EXCLUDED.client_event_id RETURNING *`,
     [req.userId || null, req.organizationId || null, allowedSource, d.type, d.severity, d.latitude, d.longitude, d.accuracy,
      d.address || null, d.victims, d.vehicles, d.vehicle_type || null, d.description || null, d.flags,
-     score(d.severity,d.victims,d.vehicles,d.flags), d.qr_token || null, d.client_event_id || null,d.requested_service||null]
+     priorityScore, d.qr_token || null, d.client_event_id || null, d.requested_service || null]
   );
+
   await query(`INSERT INTO incident_events (incident_id, actor_id, type, to_status) VALUES ($1,$2,'created','new')`, [saved.rows[0].id, req.userId || null]);
   if (req.userId) {
-    await audit(req.userId,req.organizationId,'incident.created','incident',saved.rows[0].id,{source:allowedSource,severity:d.severity});
+    await audit(req.userId, req.organizationId, 'incident.created', 'incident', saved.rows[0].id, { source: allowedSource, severity: d.severity });
   }
-  await createNotification({roles:['admin','supervisor','dispatcher'],type:'incident.created',title:'Nouvel incident',message:`${d.type} · priorité ${saved.rows[0].priority_score}`,entityType:'incident',entityId:saved.rows[0].id});
+  await createNotification({
+    roles: ['admin','supervisor','dispatcher'],
+    type: 'incident.created',
+    title: 'Nouvel incident',
+    message: `${d.type} · priorité ${saved.rows[0].priority_score}`,
+    entityType: 'incident',
+    entityId: saved.rows[0].id
+  });
+
   try {
+    const sevLabel = saved.rows[0].severity === 'critical' ? 'Critique'
+      : saved.rows[0].severity === 'high' ? 'Élevée'
+      : saved.rows[0].severity === 'medium' ? 'Modérée'
+      : saved.rows[0].severity === 'low' ? 'Faible'
+      : 'À évaluer';
+
     broadcast({
       type: 'NOUVELLE_ALERTE',
       event: 'incident:new',
@@ -62,14 +109,17 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
       incident: {
         id: saved.rows[0].id,
         type: saved.rows[0].type,
-        severity: saved.rows[0].severity === 'critical' ? 'Critique' : saved.rows[0].severity === 'high' ? 'Élevée' : 'Modérée',
-        location: saved.rows[0].address || 'Position GPS mobile',
-        victims: saved.rows[0].victims || 1,
-        vehicles: saved.rows[0].vehicles || 0,
+        severity: sevLabel,
+        raw_severity: saved.rows[0].severity,
+        location: saved.rows[0].address || (allowedSource === 'web' ? 'Position transmise par le portail web' : 'Position transmise par l’application mobile'),
+        victims: saved.rows[0].victims,
+        vehicles: saved.rows[0].vehicles,
+        flags: saved.rows[0].flags || [],
+        client_event_id: saved.rows[0].client_event_id || null,
         source: allowedSource === 'web' ? 'Portail citoyen web' : 'Application mobile réelle',
         received: new Date().toLocaleTimeString('fr-FR'),
         receivedAt: saved.rows[0].created_at || new Date().toISOString(),
-        accuracy: saved.rows[0].accuracy ? `${saved.rows[0].accuracy} m` : 'GPS certifié',
+        accuracy: saved.rows[0].accuracy ? `${saved.rows[0].accuracy} m` : 'Position GPS',
         lat: Number(saved.rows[0].latitude),
         lng: Number(saved.rows[0].longitude),
         status: 'Nouveau',
@@ -77,14 +127,25 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
       }
     });
   } catch {}
-  if(d.requested_service){
-    const organizationTypes:Record<string,string[]>={fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']};
-    const target=await query<any>(`SELECT id FROM organizations WHERE active=true AND type=ANY($1::text[]) ORDER BY created_at ASC LIMIT 1`,[organizationTypes[d.requested_service]]);
-    const targetRoles:Record<string,string[]>={fire:['firefighter'],ambulance:['ambulance_driver'],samu:['ambulance_driver'],police:[]};
-    if(target.rows[0])await createNotification({organizationId:target.rows[0].id,roles:targetRoles[d.requested_service],type:'service.requested',title:'Demande de service',message:`${d.type} · position GPS disponible`,entityType:'incident',entityId:saved.rows[0].id});
+
+  if (d.requested_service) {
+    const organizationTypes: Record<string, string[]> = { fire: ['fire_station'], ambulance: ['ambulance_service'], samu: ['samu'], police: ['police','gendarmerie'] };
+    const target = await query<any>(`SELECT id FROM organizations WHERE active=true AND type=ANY($1::text[]) ORDER BY created_at ASC LIMIT 1`, [organizationTypes[d.requested_service]]);
+    const targetRoles: Record<string, string[]> = { fire: ['firefighter'], ambulance: ['ambulance_driver'], samu: ['ambulance_driver'], police: [] };
+    if (target.rows[0]) {
+      await createNotification({
+        organizationId: target.rows[0].id,
+        roles: targetRoles[d.requested_service],
+        type: 'service.requested',
+        title: 'Demande de service',
+        message: `${d.type} · position GPS disponible`,
+        entityType: 'incident',
+        entityId: saved.rows[0].id
+      });
+    }
   }
 
-  // Calcul du moyen de secours le plus proche (Sapeurs-Pompiers / Ambulance) et hôpital le plus proche
+  // Moyen de secours le plus proche (Sapeurs-Pompiers / Ambulance) et hôpital réel (sans fallback fictif)
   let closestUnit: any = null;
   let intervention: any = null;
 
@@ -97,7 +158,7 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
          AND ($3::text[] IS NULL OR o.type=ANY($3::text[]))
        ORDER BY ST_Distance(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) ASC
        LIMIT 1`,
-      [d.longitude, d.latitude,d.requested_service ? ({fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']} as Record<string,string[]>)[d.requested_service] : null]
+      [d.longitude, d.latitude, d.requested_service ? ({fire:['fire_station'],ambulance:['ambulance_service'],samu:['samu'],police:['police','gendarmerie']} as Record<string,string[]>)[d.requested_service] : null]
     );
     if (unitRow.rows[0]) {
       const u = unitRow.rows[0];
@@ -114,24 +175,24 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
       };
 
       if (d.requested_service && pool) {
-        const client=await pool.connect();
+        const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          const locked=await client.query(`SELECT status FROM response_units WHERE id=$1 FOR UPDATE`,[u.id]);
-          if(locked.rows[0]?.status==='available') {
-            const assigned=await client.query(`INSERT INTO interventions(incident_id,organization_id,response_unit_id,status) VALUES($1,$2,$3,'assigned') RETURNING *`,[saved.rows[0].id,u.organization_id,u.id]);
-            intervention=assigned.rows[0];
-            await client.query(`UPDATE response_units SET status='assigned',updated_at=NOW() WHERE id=$1`,[u.id]);
-            await client.query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`,[saved.rows[0].id]);
-            await client.query(`INSERT INTO incident_events(incident_id,actor_id,type,from_status,to_status,metadata) VALUES($1,$2,'auto_assigned','new','assigned',$3)`,[saved.rows[0].id,req.userId,{response_unit_id:u.id,organization_id:u.organization_id}]);
-            await client.query(`INSERT INTO operational_notifications(organization_id,recipient_roles,type,title,message,entity_type,entity_id) VALUES($1,$2,'intervention.assigned','Nouvelle mission prioritaire',$3,'intervention',$4)`,[u.organization_id,d.requested_service==='fire'?['firefighter']:['ambulance_driver'],`${d.type} · position GPS disponible`,intervention.id]);
-            saved.rows[0].status='assigned';
+          const locked = await client.query(`SELECT status FROM response_units WHERE id=$1 FOR UPDATE`, [u.id]);
+          if (locked.rows[0]?.status === 'available') {
+            const assigned = await client.query(`INSERT INTO interventions(incident_id,organization_id,response_unit_id,status) VALUES($1,$2,$3,'assigned') RETURNING *`, [saved.rows[0].id, u.organization_id, u.id]);
+            intervention = assigned.rows[0];
+            await client.query(`UPDATE response_units SET status='assigned',updated_at=NOW() WHERE id=$1`, [u.id]);
+            await client.query(`UPDATE incidents SET status='assigned',updated_at=NOW() WHERE id=$1`, [saved.rows[0].id]);
+            await client.query(`INSERT INTO incident_events(incident_id,actor_id,type,from_status,to_status,metadata) VALUES($1,$2,'auto_assigned','new','assigned',$3)`, [saved.rows[0].id, req.userId, {response_unit_id: u.id, organization_id: u.organization_id}]);
+            await client.query(`INSERT INTO operational_notifications(organization_id,recipient_roles,type,title,message,entity_type,entity_id) VALUES($1,$2,'intervention.assigned','Nouvelle mission prioritaire',$3,'intervention',$4)`, [u.organization_id, d.requested_service==='fire'?['firefighter']:['ambulance_driver'], `${d.type} · position GPS disponible`, intervention.id]);
+            saved.rows[0].status = 'assigned';
           }
           await client.query('COMMIT');
         } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
-        if(intervention) {
-          const recipients=await query<{user_id:string}>(`SELECT DISTINCT ur.user_id FROM user_roles ur JOIN organization_members om ON om.user_id=ur.user_id AND om.organization_id=ur.organization_id WHERE ur.organization_id=$1 AND ur.role_key=ANY($2::text[]) AND om.status='active'`,[u.organization_id,d.requested_service==='fire'?['firefighter']:['ambulance_driver']]);
-          await notifyUsers(recipients.rows.map(row=>row.user_id),'Nouvelle mission prioritaire',`${d.type} · ouvrez LOTISEC pour accepter`,{type:'intervention.assigned',intervention_id:intervention.id});
+        if (intervention) {
+          const recipients = await query<{user_id:string}>(`SELECT DISTINCT ur.user_id FROM user_roles ur JOIN organization_members om ON om.user_id=ur.user_id AND om.organization_id=ur.organization_id WHERE ur.organization_id=$1 AND ur.role_key=ANY($2::text[]) AND om.status='active'`, [u.organization_id, d.requested_service==='fire'?['firefighter']:['ambulance_driver']]);
+          await notifyUsers(recipients.rows.map(row=>row.user_id), 'Nouvelle mission prioritaire', `${d.type} · ouvrez LOTISEC pour accepter`, {type:'intervention.assigned', intervention_id:intervention.id});
         }
       }
     }
@@ -139,12 +200,8 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
     console.warn('Erreur recherche response_units:', e);
   }
 
-  let closestHospital: any = {
-    name: 'CHU Sylvanus Olympio',
-    distance_km: 1.8,
-    eta_minutes: 4,
-    phone: '+228 22 21 25 01'
-  };
+  // Pas de CHU fictif par défaut : null si la base n'a pas de facility proche
+  let closestHospital: any = null;
 
   try {
     const hospRow = await query<any>(
@@ -181,6 +238,116 @@ router.post('/incidents', optionalAuth, async (req: AuthRequest, res) => {
   });
 });
 
+// Route d'enrichissement d'un incident (complément 10 secondes post-SOS)
+const reportSchema = z.object({
+  type: z.string().min(2).optional(),
+  victims: z.number().int().min(0).max(99).optional(),
+  vehicles: z.number().int().min(0).max(30).optional(),
+  vehicle_type: z.string().max(100).optional(),
+  description: z.string().max(2000).optional(),
+  requested_service: z.enum(['fire','ambulance','samu','police']).optional(),
+  flags: z.array(z.string()).max(20).optional(),
+  client_event_id: z.string().max(120).optional(),
+});
+
+router.patch('/incidents/:id/report', optionalAuth, async (req: AuthRequest, res) => {
+  const parsed = reportSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ detail: parsed.error.issues[0]?.message || 'Complément invalide' });
+
+  const incidentRow = await query<any>('SELECT * FROM incidents WHERE id=$1', [req.params.id]);
+  if (!incidentRow.rows[0]) return res.status(404).json({ detail: 'Incident introuvable' });
+  const incident = incidentRow.rows[0];
+
+  const isOperator = req.permissions?.some(p => p === '*' || p === 'incidents:manage');
+  const isReporter = (req.userId && req.userId === incident.reporter_id) ||
+                     (parsed.data.client_event_id && parsed.data.client_event_id === incident.client_event_id) ||
+                     (!incident.reporter_id);
+  if (!isOperator && !isReporter) {
+    return res.status(403).json({ detail: 'Non autorisé à enrichir cet incident' });
+  }
+
+  const d = parsed.data;
+  let updatedFlags: string[] = Array.isArray(incident.flags) ? [...incident.flags] : [];
+  if (d.flags && Array.isArray(d.flags)) {
+    updatedFlags = Array.from(new Set([...updatedFlags, ...d.flags]));
+  }
+  // Retirer details_pending
+  updatedFlags = updatedFlags.filter(f => f !== 'details_pending');
+  if (d.victims !== undefined) {
+    updatedFlags = updatedFlags.filter(f => f !== 'victims_unknown');
+  }
+  if (d.vehicles !== undefined) {
+    updatedFlags = updatedFlags.filter(f => f !== 'vehicles_unknown');
+  }
+
+  const newType = d.type || incident.type;
+  const newVictims = d.victims !== undefined ? d.victims : incident.victims;
+  const newVehicles = d.vehicles !== undefined ? d.vehicles : incident.vehicles;
+  const newVehicleType = d.vehicle_type !== undefined ? d.vehicle_type : incident.vehicle_type;
+  const newDescription = d.description !== undefined ? d.description : incident.description;
+  const newRequestedService = d.requested_service || incident.requested_service;
+
+  let newSeverity = incident.severity;
+  const severeFlags = updatedFlags.filter(f => ['unconscious', 'bleeding', 'entrapped', 'fire', 'inconscient', 'saignement', 'coince', 'feu'].some(s => f.toLowerCase().includes(s)));
+  if (newSeverity === 'unknown') {
+    if (newVictims >= 2 || severeFlags.length >= 2) newSeverity = 'high';
+    else if (newVictims >= 1 || severeFlags.length >= 1) newSeverity = 'medium';
+  }
+  const newPriorityScore = score(newSeverity, newVictims, newVehicles, updatedFlags);
+
+  const updated = await query<any>(
+    `UPDATE incidents SET
+      type = $1, victims = $2, vehicles = $3, vehicle_type = $4,
+      description = $5, flags = $6, severity = $7, priority_score = $8,
+      requested_service = COALESCE($9, requested_service), updated_at = NOW()
+     WHERE id = $10 RETURNING *`,
+    [newType, newVictims, newVehicles, newVehicleType, newDescription, updatedFlags, newSeverity, newPriorityScore, newRequestedService || null, incident.id]
+  );
+
+  await query(`INSERT INTO incident_events (incident_id, actor_id, type, metadata) VALUES ($1, $2, 'report_updated', $3)`,
+    [incident.id, req.userId || null, { victims: newVictims, vehicles: newVehicles, flags: updatedFlags }]
+  );
+
+  if (req.userId) {
+    await audit(req.userId, req.organizationId, 'incident.report_updated', 'incident', incident.id, { victims: newVictims, vehicles: newVehicles });
+  }
+
+  try {
+    const sevLabel = updated.rows[0].severity === 'critical' ? 'Critique'
+      : updated.rows[0].severity === 'high' ? 'Élevée'
+      : updated.rows[0].severity === 'medium' ? 'Modérée'
+      : updated.rows[0].severity === 'low' ? 'Faible'
+      : 'À évaluer';
+
+    broadcast({
+      type: 'INCIDENT_MODIFIE',
+      event: 'incident:updated',
+      id: updated.rows[0].id,
+      incident: {
+        id: updated.rows[0].id,
+        type: updated.rows[0].type,
+        severity: sevLabel,
+        raw_severity: updated.rows[0].severity,
+        location: updated.rows[0].address || 'Position transmise',
+        victims: updated.rows[0].victims,
+        vehicles: updated.rows[0].vehicles,
+        vehicle_type: updated.rows[0].vehicle_type,
+        description: updated.rows[0].description,
+        flags: updated.rows[0].flags || [],
+        client_event_id: updated.rows[0].client_event_id || null,
+        source: updated.rows[0].source === 'web' ? 'Portail citoyen web' : 'Application mobile réelle',
+        accuracy: updated.rows[0].accuracy ? `${updated.rows[0].accuracy} m` : 'Position GPS',
+        lat: Number(updated.rows[0].latitude),
+        lng: Number(updated.rows[0].longitude),
+        status: updated.rows[0].status === 'validated' ? 'Validée' : updated.rows[0].status === 'assigned' ? 'Affectée' : updated.rows[0].status === 'cancelled' ? 'Rejetée' : 'Nouveau',
+        qr_token: updated.rows[0].qr_token || null
+      }
+    });
+  } catch {}
+
+  return res.json({ incident: updated.rows[0] });
+});
+
 router.get(['/incidents', '/alerts'], optionalAuth, async (req: AuthRequest, res) => {
   const since = typeof req.query.since === 'string' ? req.query.since : null;
   const result = await query<any>(
@@ -190,17 +357,84 @@ router.get(['/incidents', '/alerts'], optionalAuth, async (req: AuthRequest, res
   return res.json({ incidents: result.rows, alerts: result.rows, server_time: new Date().toISOString() });
 });
 
-router.patch('/incidents/:id/status', requireAuth, requirePermission('incidents:manage'), async (req: AuthRequest, res) => {
-  const parsed = z.object({ status: z.enum(['validated','rejected','assigned','en_route','on_scene','patient_loaded','to_hospital','arrived_hospital','completed','cancelled']) }).safeParse(req.body);
+// Suivi public et sécurisé de l'incident pour le déclarant
+router.get('/incidents/:id/status', optionalAuth, async (req: AuthRequest, res) => {
+  const result = await query<any>(`SELECT id, status, type, severity, priority_score, address, accuracy, latitude, longitude, created_at, updated_at, reporter_id, client_event_id FROM incidents WHERE id=$1`, [req.params.id]);
+  if (!result.rows[0]) return res.status(404).json({ detail: 'Incident introuvable' });
+  const inc = result.rows[0];
+
+  let interventionInfo: any = null;
+  try {
+    const intRow = await query<any>(`SELECT i.id, i.status, ru.name as unit_name, ru.type as unit_type, ru.phone as unit_phone, mf.name as hospital_name
+      FROM interventions i
+      LEFT JOIN response_units ru ON ru.id=i.response_unit_id
+      LEFT JOIN medical_facilities mf ON mf.id=i.hospital_id
+      WHERE i.incident_id=$1 ORDER BY i.created_at DESC LIMIT 1`, [req.params.id]);
+    if (intRow.rows[0]) interventionInfo = intRow.rows[0];
+  } catch {}
+
+  return res.json({
+    incident: {
+      id: inc.id,
+      status: inc.status,
+      type: inc.type,
+      severity: inc.severity,
+      priority_score: inc.priority_score,
+      address: inc.address,
+      accuracy: inc.accuracy,
+      latitude: Number(inc.latitude),
+      longitude: Number(inc.longitude),
+      created_at: inc.created_at,
+      updated_at: inc.updated_at
+    },
+    intervention: interventionInfo
+  });
+});
+
+router.patch('/incidents/:id/status', optionalAuth, async (req: AuthRequest, res) => {
+  const parsed = z.object({
+    status: z.enum(['validated','rejected','assigned','en_route','on_scene','patient_loaded','to_hospital','arrived_hospital','completed','cancelled']),
+    client_event_id: z.string().optional()
+  }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ detail: 'Statut invalide' });
-  const before = await query<any>('SELECT status FROM incidents WHERE id=$1', [req.params.id]);
+
+  const before = await query<any>('SELECT * FROM incidents WHERE id=$1', [req.params.id]);
   if (!before.rows[0]) return res.status(404).json({ detail: 'Incident introuvable' });
-  if (!canTransition(INCIDENT_TRANSITIONS,before.rows[0].status,parsed.data.status)) {
-    return res.status(409).json({ detail:`Transition ${before.rows[0].status} -> ${parsed.data.status} interdite` });
+  const incident = before.rows[0];
+
+  const isOperator = req.permissions?.some(p => p === '*' || p === 'incidents:manage');
+  const isDeclarantCancel = parsed.data.status === 'cancelled' && (
+    (req.userId && req.userId === incident.reporter_id) ||
+    (parsed.data.client_event_id && parsed.data.client_event_id === incident.client_event_id) ||
+    (!incident.reporter_id && parsed.data.status === 'cancelled')
+  );
+
+  if (!isOperator && !isDeclarantCancel) {
+    return res.status(403).json({ detail: 'Permission insuffisante pour modifier ce statut' });
   }
+
+  if (!canTransition(INCIDENT_TRANSITIONS, incident.status, parsed.data.status)) {
+    return res.status(409).json({ detail: `Transition ${incident.status} -> ${parsed.data.status} interdite` });
+  }
+
   const updated = await query<any>('UPDATE incidents SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *', [parsed.data.status, req.params.id]);
-  await query(`INSERT INTO incident_events (incident_id, actor_id, type, from_status, to_status) VALUES ($1,$2,'status_changed',$3,$4)`, [req.params.id, req.userId, before.rows[0].status, parsed.data.status]);
-  await audit(req.userId,req.organizationId,'incident.status_changed','incident',req.params.id,{from:before.rows[0].status,to:parsed.data.status});
+  await query(`INSERT INTO incident_events (incident_id, actor_id, type, from_status, to_status) VALUES ($1,$2,'status_changed',$3,$4)`, [req.params.id, req.userId || null, incident.status, parsed.data.status]);
+  if (req.userId) {
+    await audit(req.userId, req.organizationId, 'incident.status_changed', 'incident', req.params.id, { from: incident.status, to: parsed.data.status });
+  }
+
+  try {
+    broadcast({
+      type: 'INCIDENT_STATUT_MODIFIE',
+      event: 'incident:updated',
+      id: updated.rows[0].id,
+      incident: {
+        id: updated.rows[0].id,
+        status: parsed.data.status === 'validated' ? 'Validée' : (parsed.data.status === 'cancelled' || parsed.data.status === 'rejected') ? 'Rejetée' : parsed.data.status === 'assigned' ? 'Affectée' : parsed.data.status
+      }
+    });
+  } catch {}
+
   return res.json({ incident: updated.rows[0] });
 });
 

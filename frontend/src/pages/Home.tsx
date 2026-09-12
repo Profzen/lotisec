@@ -53,21 +53,77 @@ export function Home() {
       .finally(() => setScansLoaded(true));
   }, []);
 
+  const [sosIncidentId, setSosIncidentId] = useState<string | null>(null);
+  const [sosClientEventId, setSosClientEventId] = useState<string | null>(null);
+  const [assignedUnit, setAssignedUnit] = useState<any>(null);
+  const [assignedHospital, setAssignedHospital] = useState<any>(null);
+  const [dispatchStatus, setDispatchStatus] = useState<'awaiting_dispatch' | 'recommended' | 'assigned'>('awaiting_dispatch');
+  const [showComplementModal, setShowComplementModal] = useState(false);
+  const [complementType, setComplementType] = useState('Accident routier');
+  const [complementVictims, setComplementVictims] = useState('Je ne sais pas');
+  const [complementDangers, setComplementDangers] = useState<string[]>([]);
+  const [complementVehicles, setComplementVehicles] = useState('Je ne sais pas');
+  const [complementLoading, setComplementLoading] = useState(false);
+  const [complementDone, setComplementDone] = useState(false);
+
+  // Polling du statut réel côté régulation
+  useEffect(() => {
+    if (!sosActif || !sosIncidentId) return;
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/api/v1/incidents/${sosIncidentId}/status`, { headers: authHeaders() });
+        if (data?.incident) {
+          if (data.incident.status === 'cancelled' || data.incident.status === 'rejected') {
+            setSosActif(false);
+            setSosIncidentId(null);
+            toast('Le signalement a été clôturé ou rejeté.');
+          } else if (data.incident.status === 'assigned') {
+            setDispatchStatus('assigned');
+          }
+        }
+        if (data?.intervention?.unit_name) {
+          setAssignedUnit({ name: data.intervention.unit_name, type: data.intervention.unit_type, phone: data.intervention.unit_phone || '118' });
+          setDispatchStatus('assigned');
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [sosActif, sosIncidentId]);
+
   const handleSOS = () => {
     if (sosActif) {
-      if(window.confirm("Annuler l'alerte ? Les secours ont déjà été notifiés.")) {
-        setSosActif(false);
+      if (window.confirm("Confirmer l'annulation de ce signalement d'urgence auprès de LOTISEC ?")) {
+        annulerSOS();
       }
     } else {
-      if(window.confirm("🚨 SOS IMMÉDIAT\nVotre position sera envoyée à votre contact d'urgence via WhatsApp.")) {
+      if (window.confirm("🚨 SIGNALEMENT SOS D'URGENCE\nVotre position géographique va être transmise au centre de supervision LOTISEC pour prise en charge.")) {
         sendSOS();
       }
     }
   };
 
+  const annulerSOS = async () => {
+    if (sosIncidentId) {
+      try {
+        await api.patch(`/api/v1/incidents/${sosIncidentId}/status`, {
+          status: 'cancelled',
+          client_event_id: sosClientEventId
+        }, { headers: authHeaders() });
+        toast.success("Signalement annulé auprès de la supervision.");
+      } catch {
+        toast.error("Erreur lors de l'annulation serveur.");
+      }
+    }
+    setSosActif(false);
+    setSosIncidentId(null);
+    setAssignedUnit(null);
+    setAssignedHospital(null);
+    setComplementDone(false);
+  };
+
   const sendSOS = async () => {
     if (!navigator.geolocation) {
-      toast.error('Géolocalisation non supportée par votre navigateur.');
+      toast.error('Géolocalisation non supportée. Appelez le 118.');
       return;
     }
 
@@ -76,19 +132,35 @@ export function Home() {
       async (position) => {
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
+        const clientEventId = `web-${user?.id || 'anonymous'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         try {
-          // Attempt API calls without blocking WA
-          await api.post('/api/v1/incidents', {
-            source: 'web', type: 'SOS citoyen', severity: 'critical', latitude, longitude,
-            accuracy: position.coords.accuracy || 0, address: 'Position GPS web', victims: 1,
-            vehicles: 0, description: 'SOS déclenché depuis le portail citoyen', qr_token: user?.qr_token,
-            client_event_id: `web-${user?.id || 'anonymous'}-${Date.now()}`
+          const { data } = await api.post('/api/v1/incidents', {
+            source: 'web',
+            type: 'Urgence citoyenne',
+            severity: 'unknown',
+            latitude,
+            longitude,
+            accuracy: position.coords.accuracy || 0,
+            address: 'Position GPS transmise par le portail web',
+            victims: 0,
+            vehicles: 0,
+            flags: ['details_pending', 'victims_unknown', 'vehicles_unknown'],
+            qr_token: user?.qr_token,
+            client_event_id: clientEventId
           }, { headers: authHeaders() });
 
+          const incId = data?.incident?.id || null;
+          setSosIncidentId(incId);
+          setSosClientEventId(clientEventId);
+          setAssignedUnit(data?.closest_unit || null);
+          setAssignedHospital(data?.closest_hospital || null);
+          setDispatchStatus(data?.dispatch_status || 'awaiting_dispatch');
           setSosActif(true);
-          toast.success('SOS transmis au centre de supervision LOTISEC.');
+          toast.success('Alerte reçue par LOTISEC. En attente de validation.');
+          setShowComplementModal(true);
+
           const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-          const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\nBonjour! Je suis en danger. J'ai besoin d'aide immédiatement, s'il vous plaît !\n\n📍 Voici ma position actuelle : ${mapsUrl}`;
+          const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\nBonjour ! Je signale une urgence. Voici ma position actuelle : ${mapsUrl}`;
           const phone = CONTACTS[1].phone.replace(/[^\d+]/g, "");
           window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 
@@ -100,10 +172,38 @@ export function Home() {
       },
       () => {
         setLoadingSOS(false);
-        toast.error('Position GPS refusée. Impossible d\'envoyer la position.');
+        toast.error('Position GPS refusée ou indisponible. Vous pouvez contacter directement le 118.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const envoyerComplement = async () => {
+    if (!sosIncidentId) return;
+    setComplementLoading(true);
+    try {
+      const victimsNum = complementVictims === '1' ? 1 : complementVictims === '2' ? 2 : complementVictims === '3+' ? 3 : 0;
+      const vehiclesNum = complementVehicles === '1' ? 1 : complementVehicles === '2' ? 2 : complementVehicles === '3+' ? 3 : 0;
+      const flags = [...complementDangers];
+      if (complementVictims === 'Je ne sais pas') flags.push('victims_unknown');
+      if (complementVehicles === 'Je ne sais pas') flags.push('vehicles_unknown');
+
+      await api.patch(`/api/v1/incidents/${sosIncidentId}/report`, {
+        type: complementType,
+        victims: victimsNum,
+        vehicles: vehiclesNum,
+        flags,
+        client_event_id: sosClientEventId
+      }, { headers: authHeaders() });
+
+      toast.success("Précisions transmises à la régulation.");
+      setComplementDone(true);
+      setShowComplementModal(false);
+    } catch {
+      toast.error("Erreur lors de l'envoi des précisions.");
+    } finally {
+      setComplementLoading(false);
+    }
   };
 
   const generatePDF = () => {
@@ -134,19 +234,46 @@ export function Home() {
             <div className="sos-text-sub">{sosActif ? 'ANNULER' : 'URGENCE'}</div>
           </button>
         </div>
-        <div className="sos-instruction">{sosActif ? 'APPUYER POUR ANNULER' : 'DÉCLENCHER LE SOS'}</div>
+        <div className="sos-instruction">{sosActif ? 'SIGNALEMENT ACTIF · CLIQUER POUR ANNULER' : 'DÉCLENCHER LE SOS'}</div>
       </div>
 
       <div className="white-sheet">
         
         {sosActif && (
-          <div className="lotisec-card" style={{ borderColor: 'var(--color-danger)', borderWidth: 1, borderStyle: 'solid' }}>
-            <div className="lotisec-card-header" style={{ color: 'var(--color-danger)' }}>ACTIONS RECOMMANDÉES</div>
+          <div className="lotisec-card" style={{ borderColor: 'var(--color-danger)', borderWidth: 1.5, borderStyle: 'solid', padding: '14px', backgroundColor: '#fff' }}>
+            <div className="lotisec-card-header" style={{ color: 'var(--color-danger)', fontWeight: 'bold' }}>
+              {dispatchStatus === 'assigned' ? 'UNITÉ DE SECOURS AFFECTÉE' : 'SIGNALEMENT TRANSMIS · EN ATTENTE DE VALIDATION'}
+            </div>
+            
+            {assignedUnit ? (
+              <div style={{ backgroundColor: 'rgba(21,101,216,0.06)', borderRadius: '8px', padding: '10px', marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>{dispatchStatus === 'assigned' ? 'Unité affectée' : 'Unité recommandée'}</div>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a' }}>{assignedUnit.name}</div>
+                <div style={{ fontSize: '12px', color: dispatchStatus === 'assigned' ? '#16a34a' : '#d97706' }}>
+                  {dispatchStatus === 'assigned' ? 'Mission en cours' : 'Disponibilité à confirmer par la régulation'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: 'rgba(21,101,216,0.04)', borderRadius: '8px', padding: '10px', marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}>En attente d'affectation</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Votre alerte est enregistrée au centre de régulation LOTISEC.</div>
+              </div>
+            )}
+
+            {!complementDone && (
+              <button
+                onClick={() => setShowComplementModal(true)}
+                style={{ width: '100%', padding: '10px', backgroundColor: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '8px' }}
+              >
+                Compléter l'alerte (victimes, dangers…)
+              </button>
+            )}
+
             <div className="action-item" onClick={() => window.open('https://www.google.com/maps/search/hopital', '_blank')} style={{ backgroundColor: 'rgba(210,16,52,0.05)', border: 'none' }}>
               <div className="action-icon green"><Flame size={20} /></div>
               <div className="action-content">
-                <div className="action-title" style={{ color: 'var(--color-primary)' }}>Hôpital le plus proche</div>
-                <div className="action-subtitle">Afficher l'itinéraire GPS</div>
+                <div className="action-title" style={{ color: 'var(--color-primary)' }}>{assignedHospital?.name || 'Hôpital le plus proche'}</div>
+                <div className="action-subtitle">Afficher l'itinéraire d'urgence</div>
               </div>
               <ChevronRight size={20} color="#9ca3af" />
             </div>
@@ -313,6 +440,76 @@ export function Home() {
             </div>
             <button className="btn primary" onClick={generatePDF}>Imprimer / PDF</button>
             <button className="btn ghost mt-4" onClick={() => setQrModalVisible(false)}>Fermer</button>
+          </div>
+        </div>
+      )}
+
+      {/* Complement Modal */}
+      {showComplementModal && (
+        <div className="qr-modal-overlay" style={{ zIndex: 1000 }} onClick={(e) => { if (e.target === e.currentTarget) setShowComplementModal(false); }}>
+          <div className="qr-modal-content" style={{ maxWidth: '420px', width: '90%' }}>
+            <h3 style={{ marginBottom: '0.75rem', color: 'var(--color-primary)' }}>Précisions d'urgence (facultatif)</h3>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
+              Votre alerte est déjà transmise. Ces informations aident la régulation à calibrer les secours.
+            </p>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Type d'événement</label>
+              <select className="input" value={complementType} onChange={(e) => setComplementType(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+                <option value="Accident routier">Accident routier</option>
+                <option value="Urgence médicale / Malaise">Urgence médicale / Malaise</option>
+                <option value="Incendie / Fumée">Incendie / Fumée</option>
+                <option value="Autre urgence">Autre urgence</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Victimes estimées</label>
+              <select className="input" value={complementVictims} onChange={(e) => setComplementVictims(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+                <option value="Je ne sais pas">Je ne sais pas</option>
+                <option value="1">1 victime</option>
+                <option value="2">2 victimes</option>
+                <option value="3+">3 victimes ou plus</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Dangers observés</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {['Personne inconsciente', 'Saignement grave', 'Personne coincée', 'Feu / fumée', 'Voie bloquée'].map((d) => {
+                  const selected = complementDangers.includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        setComplementDangers(selected ? complementDangers.filter(x => x !== d) : [...complementDangers, d]);
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        border: selected ? '1px solid var(--color-primary)' : '1px solid #cbd5e1',
+                        backgroundColor: selected ? 'rgba(21,101,216,0.1)' : '#f8fafc',
+                        color: selected ? 'var(--color-primary)' : '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '1.25rem' }}>
+              <button className="btn primary" style={{ flex: 1 }} onClick={envoyerComplement} disabled={complementLoading}>
+                {complementLoading ? 'Envoi…' : 'Transmettre'}
+              </button>
+              <button className="btn ghost" onClick={() => setShowComplementModal(false)}>
+                Plus tard
+              </button>
+            </div>
           </div>
         </div>
       )}

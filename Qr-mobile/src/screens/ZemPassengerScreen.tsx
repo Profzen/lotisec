@@ -257,8 +257,16 @@ export default function ZemPassengerScreen({ navigation }: any) {
       return;
     }
 
-    const startLat = location?.coords.latitude || DEFAULT_COORDS.latitude;
-    const startLng = location?.coords.longitude || DEFAULT_COORDS.longitude;
+    if (!location || location.coords.accuracy === null) {
+      Alert.alert(
+        'Position de départ requise',
+        'Votre position GPS précise est indispensable pour que le conducteur Zem puisse vous retrouver.'
+      );
+      return;
+    }
+
+    const startLat = location.coords.latitude;
+    const startLng = location.coords.longitude;
 
     // Calcul distance et prix garanti
     const distanceKm = routeData?.distanceKm || calculateFallbackDistance({ latitude: startLat, longitude: startLng }, { latitude: destination.lat, longitude: destination.lng }).distanceKm;
