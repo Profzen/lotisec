@@ -25,6 +25,7 @@ import { getRoadRoute, localRoutePlan } from './services/routing'
 import { rankAmbulances, rankHospitals } from './services/decision'
 import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, probeBackendHealth } from './services/mobileGateway'
 import { getAccessToken } from './services/auth'
+import { api } from './services/api'
 import { useFogEngine } from './hooks/useFogEngine'
 import { announceAmbulanceAssignment, announceCongestion, announceMissionStage, announceNewIncident, announcePreDepartureDecision, getSoundsEnabled, playTargetLock, setSoundsEnabled as persistSounds, speakOperational, stopOperationalAudio, unlockSound } from './lib/sound'
 
