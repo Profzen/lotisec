@@ -23,7 +23,7 @@ import NationalPilotage from './pages/NationalPilotage'
 import { alerts as initialAlerts, ambulances as initialAmbulances, hospitals as initialHospitals } from './data/demo'
 import { getRoadRoute, localRoutePlan } from './services/routing'
 import { rankAmbulances, rankHospitals } from './services/decision'
-import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, probeBackendHealth } from './services/mobileGateway'
+import { connectRealMobileGateway, createTestIncident, getMobileGatewayConfig, normalizeMobileIncident, probeBackendHealth } from './services/mobileGateway'
 import { getAccessToken } from './services/auth'
 import { api } from './services/api'
 import { useFogEngine } from './hooks/useFogEngine'
@@ -248,6 +248,17 @@ export default function App(){
           })))
         }
       }).catch(()=>{})
+      api.alerts().then(res=>{
+        const list=res?.incidents||res?.alerts||(Array.isArray(res)?res:[])
+        if(Array.isArray(list) && list.length>0){
+          const normalized=list.map(item=>normalizeMobileIncident(item, 'incident:new')).filter(Boolean)
+          if(normalized.length>0){
+            setAlerts(normalized)
+            normalized.forEach(n=>seenIncidentIds.current.add(n.id))
+            setSelectedAlertId(current=>current||normalized[0]?.id||'')
+          }
+        }
+      }).catch(()=>{})
     }
     recordAudit('Environnement de données changé',next==='test'?'Mode test restauré, sans données terrain.':`Flux réel activé · ${queued.length} événement(s) isolé(s) importé(s).`,{category:'security',tone:next==='test'?'blue':'green',reference:'DATA-MODE',dataMode:next})
     notify(next==='test'?'Mode test restauré':'Flux mobile réel activé','green')
@@ -284,6 +295,17 @@ export default function App(){
             beds: f.emergency_capacity || 10,
             reception: 'Ouverte'
           })))
+        }
+      }).catch(()=>{})
+      api.alerts().then(res=>{
+        const list=res?.incidents||res?.alerts||(Array.isArray(res)?res:[])
+        if(Array.isArray(list) && list.length>0){
+          const normalized=list.map(item=>normalizeMobileIncident(item, 'incident:new')).filter(Boolean)
+          if(normalized.length>0){
+            setAlerts(normalized)
+            normalized.forEach(n=>seenIncidentIds.current.add(n.id))
+            setSelectedAlertId(current=>current||normalized[0]?.id||'')
+          }
         }
       }).catch(()=>{})
     }
@@ -974,5 +996,5 @@ export default function App(){
     return <Login onLoginSuccess={handleLoginSuccess} onStartDemo={handleStartDemoFromLogin}/>
   }
 
-  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} onLogout={handleLogout} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
+  return <><Layout activePage={activePage} onNavigate={setActivePage} portal={portal} onChangePortal={changePortal} notice={notice} onDismissNotice={()=>setNotice(null)} soundsEnabled={soundsEnabled} onToggleSounds={toggleSounds} mobileFeedStatus={mobileFeedStatus} dataMode={dataMode} operator={operator} fog={fog} onLogout={handleLogout} alerts={alerts} demo={{active:demoMode,busy:demoBusy,blocked:demoBlocked,blockedUntil:demoBlockedUntil,blockedMessage:demoBlockedMessage,step:demoStep,steps:DEMO_STEPS,onToggle:toggleDemo,onNext:runNextDemoStep,onStepClick:openDemoStep,onReset:()=>{setDemoStep(0);setDemoDecisionPending(null);resetOperationalState()}}}>{content}</Layout><DecisionReviewDialog review={decisionReview} operator={operator} onSelectCandidate={candidate=>setDecisionReview(current=>current?{...current,candidate}:current)} onConfirm={confirmDecisionReview} onCancel={cancelDecisionReview}/></>
 }

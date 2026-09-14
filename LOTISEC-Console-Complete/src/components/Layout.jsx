@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, Ambulance, BarChart3, Bell, Building2, CloudCog,
   ChevronDown, ChevronRight, ChevronUp, ClipboardCheck, ClipboardList, Database, FileBarChart, Gauge, HeartPulse, Home, Hospital, Landmark, LineChart, MapPinned, MonitorPlay, Moon, Network, RotateCcw, Route, Settings, ShieldCheck, Stethoscope, Sun, Target,
@@ -9,7 +9,7 @@ import { applyTheme, initialTheme } from '../lib/theme'
 const operationsNav = [
   { section:'OPÉRATIONS', items:[
     {to:'/', label:'Tableau de bord', icon:Home},
-    {to:'/alerts', label:'Alertes & incidents', icon:TriangleAlert, badge:3},
+    {to:'/alerts', label:'Alertes & incidents', icon:TriangleAlert},
     {to:'/interventions', label:'Interventions', icon:Activity},
     {to:'/map', label:'Carte opérationnelle', icon:MapPinned},
   ]},
@@ -38,7 +38,7 @@ const operationsNav = [
 const healthNav = [
   {section:'ESPACE SANTÉ',items:[
     {to:'/health-dashboard',label:'Vue d’ensemble',icon:Home},
-    {to:'/health-admissions',label:'Réceptions d’urgence',icon:Stethoscope,badge:2},
+    {to:'/health-admissions',label:'Réceptions d’urgence',icon:Stethoscope},
     {to:'/health-capacity',label:'Capacités d’accueil',icon:BedDouble},
     {to:'/health-transfers',label:'Transferts entrants',icon:ArrowRightLeft},
   ]},
@@ -69,7 +69,32 @@ const portalMeta={
   national:{label:'Pilotage national',short:'Ministères',role:'Décision publique',subtitle:'Pilotage national',tone:'violet'},
 }
 
-const navFor=portal=>portal==='health'?healthNav:portal==='national'?nationalNav:operationsNav
+const navFor=(portal, alerts=[], admissions=[])=>{
+  const activeAlertsCount = Array.isArray(alerts)
+    ? alerts.filter(a => !['Clôturée', 'Rejetée', 'Terminée'].includes(a.status)).length
+    : 0
+
+  if(portal==='health'){
+    const activeAdmissionsCount = Array.isArray(admissions) ? admissions.length : 0
+    return healthNav.map(group => ({
+      ...group,
+      items: group.items.map(item => item.to === '/health-admissions'
+        ? { ...item, badge: activeAdmissionsCount > 0 ? activeAdmissionsCount : null }
+        : item
+      )
+    }))
+  }
+
+  if(portal==='national') return nationalNav
+
+  return operationsNav.map(group => ({
+    ...group,
+    items: group.items.map(item => item.to === '/alerts'
+      ? { ...item, badge: activeAlertsCount > 0 ? activeAlertsCount : null }
+      : item
+    )
+  }))
+}
 
 const pageId=to=>to==='/'?'dashboard':to.slice(1)
 const emergencyContacts=[
@@ -78,14 +103,14 @@ const emergencyContacts=[
   {name:'Secours Abalo',detail:'Ambulance privée',number:'8880'},
 ]
 
-export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,onLogout,children}){
+export default function Layout({activePage,onNavigate,portal='operations',onChangePortal,notice,onDismissNotice,soundsEnabled,onToggleSounds,mobileFeedStatus,dataMode,operator,fog,demo,onLogout,alerts=[],admissions=[],children}){
   const [theme,setTheme] = useState(initialTheme())
   const [notificationsOpen,setNotificationsOpen]=useState(false)
   const [emergencyOpen,setEmergencyOpen]=useState(false)
   const [portalOpen,setPortalOpen]=useState(false)
   const [demoCollapsed,setDemoCollapsed]=useState(false)
   const mainRef=useRef(null)
-  const nav=navFor(portal)
+  const nav=useMemo(()=>navFor(portal, alerts, admissions), [portal, alerts, admissions])
   const meta=portalMeta[portal]||portalMeta.operations
   const activeNavClass=portal==='health'?'bg-emerald-600 text-white':portal==='national'?'bg-violet-700 text-white':'bg-blue-600 text-white'
   const notificationItems=portal==='health'
