@@ -26,6 +26,9 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const { getUser } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [origin, setOrigin] = useState<{lat: number, lng: number} | null>(null);
+  const [originName, setOriginName] = useState<string>('');
+  const [hasRealGps, setHasRealGps] = useState(false);
   const [destination, setDestination] = useState<{lat: number, lng: number} | null>(null);
   const [destinationName, setDestinationName] = useState<string>('');
   const [routeData, setRouteData] = useState<RouteData | null>(null);
@@ -61,20 +64,10 @@ export default function ZemPassengerScreen({ navigation }: any) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission requise', 'Activez la localisation pour commander un Zem.');
-        // Position par défaut sur Lomé
-        setLocation({
-          coords: {
-            latitude: DEFAULT_COORDS.latitude,
-            longitude: DEFAULT_COORDS.longitude,
-            altitude: null,
-            accuracy: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-          },
-          timestamp: Date.now(),
-        });
+        Alert.alert('Permission requise', 'Activez la localisation pour commander un Zem avec votre position actuelle. Vous pouvez aussi choisir votre départ sur la carte.');
+        setHasRealGps(false);
+        setLocation(null);
+        setOrigin(null);
         setLoading(false);
         return;
       }
@@ -83,6 +76,9 @@ export default function ZemPassengerScreen({ navigation }: any) {
         accuracy: Location.Accuracy.Balanced,
       });
       setLocation(loc);
+      setHasRealGps(true);
+      setOrigin({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      setOriginName('Ma position actuelle');
 
       // Écouter les mises à jour des courses
       if (supabase) {
@@ -118,19 +114,10 @@ export default function ZemPassengerScreen({ navigation }: any) {
       }
     } catch (err) {
       console.warn('[ZemPassenger] Erreur acquisition GPS:', err);
-      // Fallback Lomé
-      setLocation({
-        coords: {
-          latitude: DEFAULT_COORDS.latitude,
-          longitude: DEFAULT_COORDS.longitude,
-          altitude: null,
-          accuracy: null,
-          altitudeAccuracy: null,
-          heading: null,
-          speed: null,
-        },
-        timestamp: Date.now(),
-      });
+      setHasRealGps(false);
+      setLocation(null);
+      setOrigin(null);
+      setOriginName('');
     } finally {
       setLoading(false);
     }
@@ -177,23 +164,20 @@ export default function ZemPassengerScreen({ navigation }: any) {
       longitudeDelta: 0.02,
     }, 800);
 
-    // Calcul immédiat du tracé et de la distance
-    const startCoords = location
-      ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-      : DEFAULT_COORDS;
+    // Calcul immédiat du tracé et de la distance si départ défini
+    if (origin) {
+      const startCoords = { latitude: origin.lat, longitude: origin.lng };
+      const fallback = calculateFallbackDistance(startCoords, { latitude: lat, longitude: lng });
+      setRouteData({
+        coordinates: [startCoords, { latitude: lat, longitude: lng }],
+        distanceKm: fallback.distanceKm,
+        durationMin: fallback.durationMin,
+      });
 
-    // Estimation immédiate
-    const fallback = calculateFallbackDistance(startCoords, { latitude: lat, longitude: lng });
-    setRouteData({
-      coordinates: [startCoords, { latitude: lat, longitude: lng }],
-      distanceKm: fallback.distanceKm,
-      durationMin: fallback.durationMin,
-    });
-
-    // Raffinement via OSRM
-    const rData = await getRoute(startCoords, { latitude: lat, longitude: lng });
-    if (rData) {
-      setRouteData(rData);
+      // Raffinement via OSRM
+      getRoute(startCoords, { latitude: lat, longitude: lng }).then(rData => {
+        if (rData) setRouteData(rData);
+      }).catch(() => {});
     }
   };
 
@@ -201,46 +185,59 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const handleMapPress = async (e: any) => {
     if (activeRide) return;
 
-    const dest = {
+    const clicked = {
       lat: e.nativeEvent.coordinate.latitude,
       lng: e.nativeEvent.coordinate.longitude,
     };
-    setDestination(dest);
+
+    // Si aucun point de départ n'est défini, le clic définit le départ
+    if (!origin) {
+      setOrigin(clicked);
+      setOriginName('Point de départ sur la carte');
+      reverseGeocode(clicked.lat, clicked.lng).then(rev => {
+        if (rev) setOriginName(getShortName(rev));
+      }).catch(() => {});
+      return;
+    }
+
+    // Sinon le clic définit la destination
+    setDestination(clicked);
     setShowResults(false);
 
-    // Calcul immédiat de la distance pour un affichage instantané
-    const startCoords = location
-      ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-      : DEFAULT_COORDS;
-
-    const fallback = calculateFallbackDistance(startCoords, { latitude: dest.lat, longitude: dest.lng });
+    const startCoords = { latitude: origin.lat, longitude: origin.lng };
+    const fallback = calculateFallbackDistance(startCoords, { latitude: clicked.lat, longitude: clicked.lng });
     setRouteData({
-      coordinates: [startCoords, { latitude: dest.lat, longitude: dest.lng }],
+      coordinates: [startCoords, { latitude: clicked.lat, longitude: clicked.lng }],
       distanceKm: fallback.distanceKm,
       durationMin: fallback.durationMin,
     });
 
     // Géocodage inversé pour afficher le nom du lieu
-    reverseGeocode(dest.lat, dest.lng).then((reverseResult) => {
+    reverseGeocode(clicked.lat, clicked.lng).then((reverseResult) => {
       if (reverseResult) {
         const name = getShortName(reverseResult);
         setDestinationName(name);
         setSearchQuery(name);
       } else {
-        const name = `${dest.lat.toFixed(4)}, ${dest.lng.toFixed(4)}`;
+        const name = `${clicked.lat.toFixed(4)}, ${clicked.lng.toFixed(4)}`;
         setDestinationName(name);
         setSearchQuery(name);
       }
+    }).catch(() => {
+      setDestinationName(`${clicked.lat.toFixed(4)}, ${clicked.lng.toFixed(4)}`);
     });
 
     // Calcul de l'itinéraire OSRM
-    const rData = await getRoute(startCoords, { latitude: dest.lat, longitude: dest.lng });
-    if (rData) {
-      setRouteData(rData);
-    }
+    getRoute(startCoords, { latitude: clicked.lat, longitude: clicked.lng }).then(rData => {
+      if (rData) setRouteData(rData);
+    }).catch(() => {});
   };
 
   const requestZem = async () => {
+    if (!origin) {
+      Alert.alert('Point de départ requis', 'Activez votre localisation ou touchez la carte pour définir votre lieu de départ.');
+      return;
+    }
     if (!destination) {
       Alert.alert('Destination requise', 'Veuillez choisir un lieu d’arrivée sur la carte ou via la recherche.');
       return;
@@ -257,16 +254,8 @@ export default function ZemPassengerScreen({ navigation }: any) {
       return;
     }
 
-    if (!location || location.coords.accuracy === null) {
-      Alert.alert(
-        'Position de départ requise',
-        'Votre position GPS précise est indispensable pour que le conducteur Zem puisse vous retrouver.'
-      );
-      return;
-    }
-
-    const startLat = location.coords.latitude;
-    const startLng = location.coords.longitude;
+    const startLat = origin.lat;
+    const startLng = origin.lng;
 
     // Calcul distance et prix garanti
     const distanceKm = routeData?.distanceKm || calculateFallbackDistance({ latitude: startLat, longitude: startLng }, { latitude: destination.lat, longitude: destination.lng }).distanceKm;
@@ -313,24 +302,24 @@ export default function ZemPassengerScreen({ navigation }: any) {
     }
   };
 
-  const estimatedDistance = routeData?.distanceKm || (destination && location ? calculateFallbackDistance(
-    { latitude: location.coords.latitude, longitude: location.coords.longitude },
+  const estimatedDistance = routeData?.distanceKm || (destination && origin ? calculateFallbackDistance(
+    { latitude: origin.lat, longitude: origin.lng },
     { latitude: destination.lat, longitude: destination.lng }
   ).distanceKm : 0);
 
   const estimatedPrice = Math.max(300, Math.round(estimatedDistance * 75));
 
-  if (loading && !location) {
+  if (loading && !origin && !hasRealGps) {
     return (
       <View style={styles.centerState}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.centerText}>Acquisition de la carte et du GPS...</Text>
+        <Text style={styles.centerText}>Acquisition de la carte et de la localisation...</Text>
       </View>
     );
   }
 
-  const currentLat = location?.coords.latitude || DEFAULT_COORDS.latitude;
-  const currentLng = location?.coords.longitude || DEFAULT_COORDS.longitude;
+  const currentLat = origin?.lat || DEFAULT_COORDS.latitude;
+  const currentLng = origin?.lng || DEFAULT_COORDS.longitude;
 
   return (
     <View style={styles.container}>
@@ -417,19 +406,18 @@ export default function ZemPassengerScreen({ navigation }: any) {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsUserLocation={hasRealGps}
+        showsMyLocationButton={hasRealGps}
         onPress={handleMapPress}
         onMapReady={() => setMapReady(true)}
       >
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-          maximumZ={19}
-          flipY={false}
-          tileSize={256}
-          zIndex={1}
-          shouldReplaceMapContent={false}
-        />
+        {origin && (
+          <Marker
+            coordinate={{ latitude: origin.lat, longitude: origin.lng }}
+            title={originName || 'Point de départ'}
+            pinColor="#1366F3"
+          />
+        )}
         {destination && (
           <Marker
             coordinate={{ latitude: destination.lat, longitude: destination.lng }}
@@ -437,7 +425,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
             pinColor="#D21034"
           />
         )}
-        {destination && routeData && (
+        {origin && destination && routeData && (
           <Polyline
             coordinates={routeData.coordinates}
             strokeColor={colors.primary}
@@ -468,12 +456,14 @@ export default function ZemPassengerScreen({ navigation }: any) {
         {!activeRide ? (
           <>
             <Text style={styles.instruction} numberOfLines={2}>
-              {destination
-                ? destinationName || 'Destination sélectionnée'
-                : 'Recherchez une adresse ou touchez la carte pour choisir'}
+              {!origin
+                ? 'Touchez la carte ou activez le GPS pour définir votre départ'
+                : !destination
+                ? 'Recherchez une adresse ou touchez la carte pour choisir votre destination'
+                : `Départ : ${originName || 'Choisi'} - Arrivée : ${destinationName || 'Choisie'}`}
             </Text>
 
-            {destination && (
+            {origin && destination && (
               <View style={styles.estimateBox}>
                 <View style={styles.estimateItem}>
                   <Text style={styles.estimateLabel}>Distance</Text>
@@ -494,10 +484,10 @@ export default function ZemPassengerScreen({ navigation }: any) {
             <TouchableOpacity
               style={[
                 styles.btn,
-                { backgroundColor: destination ? colors.primary : colors.border },
+                { backgroundColor: (origin && destination) ? colors.primary : colors.border },
               ]}
               onPress={requestZem}
-              disabled={!destination || requestingRide}
+              disabled={!origin || !destination || requestingRide}
               activeOpacity={0.8}
             >
               {requestingRide ? (
@@ -506,7 +496,13 @@ export default function ZemPassengerScreen({ navigation }: any) {
                   <Text style={[styles.btnText, { marginLeft: 10 }]}>Recherche d’un Zem...</Text>
                 </View>
               ) : (
-                <Text style={styles.btnText}>Commander le Zem</Text>
+                <Text style={styles.btnText}>
+                  {!origin
+                    ? '1. Définir le départ'
+                    : !destination
+                    ? '2. Choisir la destination'
+                    : `Commander le Zem (${estimatedPrice} FCFA)`}
+                </Text>
               )}
             </TouchableOpacity>
           </>

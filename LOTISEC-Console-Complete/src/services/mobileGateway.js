@@ -10,7 +10,7 @@ const splitEvents=(value,fallback)=>String(value||'').split(',').map(item=>item.
 
 export function getMobileGatewayConfig(){
   return {
-    operationMode:String(import.meta.env.VITE_OPERATION_MODE||'test').toLowerCase()==='real'?'real':'test',
+    operationMode:String(import.meta.env.VITE_OPERATION_MODE||'real').toLowerCase()==='test'?'test':'real',
     apiUrl:String(import.meta.env.VITE_API_URL||''),
     socketUrl:String(import.meta.env.VITE_SOCKET_URL||''),
     socketPath:String(import.meta.env.VITE_SOCKET_PATH||'/socket.io'),
@@ -65,7 +65,8 @@ export function normalizeMobileIncident(payload={},eventName='incident:new'){
 
   return {
     id:String(payload.id||payload.alertId||payload.incidentId||`ALT-MOB-${Date.now()}`),
-    externalId:String(payload.externalId||payload.mobileReportId||payload.id||''),
+    externalId:String(payload.externalId||payload.mobileReportId||payload.client_event_id||payload.id||''),
+    clientEventId:payload.client_event_id||null,
     type:payload.type||payload.category||'Urgence signalée depuis le mobile',
     severity,
     location:payload.address||payload.location?.address||payload.locationName||payload.location||'Position transmise par le mobile',
@@ -129,54 +130,75 @@ export function connectRealMobileGateway({onStatus,onIncident,onPosition,onCapac
   let active=true
   let pollTimer=null
   let ws=null
+  const knownIncidentIds = new Set()
+  let initialPollDone = false
 
-  try{
-    if(apiUrl && !apiUrl.includes('vercel.app')){
-      const wsUrl=apiUrl.replace(/^http/,'ws')+'/ws/alertes'
-      ws=new WebSocket(wsUrl)
-      ws.onopen=()=>{onStatus?.('connected')}
-      ws.onmessage=(event)=>{
+  const tryConnectWs = () => {
+    if(!active) return
+    try{
+      const wsUrl = apiUrl.replace(/^http/i, 'ws') + '/ws/alertes'
+      ws = new WebSocket(wsUrl)
+      ws.onopen = () => { onStatus?.('connected') }
+      ws.onmessage = (event) => {
         try{
-          const data=JSON.parse(event.data)
+          const data = JSON.parse(event.data)
           if(data.type==='NOUVELLE_ALERTE'||data.type==='incident:new'||data.type==='INCIDENT_MODIFIE'||data.type==='INCIDENT_STATUT_MODIFIE'||data.incident){
-            const payload=data.incident||data
-            const isUpdate = data.event === 'incident:updated' || data.type === 'INCIDENT_MODIFIE' || data.type === 'INCIDENT_STATUT_MODIFIE'
-            const normalized=normalizeMobileIncident(payload, isUpdate ? 'incident:updated' : 'incident:new')
-            if(normalized) onIncident?.(normalized,{initial:false, isUpdate})
+            const payload = data.incident || data
+            const eventType = data.event || data.type
+            const isExplicitUpdate = eventType === 'incident:updated' || data.type === 'INCIDENT_MODIFIE' || data.type === 'INCIDENT_STATUT_MODIFIE'
+            const id = String(payload.id || payload.alertId || payload.incidentId || '')
+            const alreadyKnown = id && knownIncidentIds.has(id)
+            const isUpdate = isExplicitUpdate || alreadyKnown
+            const normalized = normalizeMobileIncident(payload, isUpdate ? 'incident:updated' : 'incident:new')
+            if(normalized){
+              knownIncidentIds.add(normalized.id)
+              onIncident?.(normalized, { initial: false, isUpdate })
+            }
           }
         }catch{}
       }
-      ws.onerror=()=>{}
-    }
-  }catch{}
+      ws.onerror = () => {}
+      ws.onclose = () => {
+        if(active) {
+          setTimeout(tryConnectWs, 5000)
+        }
+      }
+    }catch{}
+  }
 
-  let initialPollDone=false
-  const pollIncidents=async()=>{
+  tryConnectWs()
+
+  const pollIncidents = async () => {
     if(!active) return
     try{
-      const token=typeof localStorage!=='undefined'?(localStorage.getItem('token')||localStorage.getItem('lotisec-token')):null
-      const res=await fetch(`${apiUrl}/api/v1/incidents`,{
-        headers:{
-          'Accept':'application/json',
-          ...(token?{'Authorization':`Bearer ${token}`}:{})
+      const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('lotisec-token')) : null
+      const res = await fetch(`${apiUrl}/api/v1/incidents`, {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
       })
       if(res.ok){
         onStatus?.('connected')
-        const body=await res.json()
-        const incidents=body.incidents||body.alerts||(Array.isArray(body)?body:[])
+        const body = await res.json()
+        const incidents = body.incidents || body.alerts || (Array.isArray(body) ? body : [])
         if(Array.isArray(incidents)){
-          const isInitial=!initialPollDone
-          incidents.forEach(item=>{
-            const normalized=normalizeMobileIncident(item)
-            if(normalized) onIncident?.(normalized,{initial:isInitial, isUpdate:!isInitial})
+          const isInitial = !initialPollDone
+          incidents.forEach(item => {
+            const id = String(item.id || item.alertId || item.incidentId || '')
+            const alreadySeen = id && knownIncidentIds.has(id)
+            if(id) knownIncidentIds.add(id)
+            const normalized = normalizeMobileIncident(item, alreadySeen ? 'incident:updated' : 'incident:new')
+            if(normalized){
+              onIncident?.(normalized, { initial: isInitial, isUpdate: isInitial ? false : Boolean(alreadySeen) })
+            }
           })
-          initialPollDone=true
+          initialPollDone = true
         }
       }
     }catch{}
     if(active){
-      pollTimer=setTimeout(pollIncidents,4000)
+      pollTimer = setTimeout(pollIncidents, 3500)
     }
   }
 

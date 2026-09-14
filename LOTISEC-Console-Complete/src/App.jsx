@@ -170,19 +170,12 @@ export default function App(){
   const receiveIncident=(incident,{real=false,silent=false}={})=>{
     const started=performance.now()
     const enriched={receivedAt:new Date().toISOString(),transport:real?'Flux mobile réel':'WebSocket simulé',eventName:'incident:new',messageState:'Reçu · normalisé · en attente de validation',connectionState:'Temps réel',...incident}
-    const alreadyKnown=seenIncidentIds.current.has(enriched.id)
+    const alreadyKnown=seenIncidentIds.current.has(enriched.id) || (enriched.clientEventId && alerts.some(a=>a.clientEventId===enriched.clientEventId))
     seenIncidentIds.current.add(enriched.id)
-    setAlerts(current=>alreadyKnown?current.map(item=>item.id===enriched.id?{...item,...enriched}:item):[enriched,...current])
+    setAlerts(current=>alreadyKnown?current.map(item=>(item.id===enriched.id || (enriched.clientEventId && item.clientEventId===enriched.clientEventId))?{...item,...enriched}:item):[enriched,...current])
     if(!alreadyKnown && !silent){
       setSelectedAlertId(enriched.id)
-      if(activePageRef.current==='dashboard'){
-        if(!dashboardBeepPlayedRef.current){
-          dashboardBeepPlayedRef.current=true
-          announceNewIncident(enriched)
-        }
-      }else{
-        announceNewIncident(enriched)
-      }
+      announceNewIncident(enriched)
       notify(`🚨 Urgence mobile reçue : ${enriched.type} (${enriched.location})`,'red')
       recordAudit('Urgence mobile reçue',`${enriched.type} · ${enriched.location} · ${enriched.victims} victime(s) · GPS ${enriched.accuracy}`,{category:'mobile',tone:'red',reference:enriched.id,actor:enriched.source||'Application mobile réelle'})
     }
@@ -260,6 +253,40 @@ export default function App(){
   }
 
   useEffect(()=>{
+    if(dataModeRef.current==='real'){
+      api.resources().then(res=>{
+        const units=res?.resources||res?.ambulances||(Array.isArray(res)?res:[])
+        if(Array.isArray(units) && units.length>0){
+          setAmbulanceFleet(units.map(u=>({
+            id: u.id,
+            name: u.name || `Unité ${u.call_sign||u.registration||u.id}`,
+            type: u.type || 'Ambulance',
+            status: u.status === 'available' ? 'Disponible' : u.status === 'assigned' ? 'En mission' : u.status,
+            lat: Number(u.latitude || 6.1375),
+            lng: Number(u.longitude || 1.2125),
+            organization_id: u.organization_id,
+            speed: 0,
+            updated: "à l'instant",
+            gpsSource: 'Backend réel'
+          })))
+        }
+      }).catch(()=>{})
+      api.facilities().then(res=>{
+        const facs=res?.facilities||res?.hospitals||(Array.isArray(res)?res:[])
+        if(Array.isArray(facs) && facs.length>0){
+          setHealthCenters(facs.map(f=>({
+            id: f.id,
+            name: f.name,
+            address: f.address || '',
+            lat: Number(f.latitude || 6.1375),
+            lng: Number(f.longitude || 1.2125),
+            beds: f.emergency_capacity || 10,
+            reception: 'Ouverte'
+          })))
+        }
+      }).catch(()=>{})
+    }
+
     const gateway=connectRealMobileGateway({
       getAccessToken,
       onStatus:status=>setMobileFeedStatus(status==='not-configured'?'demo':status),
@@ -279,7 +306,7 @@ export default function App(){
       onCapacity:capacity=>{
         if(dataModeRef.current!=='real'){setRealEventQueue(current=>[...current,{kind:'capacity',payload:capacity,receivedAt:new Date().toISOString()}].slice(-100));return}
         setHealthCenters(current=>current.map(item=>item.id===capacity.id?{...item,beds:capacity.beds,occupancy:capacity.occupancy,reception:capacity.reception,lastCapacityUpdate:"à l'instant"}:item))
-        recordAudit('Capacité hospitalière reçue',`${capacity.id} · ${capacity.beds} place(s) annoncée(s).`,{category:'system',tone:'green',reference:capacity.id,actor:'Portail hôpital',dataMode:'real'})
+        recordAudit('Capacité hospitalière reçue',`${capacity.id} · ${capacity.beds} place(s) annoncée(s).`,{category:'system',tone:'green',reference:capacity.id,actor:'Portail centre de santé',dataMode:'real'})
         fog.enqueue('health-center.capacity',capacity,'Portail centre de santé')
       },
     })

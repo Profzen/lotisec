@@ -63,7 +63,9 @@ export default function HospitauxScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  // ─── Charger position et hôpitaux réels du Togo ──────────────────────
+  const [isFallback, setIsFallback] = useState(false);
+
+  // ─── Charger position et hôpitaux du Togo ──────────────────────
   const chargerPosition = useCallback(async () => {
     try {
       setErreur(null);
@@ -95,6 +97,7 @@ export default function HospitauxScreen({ navigation }: any) {
       }));
       if (liste.length > 0) {
         setHopitaux(liste);
+        setIsFallback(false);
       } else {
         injectTogoDefaultHospitals();
       }
@@ -108,13 +111,14 @@ export default function HospitauxScreen({ navigation }: any) {
   };
 
   const injectTogoDefaultHospitals = () => {
+    setIsFallback(true);
     setHopitaux([
-      { id: "1", name: "CHU Sylvanus Olympio (Tokoin)", type: "hopital", address: "Boulevard du 13 Janvier, Lomé", phone: "+228 22 21 25 01", distance: 1.8, minutes: 4, latitude: 6.1374, longitude: 1.2122, urgences: true, source: "verified" },
-      { id: "2", name: "CHU Campus Lomé", type: "hopital", address: "Campus universitaire, Lomé", phone: "+228 22 25 47 01", distance: 3.6, minutes: 7, latitude: 6.1756, longitude: 1.2137, urgences: true, source: "verified" },
-      { id: "3", name: "Hôpital Dogta-Lafiè", type: "hopital", address: "Agoè-Nyivé, Lomé", phone: "+228 22 53 70 00", distance: 6.8, minutes: 12, latitude: 6.2105, longitude: 1.1854, urgences: true, source: "verified" },
-      { id: "4", name: "Hôpital de Bè", type: "hopital", address: "Quartier Bè, Lomé", phone: "+228 22 21 16 41", distance: 4.1, minutes: 8, latitude: 6.1322, longitude: 1.2402, urgences: true, source: "verified" },
-      { id: "5", name: "Polyclinique Saint-Joseph", type: "clinique", address: "Hédzranawoé, Lomé", phone: "+228 22 26 72 24", distance: 5.2, minutes: 10, latitude: 6.1558, longitude: 1.2295, urgences: true, source: "verified" },
-      { id: "6", name: "Clinique Biasa", type: "clinique", address: "Boulevard Circulaire, Lomé", phone: "+228 22 21 00 31", distance: 2.9, minutes: 6, latitude: 6.1450, longitude: 1.2190, urgences: true, source: "verified" }
+      { id: "1", name: "CHU Sylvanus Olympio (Tokoin)", type: "hopital", address: "Boulevard du 13 Janvier, Lomé", phone: "+228 22 21 25 01", distance: 1.8, minutes: 4, latitude: 6.1374, longitude: 1.2122, urgences: true, source: "offline_fallback" },
+      { id: "2", name: "CHU Campus Lomé", type: "hopital", address: "Campus universitaire, Lomé", phone: "+228 22 25 47 01", distance: 3.6, minutes: 7, latitude: 6.1756, longitude: 1.2137, urgences: true, source: "offline_fallback" },
+      { id: "3", name: "Hôpital Dogta-Lafiè", type: "hopital", address: "Agoè-Nyivé, Lomé", phone: "+228 22 53 70 00", distance: 6.8, minutes: 12, latitude: 6.2105, longitude: 1.1854, urgences: true, source: "offline_fallback" },
+      { id: "4", name: "Hôpital de Bè", type: "hopital", address: "Quartier Bè, Lomé", phone: "+228 22 21 16 41", distance: 4.1, minutes: 8, latitude: 6.1322, longitude: 1.2402, urgences: true, source: "offline_fallback" },
+      { id: "5", name: "Polyclinique Saint-Joseph", type: "clinique", address: "Hédzranawoé, Lomé", phone: "+228 22 26 72 24", distance: 5.2, minutes: 10, latitude: 6.1558, longitude: 1.2295, urgences: true, source: "offline_fallback" },
+      { id: "6", name: "Clinique Biasa", type: "clinique", address: "Boulevard Circulaire, Lomé", phone: "+228 22 21 00 31", distance: 2.9, minutes: 6, latitude: 6.1450, longitude: 1.2190, urgences: true, source: "offline_fallback" }
     ]);
   };
 
@@ -237,7 +241,7 @@ export default function HospitauxScreen({ navigation }: any) {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Hôpitaux & Urgences</Text>
           <Text style={styles.headerSub}>
-            {hopitauxFiltres.length} établissement{hopitauxFiltres.length > 1 ? 's' : ''} réel{hopitauxFiltres.length > 1 ? 's' : ''} certifié{hopitauxFiltres.length > 1 ? 's' : ''}
+            {hopitauxFiltres.length} établissement{hopitauxFiltres.length > 1 ? 's' : ''} à proximité{isFallback ? ' (données locales)' : ''}
           </Text>
         </View>
       </View>

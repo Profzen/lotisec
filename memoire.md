@@ -2197,3 +2197,24 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
 - `backend/run-security-migrations.js` fournit désormais un exécuteur reproductible : registre `lotisec_schema_migrations`, checksum SHA-256, transaction par fichier, refus d'une migration déjà appliquée mais modifiée et vérification finale sans affichage de secret.
 - Le backend public répond `{"ok":true,"db":"up"}` sur `/health` après migration.
 - Le build EAS `af257a75-9c09-46a0-898e-56999cf68584`, basé sur le commit fonctionnel `21d35b8`, est `FINISHED`. APK : `https://expo.dev/artifacts/eas/Ofb603SU0Eyk8dTGentKDKW1wH7yCer_OQj4vpjCbas.apk` (artefact interne soumis à la durée de conservation Expo indiquée sur la page du build).
+
+## Stabilisation Totale Bout en Bout Multi-Briques (2026-09-14)
+
+### 1. Problèmes Résolus
+- **Console Opérationnelle (`LOTISEC-Console-Complete`)** :
+  - La passerelle `mobileGateway.js` démarrait en mode `'test'`, envoyant les alertes SOS réelles dans une file de test (`realEventQueue`) au lieu de les afficher immédiatement aux opérateurs. Désormais, le mode par défaut est `'real'`.
+  - Le polling REST marquait tous les incidents découverts après l'initialisation comme `isUpdate: true`, les rendant invisibles/inaudibles. La liste `knownIncidentIds` assure désormais que tout incident nouvellement découvert est signalé comme un nouvel incident (`isUpdate: false`).
+  - L'annonce sonore était bloquée par `dashboardBeepPlayedRef` si le dashboard avait déjà été affiché. L'annonce vocale et le bip d'arrivée sont désormais joués immédiatement à l'arrivée d'une alerte réelle, sans répétition sur les re-renders.
+  - Au montage, l'application charge les ressources (`/api/v1/resources`) et structures de santé (`/api/v1/facilities`) réelles depuis PostgreSQL via l'API.
+  - Sur le Dashboard, l'import mock `interventions` a été supprimé. Les KPIs opérationnels (alertes actives, interventions en cours, ambulances disponibles) sont calculés dynamiquement sur la base des données réelles.
+- **Application Mobile Native (`Qr-mobile`)** :
+  - **Élimination du crash Android « Commander un Zem »** : `PlatformMap.native.tsx` utilisait `react-native-maps` qui provoquait un crash fatal (`RuntimeException: API key not found`) en l'absence de clé Google Maps native. La carte native a été refactorisée sur une base WebView résiliente exploitant les tuiles CARTO Voyager et OpenStreetMap, sans dépendance critique à Google Play Services ni clé native.
+  - **Intégrité GPS Zem** : `ZemPassengerScreen.tsx` n'injecte plus les coordonnées par défaut de Lomé comme position fictive du passager lorsque le GPS est refusé. La commande de Zem est strictement désactivée jusqu'à la sélection d'un point de départ valide.
+  - **Transparence Hôpitaux** : Suppression des qualificatifs marketing trompeurs (« certifiés réels »). Affichage du nombre d'établissements à proximité avec un badge explicite distinguant les données fraîches de l'API du cache hors-ligne.
+- **Portail Citoyen Web (`frontend`)** :
+  - Vérification de la parité complète avec le mobile pour le déclenchement de SOS via `POST /api/v1/incidents` avec coordonnées GPS réelles, `client_event_id` unique, compléments de signalement, annulation sécurisée et suivi de l'affectation en temps réel.
+- **Backend (`backend`)** :
+  - Correction de l'outil d'amorçage administrateur (`create-initial-admin.js`) pour normaliser le numéro au format international (+228) et mettre à jour le mot de passe sur le compte existant.
+  - Tests unitaires et d'intégration : 33/33 tests réussis.
+  - Script de test de fumée opérationnel (`smoke-operational-api.js`) validé (healthcheck, login admin, 13 routes d'administration, jeton Realtime, vérification RBAC citoyen 403).
+  - Script de validation de workflow complet (`verify-operational-workflow.js`) validé en transaction PostgreSQL (isolation organisationnelle, cycle d'intervention, notification opérationnelle, audit).
