@@ -106,7 +106,7 @@ export function Rides() {
 
             <div style={{ height: '250px', width: '100%' }}>
               <MapContainer center={[activeRide.origin_lat, activeRide.origin_lng]} zoom={14} style={{ height: '100%', width: '100%', zIndex: 0 }}>
-                <TileLayer url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png" />
+                <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                 <Marker position={[activeRide.origin_lat, activeRide.origin_lng]} />
                 <Marker position={[activeRide.dest_lat, activeRide.dest_lng]} />
                 {zemLocation && (

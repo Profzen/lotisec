@@ -164,7 +164,7 @@ export function Home() {
           setShowComplementModal(true);
 
           // Préparation de l'alerte WhatsApp pour transmission volontaire
-          const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+          const mapsUrl = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=18/${latitude}/${longitude}`;
           const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\nBonjour ! Je signale une urgence. Voici ma position actuelle : ${mapsUrl}`;
           const phone = CONTACTS[1].phone.replace(/[^\d+]/g, "");
           setWhatsappUrl(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
@@ -200,7 +200,10 @@ export function Home() {
     if (!sosIncidentId) return;
     setComplementLoading(true);
     try {
-      const victimsNum = complementVictims === '1' ? 1 : complementVictims === '2' ? 2 : complementVictims === '3+' ? 3 : 0;
+      let victimsNum = 0;
+      if (complementVictims === '1') victimsNum = 1;
+      else if (complementVictims === '2 à 5') victimsNum = 3;
+      else if (complementVictims === '+ de 5') victimsNum = 6;
       let vehiclesNum = 0;
       if (complementVehicles === '1') vehiclesNum = 1;
       else if (complementVehicles === '2') vehiclesNum = 2;
@@ -524,7 +527,7 @@ export function Home() {
             <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Type d'événement</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['Accident routier', 'Urgence médicale', 'Incendie', 'Autre'].map((t) => {
+                {['Accident routier', 'Malaise / Inconscience', 'Incendie', 'Chute / Traumatisme', 'Autre'].map((t) => {
                   const active = complementType === t;
                   return (
                     <button
@@ -553,7 +556,7 @@ export function Home() {
             <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Victimes</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['1', '2', '3+', 'Je ne sais pas'].map((v) => {
+                {['Je ne sais pas', '1', '2 à 5', '+ de 5'].map((v) => {
                   const active = complementVictims === v;
                   return (
                     <button

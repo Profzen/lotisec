@@ -210,14 +210,7 @@ export default function RideDetailScreen({ route, navigation }: any) {
           longitudeDelta: 0.05,
         }}
       >
-        <UrlTile
-          urlTemplate="https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          maximumZ={19}
-          flipY={false}
-          tileSize={256}
-          zIndex={1}
-          shouldReplaceMapContent={true}
-        />
+        <UrlTile />
         <Marker coordinate={{ latitude: ride.origin_lat, longitude: ride.origin_lng }} title="Depart" />
         <Marker coordinate={{ latitude: ride.dest_lat, longitude: ride.dest_lng }} title="Destination" />
         {position ? (

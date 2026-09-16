@@ -294,10 +294,21 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const handleMapPress = async (e: any) => {
     if (activeRide) return;
 
-    const clicked = {
-      lat: e.nativeEvent.coordinate.latitude,
-      lng: e.nativeEvent.coordinate.longitude,
-    };
+    const rawCoord = e?.nativeEvent?.coordinate;
+    if (!rawCoord) {
+      console.warn('[ZEM PASSENGER] Clic carte sans coordonnées valides:', e);
+      return;
+    }
+
+    const lat = Number(rawCoord.latitude);
+    const lng = Number(rawCoord.longitude);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn('[ZEM PASSENGER] Coordonnées reçues non finies:', lat, lng);
+      return;
+    }
+
+    const clicked = { lat, lng };
 
     if (!isInsideTogo(clicked.lat, clicked.lng)) {
       Alert.alert('Zone non couverte', 'LOTISEC Zem est actuellement disponible au Togo.');

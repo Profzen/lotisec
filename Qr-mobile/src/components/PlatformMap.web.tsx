@@ -66,10 +66,9 @@ export default class PlatformMap extends React.Component<MapProps> {
 
       L.control.zoom({ position: 'bottomright' }).addTo(this.leafletMap);
 
-      // Tuiles CartoDB / OpenStreetMap
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: 'abcd',
+      // Tuiles OpenStreetMap standard
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19,
       }).addTo(this.leafletMap);
 

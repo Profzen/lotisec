@@ -411,8 +411,8 @@ export function MapZemDriver() {
         zoomControl={false}
       >
         <TileLayer
-          url="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
         />
         {location && <MapController center={location} />}
 

@@ -223,8 +223,8 @@ export function RideDetail() {
             style={{ height: '100%' }}
           >
             <TileLayer
-              url="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="&copy; OpenStreetMap contributors"
             />
             <Marker position={[ride.origin_lat, ride.origin_lng]} />
             <Marker position={[ride.dest_lat, ride.dest_lng]} />

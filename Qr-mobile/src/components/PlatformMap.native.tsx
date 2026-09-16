@@ -6,40 +6,9 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
-import MapLibreGL, { MapViewRef, CameraRef } from '@maplibre/maplibre-react-native';
+import * as MapLibreRN from '@maplibre/maplibre-react-native';
 
-// Désactiver tout appel à un token Mapbox
-MapLibreGL.setAccessToken(null);
-
-export const CARTO_VOYAGER =
-  'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-
-const CARTO_VOYAGER_STYLE = {
-  version: 8,
-  name: 'CARTO Voyager',
-  sources: {
-    'carto-voyager': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      ],
-      tileSize: 256,
-      attribution: '(c) OpenStreetMap contributors, (c) CARTO',
-      maxzoom: 19,
-    },
-  },
-  layers: [
-    {
-      id: 'carto-voyager-layer',
-      type: 'raster',
-      source: 'carto-voyager',
-      minzoom: 0,
-      maxzoom: 22,
-    },
-  ],
-};
+export const OPENFREEMAP_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
 
 export interface MarkerProps {
   coordinate: { latitude: number; longitude: number };
@@ -62,38 +31,89 @@ export function Marker({
 }: MarkerProps) {
   if (
     !coordinate ||
-    typeof coordinate.latitude !== 'number' ||
-    typeof coordinate.longitude !== 'number'
+    !Number.isFinite(Number(coordinate.latitude)) ||
+    !Number.isFinite(Number(coordinate.longitude))
   ) {
     return null;
   }
-  const markerId =
-    id ||
-    `marker-${title || 'pt'}-${coordinate.longitude.toFixed(5)}-${coordinate.latitude.toFixed(5)}`;
-  const coords: [number, number] = [coordinate.longitude, coordinate.latitude];
+
+  const lat = Number(coordinate.latitude);
+  const lng = Number(coordinate.longitude);
+
+  // Clé d'identification stable et sans caractères spéciaux
+  const rawKey = id || title || 'marker';
+  const cleanKey = rawKey
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9_-]/g, '_')
+    .slice(0, 32);
+
+  // Si un composant enfant personnalisé est fourni, utiliser PointAnnotation
+  if (children) {
+    const markerId = `pt-${cleanKey}`;
+    return (
+      <MapLibreRN.PointAnnotation
+        id={markerId}
+        coordinate={[lng, lat]}
+        title={title}
+        snippet={description}
+        onSelected={onPress}
+      >
+        {React.isValidElement(children) ? children : <View>{children}</View>}
+      </MapLibreRN.PointAnnotation>
+    );
+  }
+
+  // Pour les marqueurs standard (départ, destination, moto, intervention),
+  // utiliser ShapeSource + CircleLayer natif GPU pour garantir une stabilité
+  // absolue sur Android sans création de View native hors écran.
+  const sourceId = `src-m-${cleanKey}`;
+  const pointFeature: GeoJSON.Feature<GeoJSON.Point> = {
+    type: 'Feature',
+    properties: {
+      id: cleanKey,
+      title: title || '',
+    },
+    geometry: {
+      type: 'Point',
+      coordinates: [lng, lat],
+    },
+  };
 
   return (
-    <MapLibreGL.PointAnnotation
-      id={markerId}
-      coordinate={coords}
-      title={title}
-      snippet={description}
-      onSelected={onPress ? () => onPress() : undefined}
+    <MapLibreRN.ShapeSource
+      id={sourceId}
+      shape={pointFeature}
+      onPress={onPress ? () => onPress() : undefined}
     >
-      {children ? (
-        React.isValidElement(children) ? (
-          children
-        ) : (
-          <View>{children}</View>
-        )
-      ) : (
-        <View style={styles.defaultMarkerContainer}>
-          <View style={[styles.defaultMarkerPin, { backgroundColor: pinColor }]}>
-            <View style={styles.defaultMarkerDot} />
-          </View>
-        </View>
-      )}
-    </MapLibreGL.PointAnnotation>
+      {/* Halo blanc extérieur */}
+      <MapLibreRN.CircleLayer
+        id={`layer-outer-${cleanKey}`}
+        style={{
+          circleRadius: 10,
+          circleColor: '#FFFFFF',
+          circleStrokeWidth: 1.5,
+          circleStrokeColor: 'rgba(0,0,0,0.3)',
+        }}
+      />
+      {/* Cercle principal teinté */}
+      <MapLibreRN.CircleLayer
+        id={`layer-inner-${cleanKey}`}
+        style={{
+          circleRadius: 8,
+          circleColor: pinColor,
+        }}
+      />
+      {/* Pastille blanche centrale */}
+      <MapLibreRN.CircleLayer
+        id={`layer-dot-${cleanKey}`}
+        style={{
+          circleRadius: 3,
+          circleColor: '#FFFFFF',
+        }}
+      />
+    </MapLibreRN.ShapeSource>
   );
 }
 
@@ -112,25 +132,36 @@ export function Polyline({
   lineDashPattern,
   id,
 }: PolylineProps) {
-  if (!coordinates || coordinates.length < 2) return null;
+  if (!coordinates || !Array.isArray(coordinates)) return null;
 
-  const polylineId =
-    id ||
-    `poly-${coordinates.length}-${coordinates[0].latitude.toFixed(4)}-${coordinates[0].longitude.toFixed(4)}`;
+  const validPoints = coordinates.filter(
+    (c) =>
+      c &&
+      Number.isFinite(Number(c.latitude)) &&
+      Number.isFinite(Number(c.longitude))
+  );
+
+  if (validPoints.length < 2) return null;
+
+  const rawKey = id || 'route';
+  const cleanKey = rawKey
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .slice(0, 32);
 
   const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
     type: 'Feature',
     properties: {},
     geometry: {
       type: 'LineString',
-      coordinates: coordinates.map((c) => [c.longitude, c.latitude]),
+      coordinates: validPoints.map((c) => [Number(c.longitude), Number(c.latitude)]),
     },
   };
 
   return (
-    <MapLibreGL.ShapeSource id={`source-${polylineId}`} shape={geojson}>
-      <MapLibreGL.LineLayer
-        id={`layer-${polylineId}`}
+    <MapLibreRN.ShapeSource id={`src-poly-${cleanKey}`} shape={geojson}>
+      <MapLibreRN.LineLayer
+        id={`layer-poly-${cleanKey}`}
         style={{
           lineColor: strokeColor,
           lineWidth: strokeWidth,
@@ -142,11 +173,94 @@ export function Polyline({
               : undefined,
         }}
       />
-    </MapLibreGL.ShapeSource>
+    </MapLibreRN.ShapeSource>
   );
 }
 
 export function UrlTile(_props?: any) {
+  return null;
+}
+
+function extractCoordinates(
+  eventOrFeature: any
+): { latitude: number; longitude: number } | null {
+  if (!eventOrFeature) return null;
+
+  if (Array.isArray(eventOrFeature) && eventOrFeature.length >= 2) {
+    const lng = Number(eventOrFeature[0]);
+    const lat = Number(eventOrFeature[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  const raw =
+    eventOrFeature.nativeEvent?.payload ??
+    eventOrFeature.payload ??
+    eventOrFeature.nativeEvent ??
+    eventOrFeature;
+
+  if (raw?.geometry?.coordinates && Array.isArray(raw.geometry.coordinates)) {
+    const coords = raw.geometry.coordinates;
+    const lng = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  if (raw?.coordinates) {
+    if (Array.isArray(raw.coordinates) && raw.coordinates.length >= 2) {
+      const lng = Number(raw.coordinates[0]);
+      const lat = Number(raw.coordinates[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    } else if (typeof raw.coordinates === 'object') {
+      const lat = Number(raw.coordinates.latitude ?? raw.coordinates.lat);
+      const lng = Number(
+        raw.coordinates.longitude ?? raw.coordinates.lng ?? raw.coordinates.lon
+      );
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+  }
+
+  if (raw?.lngLat) {
+    if (Array.isArray(raw.lngLat) && raw.lngLat.length >= 2) {
+      const lng = Number(raw.lngLat[0]);
+      const lat = Number(raw.lngLat[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    } else if (typeof raw.lngLat === 'object') {
+      const lat = Number(raw.lngLat.lat ?? raw.lngLat.latitude);
+      const lng = Number(
+        raw.lngLat.lng ?? raw.lngLat.lon ?? raw.lngLat.longitude
+      );
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+  }
+
+  if (raw?.coordinate) {
+    const lat = Number(raw.coordinate.latitude ?? raw.coordinate.lat);
+    const lng = Number(
+      raw.coordinate.longitude ?? raw.coordinate.lng ?? raw.coordinate.lon
+    );
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  const directLat = Number(raw?.latitude ?? raw?.lat);
+  const directLng = Number(raw?.longitude ?? raw?.lng ?? raw?.lon);
+  if (Number.isFinite(directLat) && Number.isFinite(directLng)) {
+    return { latitude: directLat, longitude: directLng };
+  }
+
   return null;
 }
 
@@ -157,8 +271,8 @@ interface PlatformMapState {
 }
 
 export default class PlatformMap extends React.Component<any, PlatformMapState> {
-  private mapRef = React.createRef<MapViewRef>();
-  private cameraRef = React.createRef<CameraRef>();
+  private mapRef = React.createRef<MapLibreRN.MapViewRef>();
+  private cameraRef = React.createRef<MapLibreRN.CameraRef>();
   private timeoutTimer: any = null;
 
   constructor(props: any) {
@@ -207,42 +321,80 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
     this.startLoadTimeout();
   };
 
-  private handlePress = (feature: any) => {
-    if (this.props.onPress) {
-      const coords = feature?.geometry?.coordinates;
-      if (coords && Array.isArray(coords)) {
+  private handlePress = (featureOrEvent: any) => {
+    if (!this.props.onPress) return;
+    try {
+      const extracted = extractCoordinates(featureOrEvent);
+      if (
+        extracted &&
+        Number.isFinite(extracted.latitude) &&
+        Number.isFinite(extracted.longitude)
+      ) {
         this.props.onPress({
           nativeEvent: {
             coordinate: {
-              latitude: coords[1],
-              longitude: coords[0],
+              latitude: extracted.latitude,
+              longitude: extracted.longitude,
             },
           },
         });
+      } else {
+        console.warn('[MAP TOUCH] Clic sans coordonnées valides ignoré:', featureOrEvent);
       }
+    } catch (err) {
+      console.warn('[MAP TOUCH] Erreur traitement onPress:', err);
     }
   };
 
-  private handleRegionDidChange = (feature: any) => {
-    if (this.props.onRegionChangeComplete) {
-      const coords = feature?.geometry?.coordinates;
-      const bounds = feature?.properties?.visibleBounds;
-      if (coords && Array.isArray(coords)) {
-        const [centerLng, centerLat] = coords;
-        let latitudeDelta = 0.04;
-        let longitudeDelta = 0.04;
-        if (bounds && bounds.length === 2) {
-          const [[neLng, neLat], [swLng, swLat]] = bounds;
-          latitudeDelta = Math.abs(neLat - swLat);
-          longitudeDelta = Math.abs(neLng - swLng);
+  private handleRegionDidChange = (featureOrEvent: any) => {
+    if (!this.props.onRegionChangeComplete) return;
+    try {
+      if (!featureOrEvent) return;
+      const raw =
+        featureOrEvent.nativeEvent?.payload ??
+        featureOrEvent.payload ??
+        featureOrEvent.nativeEvent ??
+        featureOrEvent;
+
+      const coords = raw?.geometry?.coordinates ?? raw?.coordinates;
+      let centerLat = 6.1375;
+      let centerLng = 1.2125;
+
+      if (Array.isArray(coords) && coords.length >= 2) {
+        const cLng = Number(coords[0]);
+        const cLat = Number(coords[1]);
+        if (Number.isFinite(cLat) && Number.isFinite(cLng)) {
+          centerLat = cLat;
+          centerLng = cLng;
         }
-        this.props.onRegionChangeComplete({
-          latitude: centerLat,
-          longitude: centerLng,
-          latitudeDelta,
-          longitudeDelta,
-        });
       }
+
+      let latitudeDelta = 0.04;
+      let longitudeDelta = 0.04;
+      const bounds = raw?.properties?.visibleBounds;
+      if (Array.isArray(bounds) && bounds.length === 2) {
+        const [ne, sw] = bounds;
+        if (
+          Array.isArray(ne) &&
+          Array.isArray(sw) &&
+          ne.length >= 2 &&
+          sw.length >= 2
+        ) {
+          const latDiff = Math.abs(Number(ne[1]) - Number(sw[1]));
+          const lngDiff = Math.abs(Number(ne[0]) - Number(sw[0]));
+          if (Number.isFinite(latDiff) && latDiff > 0) latitudeDelta = latDiff;
+          if (Number.isFinite(lngDiff) && lngDiff > 0) longitudeDelta = lngDiff;
+        }
+      }
+
+      this.props.onRegionChangeComplete({
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta,
+        longitudeDelta,
+      });
+    } catch (err) {
+      console.warn('[MAP] Erreur onRegionDidChange:', err);
     }
   };
 
@@ -255,25 +407,29 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
     },
     duration = 800
   ) {
-    if (!region || typeof region.latitude !== 'number' || typeof region.longitude !== 'number') {
-      return;
-    }
-    const zoomLevel = region.latitudeDelta
-      ? Math.min(
-          20,
-          Math.max(
-            1,
-            Math.round(Math.log(360 / Math.max(region.latitudeDelta, 0.0001)) / Math.LN2)
-          )
-        )
-      : 14;
+    try {
+      if (!region) return;
+      const lat = Number(region.latitude);
+      const lng = Number(region.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    this.cameraRef.current?.setCamera({
-      centerCoordinate: [region.longitude, region.latitude],
-      zoomLevel,
-      animationDuration: duration,
-      animationMode: 'flyTo',
-    });
+      const delta = Number(region.latitudeDelta ?? region.longitudeDelta);
+      let zoomLevel = 14;
+      if (Number.isFinite(delta) && delta > 0) {
+        const safeDelta = Math.max(0.0005, Math.min(delta, 180));
+        zoomLevel = Math.round(Math.log(360 / safeDelta) / Math.LN2);
+      }
+      zoomLevel = Math.max(2, Math.min(zoomLevel, 19));
+
+      this.cameraRef.current?.setCamera({
+        centerCoordinate: [lng, lat],
+        zoomLevel,
+        animationDuration: Math.max(0, duration),
+        animationMode: 'flyTo',
+      });
+    } catch (err) {
+      console.warn('[MAP] Erreur animateToRegion:', err);
+    }
   }
 
   fitToCoordinates(
@@ -283,27 +439,79 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
       animated?: boolean;
     }
   ) {
-    if (!coords || coords.length === 0) return;
-    const lats = coords.map((c) => c.latitude);
-    const lngs = coords.map((c) => c.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
+    try {
+      if (!coords || !Array.isArray(coords) || coords.length === 0) return;
 
-    const padding = options?.edgePadding;
-    this.cameraRef.current?.setCamera({
-      bounds: {
-        ne: [maxLng, maxLat],
-        sw: [minLng, minLat],
-        paddingTop: padding?.top ?? 50,
-        paddingRight: padding?.right ?? 50,
-        paddingBottom: padding?.bottom ?? 50,
-        paddingLeft: padding?.left ?? 50,
-      },
-      animationDuration: options?.animated === false ? 0 : 800,
-      animationMode: 'easeTo',
-    });
+      const valid = coords.filter((c) => {
+        if (!c) return false;
+        const lat = Number(c.latitude);
+        const lng = Number(c.longitude);
+        return (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          lat >= -90 &&
+          lat <= 90 &&
+          lng >= -180 &&
+          lng <= 180
+        );
+      });
+
+      if (valid.length === 0) return;
+
+      const duration = options?.animated === false ? 0 : 800;
+
+      if (valid.length === 1) {
+        const lat = Number(valid[0].latitude);
+        const lng = Number(valid[0].longitude);
+        this.cameraRef.current?.setCamera({
+          centerCoordinate: [lng, lat],
+          zoomLevel: 15,
+          animationDuration: duration,
+          animationMode: 'easeTo',
+        });
+        return;
+      }
+
+      let minLat = Infinity;
+      let maxLat = -Infinity;
+      let minLng = Infinity;
+      let maxLng = -Infinity;
+
+      for (const c of valid) {
+        const lat = Number(c.latitude);
+        const lng = Number(c.longitude);
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      }
+
+      const deltaLat = maxLat - minLat;
+      const deltaLng = maxLng - minLng;
+      const MARGIN = 0.005;
+
+      const neLat = deltaLat < 0.0001 ? maxLat + MARGIN : maxLat;
+      const swLat = deltaLat < 0.0001 ? minLat - MARGIN : minLat;
+      const neLng = deltaLng < 0.0001 ? maxLng + MARGIN : maxLng;
+      const swLng = deltaLng < 0.0001 ? minLng - MARGIN : minLng;
+
+      const ne: [number, number] = [neLng, neLat];
+      const sw: [number, number] = [swLng, swLat];
+
+      const top = Math.max(0, Number(options?.edgePadding?.top) || 50);
+      const right = Math.max(0, Number(options?.edgePadding?.right) || 50);
+      const bottom = Math.max(0, Number(options?.edgePadding?.bottom) || 50);
+      const left = Math.max(0, Number(options?.edgePadding?.left) || 50);
+
+      this.cameraRef.current?.fitBounds(
+        ne,
+        sw,
+        [top, right, bottom, left],
+        duration
+      );
+    } catch (err) {
+      console.warn('[MAP] Erreur fitToCoordinates:', err);
+    }
   }
 
   render() {
@@ -323,27 +531,27 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
     const { mapLoading, mapError } = this.state;
 
     const initialCenter: [number, number] = initialRegion
-      ? [initialRegion.longitude, initialRegion.latitude]
-      : [1.2125, 6.1375]; // Lomé fallback
+      ? [Number(initialRegion.longitude) || 1.2125, Number(initialRegion.latitude) || 6.1375]
+      : [1.2125, 6.1375];
 
-    const initialZoom: number = initialRegion?.latitudeDelta
-      ? Math.min(
-          20,
-          Math.max(
-            1,
-            Math.round(
-              Math.log(360 / Math.max(initialRegion.latitudeDelta, 0.0001)) / Math.LN2
+    const delta = Number(initialRegion?.latitudeDelta);
+    const initialZoom: number =
+      Number.isFinite(delta) && delta > 0
+        ? Math.min(
+            19,
+            Math.max(
+              2,
+              Math.round(Math.log(360 / Math.max(delta, 0.0005)) / Math.LN2)
             )
           )
-        )
-      : 13;
+        : 13;
 
     return (
       <View style={[styles.container, style]}>
-        <MapLibreGL.MapView
+        <MapLibreRN.MapView
           ref={this.mapRef}
           style={StyleSheet.absoluteFillObject}
-          mapStyle={CARTO_VOYAGER_STYLE}
+          mapStyle={OPENFREEMAP_LIBERTY}
           logoEnabled={false}
           attributionEnabled={true}
           attributionPosition={{ bottom: 8, right: 8 }}
@@ -354,7 +562,7 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
           onDidFinishRenderingMap={this.handleMapReady}
           {...rest}
         >
-          <MapLibreGL.Camera
+          <MapLibreRN.Camera
             ref={this.cameraRef}
             defaultSettings={{
               centerCoordinate: initialCenter,
@@ -362,7 +570,7 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
             }}
           />
           {showsUserLocation ? (
-            <MapLibreGL.UserLocation
+            <MapLibreRN.UserLocation
               visible={true}
               renderMode="native"
               androidRenderMode="normal"
@@ -370,7 +578,7 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
             />
           ) : null}
           {children}
-        </MapLibreGL.MapView>
+        </MapLibreRN.MapView>
 
         {mapLoading && (
           <View style={styles.loadingOverlay} pointerEvents="none">
@@ -397,32 +605,6 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
     backgroundColor: '#EAF1F7',
-  },
-  defaultMarkerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 32,
-    height: 32,
-  },
-  defaultMarkerPin: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 3,
-  },
-  defaultMarkerDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FFFFFF',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

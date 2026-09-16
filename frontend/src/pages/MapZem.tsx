@@ -10,29 +10,18 @@ import { getRoute, RouteData } from '../utils/osrm';
 import { api } from '../api/client';
 import { supabase } from '../api/supabase';
 
+// Note: rastertiles/voyager CARTO retiré car exige une clé API; utilisation directe de tile.openstreetmap.org
 const TILE_SOURCES = [
-  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 ];
 
 function ReliableTiles() {
-  const [source, setSource] = useState(0);
-  const failures = useRef(0);
   return (
     <TileLayer
-      key={source}
-      url={TILE_SOURCES[source]}
-      subdomains={source === 0 ? 'abcd' : 'abc'}
+      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      subdomains="abc"
       maxZoom={19}
-      attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-      eventHandlers={{
-        tileerror: () => {
-          failures.current += 1;
-          if (failures.current >= 3 && source < TILE_SOURCES.length - 1) {
-            setSource(source + 1);
-          }
-        },
-      }}
+      attribution="&copy; OpenStreetMap contributors"
     />
   );
 }
