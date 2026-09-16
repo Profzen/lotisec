@@ -6,31 +6,148 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
-import MapView, {
-  Marker,
-  Polyline,
-  UrlTile as NativeUrlTile,
-  MapUrlTileProps,
-  Region,
-} from 'react-native-maps';
+import MapLibreGL, { MapViewRef, CameraRef } from '@maplibre/maplibre-react-native';
 
-export { Marker, Polyline };
+// Désactiver tout appel à un token Mapbox
+MapLibreGL.setAccessToken(null);
 
-const CARTO_VOYAGER =
+export const CARTO_VOYAGER =
   'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
 
-export function UrlTile(props: Partial<MapUrlTileProps> & { urlTemplate?: string }) {
-  const { urlTemplate = CARTO_VOYAGER, ...rest } = props;
+const CARTO_VOYAGER_STYLE = {
+  version: 8,
+  name: 'CARTO Voyager',
+  sources: {
+    'carto-voyager': {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      ],
+      tileSize: 256,
+      attribution: '(c) OpenStreetMap contributors, (c) CARTO',
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'carto-voyager-layer',
+      type: 'raster',
+      source: 'carto-voyager',
+      minzoom: 0,
+      maxzoom: 22,
+    },
+  ],
+};
+
+export interface MarkerProps {
+  coordinate: { latitude: number; longitude: number };
+  title?: string;
+  description?: string;
+  pinColor?: string;
+  children?: React.ReactNode;
+  onPress?: () => void;
+  id?: string;
+}
+
+export function Marker({
+  coordinate,
+  title,
+  description,
+  pinColor = '#1565D8',
+  children,
+  onPress,
+  id,
+}: MarkerProps) {
+  if (
+    !coordinate ||
+    typeof coordinate.latitude !== 'number' ||
+    typeof coordinate.longitude !== 'number'
+  ) {
+    return null;
+  }
+  const markerId =
+    id ||
+    `marker-${title || 'pt'}-${coordinate.longitude.toFixed(5)}-${coordinate.latitude.toFixed(5)}`;
+  const coords: [number, number] = [coordinate.longitude, coordinate.latitude];
+
   return (
-    <NativeUrlTile
-      maximumZ={19}
-      flipY={false}
-      tileSize={256}
-      zIndex={1}
-      {...rest}
-      urlTemplate={urlTemplate}
-    />
+    <MapLibreGL.PointAnnotation
+      id={markerId}
+      coordinate={coords}
+      title={title}
+      snippet={description}
+      onSelected={onPress ? () => onPress() : undefined}
+    >
+      {children ? (
+        React.isValidElement(children) ? (
+          children
+        ) : (
+          <View>{children}</View>
+        )
+      ) : (
+        <View style={styles.defaultMarkerContainer}>
+          <View style={[styles.defaultMarkerPin, { backgroundColor: pinColor }]}>
+            <View style={styles.defaultMarkerDot} />
+          </View>
+        </View>
+      )}
+    </MapLibreGL.PointAnnotation>
   );
+}
+
+export interface PolylineProps {
+  coordinates: Array<{ latitude: number; longitude: number }>;
+  strokeColor?: string;
+  strokeWidth?: number;
+  lineDashPattern?: number[];
+  id?: string;
+}
+
+export function Polyline({
+  coordinates,
+  strokeColor = '#1565D8',
+  strokeWidth = 3,
+  lineDashPattern,
+  id,
+}: PolylineProps) {
+  if (!coordinates || coordinates.length < 2) return null;
+
+  const polylineId =
+    id ||
+    `poly-${coordinates.length}-${coordinates[0].latitude.toFixed(4)}-${coordinates[0].longitude.toFixed(4)}`;
+
+  const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'LineString',
+      coordinates: coordinates.map((c) => [c.longitude, c.latitude]),
+    },
+  };
+
+  return (
+    <MapLibreGL.ShapeSource id={`source-${polylineId}`} shape={geojson}>
+      <MapLibreGL.LineLayer
+        id={`layer-${polylineId}`}
+        style={{
+          lineColor: strokeColor,
+          lineWidth: strokeWidth,
+          lineCap: 'round',
+          lineJoin: 'round',
+          lineDasharray:
+            lineDashPattern && lineDashPattern.length >= 2
+              ? [lineDashPattern[0], lineDashPattern[1]]
+              : undefined,
+        }}
+      />
+    </MapLibreGL.ShapeSource>
+  );
+}
+
+export function UrlTile(_props?: any) {
+  return null;
 }
 
 interface PlatformMapState {
@@ -40,7 +157,8 @@ interface PlatformMapState {
 }
 
 export default class PlatformMap extends React.Component<any, PlatformMapState> {
-  private mapRef = React.createRef<MapView>();
+  private mapRef = React.createRef<MapViewRef>();
+  private cameraRef = React.createRef<CameraRef>();
   private timeoutTimer: any = null;
 
   constructor(props: any) {
@@ -53,7 +171,6 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
   }
 
   componentDidMount() {
-    console.log('[MAP] mounting');
     this.startLoadTimeout();
   }
 
@@ -67,7 +184,6 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
     if (this.timeoutTimer) clearTimeout(this.timeoutTimer);
     this.timeoutTimer = setTimeout(() => {
       if (!this.state.mapReady) {
-        console.warn('[MAP] timeout after 8s');
         this.setState({
           mapLoading: false,
           mapError: 'Impossible de charger la carte. Vérifiez votre connexion Internet.',
@@ -77,31 +193,87 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
   }
 
   private handleMapReady = () => {
-    console.log('[MAP] ready');
     if (this.timeoutTimer) clearTimeout(this.timeoutTimer);
-    this.setState({ mapLoading: false, mapReady: true, mapError: null });
-    if (this.props.onMapReady) {
-      this.props.onMapReady();
-    }
-  };
-
-  private handleMapLoaded = () => {
-    console.log('[MAP] loaded');
-    if (this.timeoutTimer) clearTimeout(this.timeoutTimer);
-    this.setState({ mapLoading: false, mapReady: true, mapError: null });
-    if (this.props.onMapLoaded) {
-      this.props.onMapLoaded();
+    if (!this.state.mapReady) {
+      this.setState({ mapLoading: false, mapReady: true, mapError: null });
+      if (this.props.onMapReady) {
+        this.props.onMapReady();
+      }
     }
   };
 
   private retryLoading = () => {
-    console.log('[MAP] retry requested');
     this.setState({ mapLoading: true, mapError: null, mapReady: false });
     this.startLoadTimeout();
   };
 
-  animateToRegion(region: Region, duration = 800) {
-    this.mapRef.current?.animateToRegion(region, duration);
+  private handlePress = (feature: any) => {
+    if (this.props.onPress) {
+      const coords = feature?.geometry?.coordinates;
+      if (coords && Array.isArray(coords)) {
+        this.props.onPress({
+          nativeEvent: {
+            coordinate: {
+              latitude: coords[1],
+              longitude: coords[0],
+            },
+          },
+        });
+      }
+    }
+  };
+
+  private handleRegionDidChange = (feature: any) => {
+    if (this.props.onRegionChangeComplete) {
+      const coords = feature?.geometry?.coordinates;
+      const bounds = feature?.properties?.visibleBounds;
+      if (coords && Array.isArray(coords)) {
+        const [centerLng, centerLat] = coords;
+        let latitudeDelta = 0.04;
+        let longitudeDelta = 0.04;
+        if (bounds && bounds.length === 2) {
+          const [[neLng, neLat], [swLng, swLat]] = bounds;
+          latitudeDelta = Math.abs(neLat - swLat);
+          longitudeDelta = Math.abs(neLng - swLng);
+        }
+        this.props.onRegionChangeComplete({
+          latitude: centerLat,
+          longitude: centerLng,
+          latitudeDelta,
+          longitudeDelta,
+        });
+      }
+    }
+  };
+
+  animateToRegion(
+    region: {
+      latitude: number;
+      longitude: number;
+      latitudeDelta?: number;
+      longitudeDelta?: number;
+    },
+    duration = 800
+  ) {
+    if (!region || typeof region.latitude !== 'number' || typeof region.longitude !== 'number') {
+      return;
+    }
+    const zoomLevel = region.latitudeDelta
+      ? Math.min(
+          20,
+          Math.max(
+            1,
+            Math.round(Math.log(360 / Math.max(region.latitudeDelta, 0.0001)) / Math.LN2)
+          )
+        )
+      : 14;
+
+    this.cameraRef.current?.setCamera({
+      centerCoordinate: [region.longitude, region.latitude],
+      zoomLevel,
+      animationDuration: duration,
+      animationMode: 'flyTo',
+    });
   }
 
   fitToCoordinates(
@@ -112,37 +284,93 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
     }
   ) {
     if (!coords || coords.length === 0) return;
-    this.mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: options?.edgePadding ?? { top: 50, right: 50, bottom: 50, left: 50 },
-      animated: options?.animated ?? true,
+    const lats = coords.map((c) => c.latitude);
+    const lngs = coords.map((c) => c.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    const padding = options?.edgePadding;
+    this.cameraRef.current?.setCamera({
+      bounds: {
+        ne: [maxLng, maxLat],
+        sw: [minLng, minLat],
+        paddingTop: padding?.top ?? 50,
+        paddingRight: padding?.right ?? 50,
+        paddingBottom: padding?.bottom ?? 50,
+        paddingLeft: padding?.left ?? 50,
+      },
+      animationDuration: options?.animated === false ? 0 : 800,
+      animationMode: 'easeTo',
     });
   }
 
   render() {
-    const { children, style, mapType, ...rest } = this.props;
+    const {
+      children,
+      style,
+      initialRegion,
+      showsUserLocation,
+      showsMyLocationButton: _ignoredMyLocationButton,
+      onRegionChangeComplete: _ignoredRegionChange,
+      onMapReady: _ignoredMapReady,
+      onPress: _ignoredPress,
+      mapType: _ignoredMapType,
+      ...rest
+    } = this.props;
+
     const { mapLoading, mapError } = this.state;
 
-    const hasChildTile = React.Children.toArray(children).some(
-      (child: any) =>
-        child?.type === NativeUrlTile ||
-        child?.type === UrlTile ||
-        child?.props?.urlTemplate
-    );
+    const initialCenter: [number, number] = initialRegion
+      ? [initialRegion.longitude, initialRegion.latitude]
+      : [1.2125, 6.1375]; // Lomé fallback
+
+    const initialZoom: number = initialRegion?.latitudeDelta
+      ? Math.min(
+          20,
+          Math.max(
+            1,
+            Math.round(
+              Math.log(360 / Math.max(initialRegion.latitudeDelta, 0.0001)) / Math.LN2
+            )
+          )
+        )
+      : 13;
 
     return (
       <View style={[styles.container, style]}>
-        <MapView
+        <MapLibreGL.MapView
           ref={this.mapRef}
           style={StyleSheet.absoluteFillObject}
-          mapType={mapType || 'none'}
-          loadingEnabled={false}
-          onMapReady={this.handleMapReady}
-          onMapLoaded={this.handleMapLoaded}
+          mapStyle={CARTO_VOYAGER_STYLE}
+          logoEnabled={false}
+          attributionEnabled={true}
+          attributionPosition={{ bottom: 8, right: 8 }}
+          compassEnabled={false}
+          onPress={this.handlePress}
+          onRegionDidChange={this.handleRegionDidChange}
+          onDidFinishLoadingMap={this.handleMapReady}
+          onDidFinishRenderingMap={this.handleMapReady}
           {...rest}
         >
-          {!hasChildTile && <UrlTile />}
+          <MapLibreGL.Camera
+            ref={this.cameraRef}
+            defaultSettings={{
+              centerCoordinate: initialCenter,
+              zoomLevel: initialZoom,
+            }}
+          />
+          {showsUserLocation ? (
+            <MapLibreGL.UserLocation
+              visible={true}
+              renderMode="native"
+              androidRenderMode="normal"
+              showsUserHeadingIndicator={false}
+            />
+          ) : null}
           {children}
-        </MapView>
+        </MapLibreGL.MapView>
 
         {mapLoading && (
           <View style={styles.loadingOverlay} pointerEvents="none">
@@ -169,6 +397,32 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
     backgroundColor: '#EAF1F7',
+  },
+  defaultMarkerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+  },
+  defaultMarkerPin: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+  },
+  defaultMarkerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FFFFFF',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

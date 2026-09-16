@@ -526,7 +526,7 @@ export default function HomeScreen({ navigation }: Props) {
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: th.text2 }]}>DÉPLACEMENT & ZEM</Text>
-          <TouchableOpacity style={styles.alertRow} onPress={() => navigation.navigate('ZemPassenger' as any)}>
+          <TouchableOpacity style={[styles.alertRow, !profile?.is_zem && { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemPassenger' as any)}>
             <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="motorcycle" size={19} color={colors.white}/></View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.alertTitle, { color: th.text }]}>Commander un Zem</Text>
@@ -536,7 +536,7 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           {profile?.is_zem && (
-            <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)' }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
+            <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)', borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
               <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><FontAwesome name="road" size={19} color={colors.white}/></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: colors.success }]}>Mode Conducteur</Text>
@@ -545,15 +545,6 @@ export default function HomeScreen({ navigation }: Props) {
               <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity style={[styles.alertRow, { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('MapDiagnostic' as any)}>
-            <View style={[styles.alertIcon, { backgroundColor: '#455A64' }]}><Ionicons name="map-outline" size={19} color={colors.white}/></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.alertTitle, { color: th.text }]}>Diagnostic Carte Natif</Text>
-              <Text style={[styles.alertSub, { color: th.text3 }]}>Test isolé MapView & CARTO</Text>
-            </View>
-            <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>

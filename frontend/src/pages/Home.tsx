@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, authHeaders } from '../api/client';
 import QRCode from 'react-qr-code';
-import { User, Car, ChevronRight, Phone, Flame, Lock, Eye, CheckCircle2, ShieldAlert, ArrowRight, X, MessageCircle } from 'lucide-react';
+import { User, Car, ChevronRight, Phone, Flame, Lock, Eye, CheckCircle2, ShieldAlert, ArrowRight, X, MessageCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 type UserData = {
@@ -201,7 +201,11 @@ export function Home() {
     setComplementLoading(true);
     try {
       const victimsNum = complementVictims === '1' ? 1 : complementVictims === '2' ? 2 : complementVictims === '3+' ? 3 : 0;
-      const vehiclesNum = complementVehicles === '1' ? 1 : complementVehicles === '2' ? 2 : complementVehicles === '3+' ? 3 : 0;
+      let vehiclesNum = 0;
+      if (complementVehicles === '1') vehiclesNum = 1;
+      else if (complementVehicles === '2') vehiclesNum = 2;
+      else if (complementVehicles === 'Plusieurs') vehiclesNum = 3;
+
       const flags = [...complementDangers];
       if (complementVictims === 'Je ne sais pas') flags.push('victims_unknown');
       if (complementVehicles === 'Je ne sais pas') flags.push('vehicles_unknown');
@@ -246,13 +250,33 @@ export function Home() {
             className="sos-btn-huge" 
             onClick={handleSOS} 
             disabled={loadingSOS}
-            style={{ backgroundColor: sosActif ? '#B71C1C' : 'var(--color-danger)' }}
+            style={{ 
+              backgroundColor: sosActif ? '#B71C1C' : 'var(--color-danger)',
+              cursor: loadingSOS ? 'not-allowed' : 'pointer',
+              opacity: loadingSOS ? 0.9 : 1,
+            }}
           >
-            <div className="sos-text-main">SOS</div>
-            <div className="sos-text-sub">{sosActif ? 'ANNULER' : 'URGENCE'}</div>
+            {loadingSOS ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '0 8px' }}>
+                <Loader2 size={34} style={{ animation: 'spin 1s linear infinite' }} />
+                <div className="sos-text-main" style={{ fontSize: '0.95rem', letterSpacing: '0.5px' }}>LOCALISATION...</div>
+                <div className="sos-text-sub" style={{ fontSize: '0.62rem' }}>Recherche de votre position</div>
+              </div>
+            ) : (
+              <>
+                <div className="sos-text-main">SOS</div>
+                <div className="sos-text-sub">{sosActif ? 'ANNULER' : 'URGENCE'}</div>
+              </>
+            )}
           </button>
         </div>
-        <div className="sos-instruction">{sosActif ? 'SIGNALEMENT ACTIF · CLIQUER POUR ANNULER' : 'DÉCLENCHER LE SOS'}</div>
+        <div className="sos-instruction">
+          {loadingSOS
+            ? 'Recherche de votre position GPS en cours...'
+            : sosActif
+            ? 'SIGNALEMENT ACTIF · CLIQUER POUR ANNULER'
+            : 'DÉCLENCHER LE SOS'}
+        </div>
       </div>
 
       <div className="white-sheet">
@@ -498,48 +522,122 @@ export function Home() {
             </p>
 
             <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Type d'événement</label>
-              <select className="input" value={complementType} onChange={(e) => setComplementType(e.target.value)} style={{ width: '100%', padding: '8px' }}>
-                <option value="Accident routier">Accident routier</option>
-                <option value="Urgence médicale / Malaise">Urgence médicale / Malaise</option>
-                <option value="Incendie / Fumée">Incendie / Fumée</option>
-                <option value="Autre urgence">Autre urgence</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Victimes estimées</label>
-              <select className="input" value={complementVictims} onChange={(e) => setComplementVictims(e.target.value)} style={{ width: '100%', padding: '8px' }}>
-                <option value="Je ne sais pas">Je ne sais pas</option>
-                <option value="1">1 victime</option>
-                <option value="2">2 victimes</option>
-                <option value="3+">3 victimes ou plus</option>
-              </select>
-            </div>
-
-            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Dangers observés</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Type d'événement</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['Personne inconsciente', 'Saignement grave', 'Personne coincée', 'Feu / fumée', 'Voie bloquée'].map((d) => {
-                  const selected = complementDangers.includes(d);
+                {['Accident routier', 'Urgence médicale', 'Incendie', 'Autre'].map((t) => {
+                  const active = complementType === t;
                   return (
                     <button
-                      key={d}
+                      key={t}
                       type="button"
-                      onClick={() => {
-                        setComplementDangers(selected ? complementDangers.filter(x => x !== d) : [...complementDangers, d]);
-                      }}
+                      onClick={() => setComplementType(t)}
                       style={{
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        border: selected ? '1px solid var(--color-primary)' : '1px solid #cbd5e1',
-                        backgroundColor: selected ? 'rgba(21,101,216,0.1)' : '#f8fafc',
-                        color: selected ? 'var(--color-primary)' : '#334155',
-                        cursor: 'pointer'
+                        padding: '6px 12px',
+                        borderRadius: '16px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        border: active ? '1px solid var(--color-primary)' : '1px solid #cbd5e1',
+                        backgroundColor: active ? 'var(--color-primary)' : '#f8fafc',
+                        color: active ? '#ffffff' : '#334155',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {d}
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Victimes</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {['1', '2', '3+', 'Je ne sais pas'].map((v) => {
+                  const active = complementVictims === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setComplementVictims(v)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '16px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        border: active ? '1px solid var(--color-primary)' : '1px solid #cbd5e1',
+                        backgroundColor: active ? 'var(--color-primary)' : '#f8fafc',
+                        color: active ? '#ffffff' : '#334155',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {v}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Véhicules</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {['Aucun', '1', '2', 'Plusieurs', 'Je ne sais pas'].map((vh) => {
+                  const active = complementVehicles === vh;
+                  return (
+                    <button
+                      key={vh}
+                      type="button"
+                      onClick={() => setComplementVehicles(vh)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '16px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        border: active ? '1px solid var(--color-primary)' : '1px solid #cbd5e1',
+                        backgroundColor: active ? 'var(--color-primary)' : '#f8fafc',
+                        color: active ? '#ffffff' : '#334155',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {vh}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>Dangers constatés (multi-sélection)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {[
+                  { label: 'Inconscience', flag: 'inconscience' },
+                  { label: 'Saignement grave', flag: 'saignement' },
+                  { label: 'Victime coincée', flag: 'coince' },
+                  { label: 'Feu / Fumée', flag: 'feu' },
+                ].map((d) => {
+                  const active = complementDangers.includes(d.flag);
+                  return (
+                    <button
+                      key={d.flag}
+                      type="button"
+                      onClick={() => {
+                        setComplementDangers(active ? complementDangers.filter((f) => f !== d.flag) : [...complementDangers, d.flag]);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '16px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        border: active ? '1px solid #dc2626' : '1px solid #cbd5e1',
+                        backgroundColor: active ? '#dc2626' : '#f8fafc',
+                        color: active ? '#ffffff' : '#334155',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {d.label}
                     </button>
                   );
                 })}
