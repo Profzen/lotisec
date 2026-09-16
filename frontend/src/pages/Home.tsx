@@ -59,6 +59,9 @@ export function Home() {
   const [assignedHospital, setAssignedHospital] = useState<any>(null);
   const [dispatchStatus, setDispatchStatus] = useState<'awaiting_dispatch' | 'recommended' | 'assigned'>('awaiting_dispatch');
   const [showComplementModal, setShowComplementModal] = useState(false);
+  const [showConfirmSOSModal, setShowConfirmSOSModal] = useState(false);
+  const [showCancelSOSModal, setShowCancelSOSModal] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
   const [complementType, setComplementType] = useState('Accident routier');
   const [complementVictims, setComplementVictims] = useState('Je ne sais pas');
   const [complementDangers, setComplementDangers] = useState<string[]>([]);
@@ -76,6 +79,7 @@ export function Home() {
           if (data.incident.status === 'cancelled' || data.incident.status === 'rejected') {
             setSosActif(false);
             setSosIncidentId(null);
+            setWhatsappUrl(null);
             toast('Le signalement a été clôturé ou rejeté.');
           } else if (data.incident.status === 'assigned') {
             setDispatchStatus('assigned');
@@ -92,17 +96,14 @@ export function Home() {
 
   const handleSOS = () => {
     if (sosActif) {
-      if (window.confirm("Confirmer l'annulation de ce signalement d'urgence auprès de LOTISEC ?")) {
-        annulerSOS();
-      }
+      setShowCancelSOSModal(true);
     } else {
-      if (window.confirm("🚨 SIGNALEMENT SOS D'URGENCE\nVotre position géographique va être transmise au centre de supervision LOTISEC pour prise en charge.")) {
-        sendSOS();
-      }
+      setShowConfirmSOSModal(true);
     }
   };
 
   const annulerSOS = async () => {
+    setShowCancelSOSModal(false);
     if (sosIncidentId) {
       try {
         await api.patch(`/api/v1/incidents/${sosIncidentId}/status`, {
@@ -110,7 +111,8 @@ export function Home() {
           client_event_id: sosClientEventId
         }, { headers: authHeaders() });
         toast.success("Signalement annulé auprès de la supervision.");
-      } catch {
+      } catch (err: any) {
+        console.error('[SOS CANCEL ERROR]', err?.response?.status, err?.response?.data, err?.message);
         toast.error("Erreur lors de l'annulation serveur.");
       }
     }
@@ -119,11 +121,13 @@ export function Home() {
     setAssignedUnit(null);
     setAssignedHospital(null);
     setComplementDone(false);
+    setWhatsappUrl(null);
   };
 
   const sendSOS = async () => {
+    setShowConfirmSOSModal(false);
     if (!navigator.geolocation) {
-      toast.error('Géolocalisation non supportée. Appelez le 118.');
+      toast.error('Géolocalisation non supportée sur ce navigateur. Appelez directement le 118.');
       return;
     }
 
@@ -159,20 +163,34 @@ export function Home() {
           toast.success('Alerte reçue par LOTISEC. En attente de validation.');
           setShowComplementModal(true);
 
+          // Préparation de l'alerte WhatsApp pour transmission volontaire
           const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
           const message = `🚨 *URGENCE SOS - LOTISEC* 🚨\n\nBonjour ! Je signale une urgence. Voici ma position actuelle : ${mapsUrl}`;
           const phone = CONTACTS[1].phone.replace(/[^\d+]/g, "");
-          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+          setWhatsappUrl(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
 
-        } catch {
-          toast.error("Erreur réseau lors de l'envoi du SOS.");
+        } catch (err: any) {
+          console.error('[SOS ERROR] status:', err?.response?.status, 'detail:', err?.response?.data, 'code:', err?.code, 'message:', err?.message);
+          if (err?.response?.status === 400) {
+            const detailMsg = err.response?.data?.detail || err.response?.data?.error || 'Requête d’urgence invalide. Appelez le 118.';
+            toast.error(detailMsg);
+          } else {
+            toast.error('Impossible de contacter le centre de supervision. Appelez directement le 118.');
+          }
         } finally {
           setLoadingSOS(false);
         }
       },
-      () => {
+      (geoErr) => {
         setLoadingSOS(false);
-        toast.error('Position GPS refusée ou indisponible. Vous pouvez contacter directement le 118.');
+        console.error('[GEOLOCATION ERROR]', geoErr.code, geoErr.message);
+        if (geoErr.code === 1) {
+          toast.error('La géolocalisation a été refusée. Activez le GPS ou appelez le 118.');
+        } else if (geoErr.code === 3) {
+          toast.error('Délai de géolocalisation dépassé. Veuillez réessayer ou appeler le 118.');
+        } else {
+          toast.error('Position GPS indisponible. Vous pouvez contacter directement le 118.');
+        }
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -258,6 +276,32 @@ export function Home() {
                 <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}>En attente d'affectation</div>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>Votre alerte est enregistrée au centre de régulation LOTISEC.</div>
               </div>
+            )}
+
+            {whatsappUrl && (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  backgroundColor: '#25D366',
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  textDecoration: 'none',
+                  marginBottom: '8px',
+                  fontSize: '0.9rem',
+                }}
+              >
+                <MessageCircle size={18} />
+                Prévenir mon contact WhatsApp
+              </a>
             )}
 
             {!complementDone && (
@@ -508,6 +552,67 @@ export function Home() {
               </button>
               <button className="btn ghost" onClick={() => setShowComplementModal(false)}>
                 Plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmation Déclenchement SOS */}
+      {showConfirmSOSModal && (
+        <div className="qr-modal-overlay" style={{ zIndex: 1100 }} onClick={(e) => { if (e.target === e.currentTarget && !loadingSOS) setShowConfirmSOSModal(false); }}>
+          <div className="qr-modal-content" style={{ maxWidth: '380px', width: '90%', textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', backgroundColor: 'rgba(210,16,52,0.1)', color: 'var(--color-danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <ShieldAlert size={32} />
+            </div>
+            <h3 style={{ marginBottom: '0.5rem', color: '#0f172a' }}>Signaler une urgence</h3>
+            <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              Votre position géographique sera transmise au centre de supervision LOTISEC pour prise en charge immédiate.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="btn ghost"
+                style={{ flex: 1 }}
+                onClick={() => setShowConfirmSOSModal(false)}
+                disabled={loadingSOS}
+              >
+                Annuler
+              </button>
+              <button
+                className="btn danger"
+                style={{ flex: 1.2 }}
+                onClick={sendSOS}
+                disabled={loadingSOS}
+              >
+                {loadingSOS ? 'Transmission…' : 'Transmettre le SOS'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmation Annulation SOS */}
+      {showCancelSOSModal && (
+        <div className="qr-modal-overlay" style={{ zIndex: 1100 }} onClick={(e) => { if (e.target === e.currentTarget) setShowCancelSOSModal(false); }}>
+          <div className="qr-modal-content" style={{ maxWidth: '380px', width: '90%', textAlign: 'center' }}>
+            <h3 style={{ marginBottom: '0.5rem', color: '#0f172a' }}>Annuler le signalement SOS</h3>
+            <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+              Confirmez-vous l'annulation de ce signalement d'urgence auprès du centre de supervision LOTISEC ?
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="btn ghost"
+                style={{ flex: 1 }}
+                onClick={() => setShowCancelSOSModal(false)}
+              >
+                Conserver l'alerte
+              </button>
+              <button
+                className="btn danger"
+                style={{ flex: 1 }}
+                onClick={annulerSOS}
+              >
+                Confirmer l'annulation
               </button>
             </div>
           </div>

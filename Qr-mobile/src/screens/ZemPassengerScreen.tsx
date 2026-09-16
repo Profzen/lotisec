@@ -22,7 +22,7 @@ import { colors } from '../theme/colors';
 import { fonts, fontSizes } from '../theme/typography';
 import { BackButton } from '../components/BackButton';
 import { getRoute, calculateFallbackDistance, RouteData } from '../utils/osrm';
-import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
+import { searchAddress, reverseGeocode, getShortName, NominatimResult, isInsideTogo } from '../utils/nominatim';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -58,6 +58,12 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const [actionLoading, setActionLoading] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<MapView>(null);
+  const [currentRegion, setCurrentRegion] = useState({
+    latitude: DEFAULT_COORDS.latitude,
+    longitude: DEFAULT_COORDS.longitude,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
+  });
 
   // Recherche d'adresse
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,17 +104,31 @@ export default function ZemPassengerScreen({ navigation }: any) {
       });
 
       console.log('[ZEM PASSENGER] GPS acquired', loc.coords.latitude, loc.coords.longitude);
-      setHasRealGps(true);
-      setOrigin({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-      setOriginSource('gps');
-      setOriginName('Ma position actuelle');
+      if (isInsideTogo(loc.coords.latitude, loc.coords.longitude)) {
+        setHasRealGps(true);
+        setOrigin({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        setOriginSource('gps');
+        setOriginName('Ma position actuelle');
 
-      mapRef.current?.animateToRegion({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        latitudeDelta: 0.03,
-        longitudeDelta: 0.03,
-      }, 800);
+        const nextRegion = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          latitudeDelta: 0.03,
+          longitudeDelta: 0.03,
+        };
+        setCurrentRegion(nextRegion);
+        mapRef.current?.animateToRegion(nextRegion, 800);
+      } else {
+        console.warn('[ZEM PASSENGER] GPS outside Togo:', loc.coords.latitude, loc.coords.longitude);
+        setHasRealGps(false);
+        setOrigin(null);
+        setOriginSource(null);
+        setOriginName('');
+        Alert.alert(
+          'Position hors zone',
+          'Votre position GPS est en dehors du Togo. LOTISEC Zem est actuellement disponible uniquement au Togo. Touchez la carte pour définir votre point de départ.'
+        );
+      }
     } catch (err) {
       console.warn('[ZEM PASSENGER] Erreur acquisition GPS:', err);
       setHasRealGps(false);
@@ -120,14 +140,63 @@ export default function ZemPassengerScreen({ navigation }: any) {
     }
   };
 
+  const handleRecenter = () => {
+    const target = origin ? { latitude: origin.lat, longitude: origin.lng } : DEFAULT_COORDS;
+    mapRef.current?.animateToRegion({
+      ...target,
+      latitudeDelta: 0.03,
+      longitudeDelta: 0.03,
+    }, 600);
+  };
+
+  const handleZoomIn = () => {
+    const targetLat = destination?.lat || origin?.lat || currentRegion.latitude;
+    const targetLng = destination?.lng || origin?.lng || currentRegion.longitude;
+    const nextDeltaLat = Math.max(0.003, currentRegion.latitudeDelta / 2);
+    const nextDeltaLng = Math.max(0.003, currentRegion.longitudeDelta / 2);
+    const nextRegion = {
+      latitude: targetLat,
+      longitude: targetLng,
+      latitudeDelta: nextDeltaLat,
+      longitudeDelta: nextDeltaLng,
+    };
+    setCurrentRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 300);
+  };
+
+  const handleZoomOut = () => {
+    const targetLat = destination?.lat || origin?.lat || currentRegion.latitude;
+    const targetLng = destination?.lng || origin?.lng || currentRegion.longitude;
+    const nextDeltaLat = Math.min(1.5, currentRegion.latitudeDelta * 2);
+    const nextDeltaLng = Math.min(1.5, currentRegion.longitudeDelta * 2);
+    const nextRegion = {
+      latitude: targetLat,
+      longitude: targetLng,
+      latitudeDelta: nextDeltaLat,
+      longitudeDelta: nextDeltaLng,
+    };
+    setCurrentRegion(nextRegion);
+    mapRef.current?.animateToRegion(nextRegion, 300);
+  };
+
   // ─── Calcul d'itinéraire ──────────────────────────────────
   const calculateItinerary = async (start: { lat: number; lng: number }, end: { lat: number; lng: number }) => {
+    if (!isInsideTogo(start.lat, start.lng) || !isInsideTogo(end.lat, end.lng)) {
+      Alert.alert('Zone non couverte', 'LOTISEC Zem est actuellement disponible au Togo.');
+      return;
+    }
+
     const startCoords = { latitude: start.lat, longitude: start.lng };
     const endCoords = { latitude: end.lat, longitude: end.lng };
 
     try {
       const r = await getRoute(startCoords, endCoords);
       if (r && r.coordinates && r.coordinates.length > 1) {
+        if (r.distanceKm > 150) {
+          Alert.alert('Distance excessive', 'La distance maximale autorisée pour une course Zem est de 150 km.');
+          setRouteData(null);
+          return;
+        }
         console.log('[ZEM PASSENGER] route calculated:', r.distanceKm, 'km');
         setRouteData(r);
         setRouteError(false);
@@ -142,6 +211,12 @@ export default function ZemPassengerScreen({ navigation }: any) {
       }
     } catch {
       console.warn('[ZEM PASSENGER] Itinéraire routier non disponible, utilisation du calcul direct');
+      const fb = calculateFallbackDistance(startCoords, endCoords);
+      if (fb.distanceKm > 150) {
+        Alert.alert('Distance excessive', 'La distance maximale autorisée pour une course Zem est de 150 km.');
+        setRouteData(null);
+        return;
+      }
       setRouteError(true);
       setRouteData(null);
 
@@ -182,6 +257,11 @@ export default function ZemPassengerScreen({ navigation }: any) {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
 
+    if (!isInsideTogo(lat, lng)) {
+      Alert.alert('Zone non couverte', 'LOTISEC Zem est actuellement disponible au Togo.');
+      return;
+    }
+
     setDestination({ lat, lng });
     const name = getShortName(result) || result.display_name;
     setDestinationName(name);
@@ -193,12 +273,14 @@ export default function ZemPassengerScreen({ navigation }: any) {
     if (origin) {
       await calculateItinerary(origin, { lat, lng });
     } else {
-      mapRef.current?.animateToRegion({
+      const nextRegion = {
         latitude: lat,
         longitude: lng,
         latitudeDelta: 0.02,
         longitudeDelta: 0.02,
-      }, 800);
+      };
+      setCurrentRegion(nextRegion);
+      mapRef.current?.animateToRegion(nextRegion, 800);
     }
   };
 
@@ -210,6 +292,11 @@ export default function ZemPassengerScreen({ navigation }: any) {
       lat: e.nativeEvent.coordinate.latitude,
       lng: e.nativeEvent.coordinate.longitude,
     };
+
+    if (!isInsideTogo(clicked.lat, clicked.lng)) {
+      Alert.alert('Zone non couverte', 'LOTISEC Zem est actuellement disponible au Togo.');
+      return;
+    }
 
     // Si aucun point de départ réel n'est défini, le premier clic définit le départ
     if (!origin || !originSource) {
@@ -373,6 +460,10 @@ export default function ZemPassengerScreen({ navigation }: any) {
     }
 
     const roundedDistance = Math.round(effectiveDistance * 10) / 10;
+    if (roundedDistance > 150) {
+      Alert.alert('Distance excessive', 'La distance maximale autorisée pour une course Zem est de 150 km.');
+      return;
+    }
     console.log('[ZEM PASSENGER] request ride', roundedDistance, 'km', effectivePrice, 'FCFA');
 
     try {
@@ -534,7 +625,8 @@ export default function ZemPassengerScreen({ navigation }: any) {
           longitudeDelta: 0.04,
         }}
         showsUserLocation={hasRealGps}
-        showsMyLocationButton={hasRealGps}
+        showsMyLocationButton={false}
+        onRegionChangeComplete={(region: any) => setCurrentRegion(region)}
         onPress={handleMapPress}
         onMapReady={() => setMapReady(true)}
       >
@@ -544,6 +636,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
           <Marker
             coordinate={{ latitude: origin.lat, longitude: origin.lng }}
             title={originName || 'Départ'}
+            description={originSource === 'gps' ? 'Ma position GPS' : 'Point de départ sélectionné'}
             pinColor="#1565D8"
           />
         )}
@@ -578,6 +671,34 @@ export default function ZemPassengerScreen({ navigation }: any) {
           />
         )}
       </MapView>
+
+      {/* Boutons flottants de contrôle de carte */}
+      <View style={styles.mapControls}>
+        <TouchableOpacity
+          style={styles.mapControlButton}
+          onPress={handleRecenter}
+          activeOpacity={0.8}
+          accessibilityLabel="Recentrer"
+        >
+          <Ionicons name="locate" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.mapControlButton}
+          onPress={handleZoomIn}
+          activeOpacity={0.8}
+          accessibilityLabel="Zoomer"
+        >
+          <Ionicons name="add" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.mapControlButton}
+          onPress={handleZoomOut}
+          activeOpacity={0.8}
+          accessibilityLabel="Dézoomer"
+        >
+          <Ionicons name="remove" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
 
       {/* Panneau inférieur */}
       <View style={styles.bottomPanel}>
@@ -887,4 +1008,24 @@ const styles = StyleSheet.create({
   detailLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: colors.surface, borderRadius: 8 },
   detailLinkText: { fontSize: fontSizes.xs, color: colors.primary, fontWeight: '700' },
   statusInfo: { fontSize: fontSizes.sm, color: colors.textSecondary, marginBottom: 10, lineHeight: 20 },
+  mapControls: {
+    position: 'absolute',
+    right: 16,
+    bottom: 240,
+    gap: 10,
+    zIndex: 9,
+  },
+  mapControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
 });

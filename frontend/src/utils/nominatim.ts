@@ -1,6 +1,6 @@
 /**
  * Nominatim (OpenStreetMap) — Recherche d'adresse & géocodage inversé (Web).
- * API gratuite, limite : 1 requête/seconde. Pas de clé API requise.
+ * Limites strictes : République Togolaise uniquement.
  */
 
 export interface NominatimResult {
@@ -16,7 +16,26 @@ export interface NominatimResult {
     city?: string;
     state?: string;
     country?: string;
+    country_code?: string;
   };
+}
+
+export const TOGO_BOUNDS = {
+  minLat: 5.95,
+  maxLat: 11.25,
+  minLng: -0.25,
+  maxLng: 1.95,
+};
+
+export function isInsideTogo(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= TOGO_BOUNDS.minLat &&
+    lat <= TOGO_BOUNDS.maxLat &&
+    lng >= TOGO_BOUNDS.minLng &&
+    lng <= TOGO_BOUNDS.maxLng
+  );
 }
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
@@ -28,14 +47,14 @@ const throttle = async (): Promise<void> => {
   const now = Date.now();
   const elapsed = now - lastRequestTime;
   if (elapsed < 1100) {
-    await new Promise(resolve => setTimeout(resolve, 1100 - elapsed));
+    await new Promise((resolve) => setTimeout(resolve, 1100 - elapsed));
   }
   lastRequestTime = Date.now();
 };
 
 export const searchAddress = async (
   query: string,
-  countryCode: string = 'tg',
+  _countryCode: string = 'tg',
   limit: number = 5
 ): Promise<NominatimResult[]> => {
   if (!query || query.trim().length < 2) return [];
@@ -44,11 +63,13 @@ export const searchAddress = async (
 
   try {
     const params = new URLSearchParams({
-      q: query,
+      q: query.trim(),
       format: 'json',
       addressdetails: '1',
       limit: String(limit),
-      countrycodes: countryCode,
+      countrycodes: 'tg',
+      viewbox: '-0.25,11.25,1.95,5.95',
+      bounded: '1',
     });
 
     const res = await fetch(`${NOMINATIM_BASE}/search?${params}`, {
@@ -59,7 +80,14 @@ export const searchAddress = async (
     });
 
     if (!res.ok) return [];
-    return await res.json();
+    const data: NominatimResult[] = await res.json();
+
+    return data.filter((item) => {
+      const lat = parseFloat(item.lat);
+      const lon = parseFloat(item.lon);
+      const validCountry = !item.address?.country_code || item.address.country_code === 'tg';
+      return validCountry && isInsideTogo(lat, lon);
+    });
   } catch (err) {
     console.warn('[Nominatim] searchAddress error:', err);
     return [];
@@ -70,6 +98,11 @@ export const reverseGeocode = async (
   lat: number,
   lon: number
 ): Promise<NominatimResult | null> => {
+  if (!isInsideTogo(lat, lon)) {
+    console.warn('[Nominatim] reverseGeocode rejeté : coordonnées hors Togo', lat, lon);
+    return null;
+  }
+
   await throttle();
 
   try {
@@ -89,7 +122,14 @@ export const reverseGeocode = async (
     });
 
     if (!res.ok) return null;
-    return await res.json();
+    const data: NominatimResult = await res.json();
+
+    if (data.address?.country_code && data.address.country_code !== 'tg') {
+      console.warn('[Nominatim] résultat rejeté hors Togo:', data.address.country_code);
+      return null;
+    }
+
+    return data;
   } catch (err) {
     console.warn('[Nominatim] reverseGeocode error:', err);
     return null;
@@ -97,7 +137,8 @@ export const reverseGeocode = async (
 };
 
 export const getShortName = (result: NominatimResult): string => {
+  if (!result || !result.display_name) return '';
   const parts = result.display_name.split(',');
-  const meaningful = parts.slice(0, 2).map(p => p.trim());
+  const meaningful = parts.slice(0, 2).map((p) => p.trim());
   return meaningful.join(', ');
 };

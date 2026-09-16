@@ -50,10 +50,20 @@ async function advanceExpiredOffer(rideId:string){
   }catch(error){await client.query('ROLLBACK');console.error('offer advance failed',error);}finally{client.release();}
 }
 
+const TOGO_BOUNDS = { minLat: 5.95, maxLat: 11.25, minLng: -0.25, maxLng: 1.95 };
+function isInsideTogo(lat: number, lng: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng) &&
+    lat >= TOGO_BOUNDS.minLat && lat <= TOGO_BOUNDS.maxLat &&
+    lng >= TOGO_BOUNDS.minLng && lng <= TOGO_BOUNDS.maxLng;
+}
+
 router.post('/request',requireAuth,async(req:AuthRequest,res)=>{
   const {originLat,originLng,destLat,destLng,distanceKm,priceFcfa}=req.body;
   if(![originLat,originLng,destLat,destLng,distanceKm,priceFcfa].every(Number.isFinite))return res.status(400).json({detail:'Coordonnées, distance et prix valides requis'});
-  if(distanceKm<=0||distanceKm>250)return res.status(400).json({detail:'Distance de course invalide'});
+  if (!isInsideTogo(originLat, originLng) || !isInsideTogo(destLat, destLng)) {
+    return res.status(400).json({ detail: 'LOTISEC Zem est actuellement disponible uniquement au Togo.' });
+  }
+  if(distanceKm<=0||distanceKm>150)return res.status(400).json({detail:'Distance de course invalide (maximum 150 km)'});
   const validatedPrice=Math.max(300,Math.round(distanceKm*75));
   if(!pool)return res.status(503).json({detail:'Base indisponible'});
   const client=await pool.connect();

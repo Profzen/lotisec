@@ -126,4 +126,108 @@ router.get('/rapport', async (req, res) => {
   return res.json({ generated_at: new Date().toISOString(), items: rows.rows });
 });
 
+const TOGO_BOUNDS = {
+  minLat: 5.95,
+  maxLat: 11.25,
+  minLng: -0.25,
+  maxLng: 1.95,
+};
+
+const isInsideTogo = (lat: number, lng: number): boolean => {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= TOGO_BOUNDS.minLat &&
+    lat <= TOGO_BOUNDS.maxLat &&
+    lng >= TOGO_BOUNDS.minLng &&
+    lng <= TOGO_BOUNDS.maxLng
+  );
+};
+
+const geoSearchCache = new Map<string, { data: any; exp: number }>();
+const geoReverseCache = new Map<string, { data: any; exp: number }>();
+
+router.get('/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q || q.length < 2) return res.json({ results: [] });
+
+  const cacheKey = q.toLowerCase();
+  const cached = geoSearchCache.get(cacheKey);
+  if (cached && cached.exp > Date.now()) {
+    return res.json({ results: cached.data });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q,
+      format: 'json',
+      addressdetails: '1',
+      limit: '5',
+      countrycodes: 'tg',
+      viewbox: '-0.25,11.25,1.95,5.95',
+      bounded: '1',
+    });
+
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: { 'User-Agent': 'LotisecBackend/1.0', 'Accept-Language': 'fr' },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) return res.json({ results: [] });
+    const raw: any[] = await response.json();
+    const results = raw.filter((item) => {
+      const lat = parseFloat(item.lat);
+      const lon = parseFloat(item.lon);
+      const isTg = !item.address?.country_code || item.address.country_code === 'tg';
+      return isTg && isInsideTogo(lat, lon);
+    });
+
+    geoSearchCache.set(cacheKey, { data: results, exp: Date.now() + 3600000 });
+    return res.json({ results });
+  } catch {
+    return res.json({ results: [] });
+  }
+});
+
+router.get('/reverse', async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng ?? req.query.lon);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isInsideTogo(lat, lng)) {
+    return res.status(400).json({ detail: 'Coordonnées hors du Togo ou invalides' });
+  }
+
+  const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const cached = geoReverseCache.get(cacheKey);
+  if (cached && cached.exp > Date.now()) {
+    return res.json({ result: cached.data });
+  }
+
+  try {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lng),
+      format: 'json',
+      addressdetails: '1',
+      zoom: '18',
+    });
+
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`, {
+      headers: { 'User-Agent': 'LotisecBackend/1.0', 'Accept-Language': 'fr' },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) return res.status(404).json({ detail: 'Lieu introuvable' });
+    const data: any = await response.json();
+    if (data.address?.country_code && data.address.country_code !== 'tg') {
+      return res.status(400).json({ detail: 'Coordonnées hors du Togo' });
+    }
+
+    geoReverseCache.set(cacheKey, { data, exp: Date.now() + 3600000 });
+    return res.json({ result: data });
+  } catch {
+    return res.status(500).json({ detail: 'Erreur géocodage' });
+  }
+});
+
 export default router;

@@ -31,9 +31,7 @@
       },
       "package": "com.lotisec.togo",
       "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSy_FAKE_KEY_FOR_OPENSTREETMAP_BYPASS"
-        }
+        "googleMaps": {}
       },
       "splash": {
         "image": "./assets/logo-118.png",
