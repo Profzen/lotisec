@@ -124,9 +124,15 @@ export default function ZemPassengerScreen({ navigation }: any) {
         setOrigin(null);
         setOriginSource(null);
         setOriginName('');
+        mapRef.current?.animateToRegion({
+          latitude: DEFAULT_COORDS.latitude,
+          longitude: DEFAULT_COORDS.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 800);
         Alert.alert(
           'Position hors zone',
-          'Votre position GPS est en dehors du Togo. LOTISEC Zem est actuellement disponible uniquement au Togo. Touchez la carte pour définir votre point de départ.'
+          'LOTISEC Zem est actuellement disponible au Togo. Vous pouvez sélectionner manuellement un point de départ sur la carte au Togo.'
         );
       }
     } catch (err) {

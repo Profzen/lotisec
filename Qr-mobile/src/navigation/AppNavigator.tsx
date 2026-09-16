@@ -31,6 +31,7 @@ import OperationalMissionsScreen from '../screens/OperationalMissionsScreen';
 import ProfessionalAccountScreen from '../screens/ProfessionalAccountScreen';
 import CitizenProfileScreen from '../screens/CitizenProfileScreen';
 import QRCodeScreen from '../screens/QRCodeScreen';
+import MapDiagnosticScreen from '../screens/MapDiagnosticScreen';
 import {hydrateSession} from '../services/session';
 
 // 1. Mise à jour des types pour inclure toutes les routes du Stack
@@ -51,6 +52,7 @@ export type RootStackParamList = {
   RideDetail: {rideId:string};
   RideChat: {rideId:string};
   CitizenProfile:undefined;
+  MapDiagnostic: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -160,6 +162,7 @@ export default function AppNavigator() {
         <Stack.Screen name="RideDetail" component={RideDetailScreen}/>
         <Stack.Screen name="RideChat" component={RideChatScreen}/>
         <Stack.Screen name="CitizenProfile" component={CitizenProfileScreen}/>
+        <Stack.Screen name="MapDiagnostic" component={MapDiagnosticScreen}/>
 
         {/* Une fois connecté, on charge le TabNavigator. 
           Les écrans Hôpitaux, Conseils et QRCode sont déjà dedans !

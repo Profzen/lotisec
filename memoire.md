@@ -2287,3 +2287,37 @@ Le module **LOTISEC Zem** a été stabilisé et validé de bout en bout sur l'en
   28. Persistance du statut `completed` en base PostgreSQL et nettoyage.
 - **Résultat global** : 34/34 tests exécutés avec succès dans la suite de tests backend (`node --test`).
 
+---
+
+## Diagnostic et Sécurisation du Crash Natif Android APK (2026-09-16)
+
+### 1. Symptôme & Cause Racine
+- **Symptôme réel sur APK installé** : Au clic sur « Commander un Zem » ou au montage de `MapView`, fermeture brutale immédiate de l'application Android.
+- **Cause racine identifiée** :
+  - `PlatformMap.native.tsx` s'appuie sur le composant natif `react-native-maps` (`AirMapView`). Sur Android, ce composant instancie le SDK natif Google Maps (`com.google.android.gms.maps.MapView`) et invoque `MapsInitializer.initialize()`.
+  - Bien que le rendu graphique utilise `mapType="none"` et des tuiles raster CARTO Voyager via `<UrlTile zIndex={1} />`, le moteur natif Android exige impérativement la présence d'une métadonnée `<meta-data android:name="com.google.android.geo.API_KEY" .../>` dans `AndroidManifest.xml`.
+  - Lors de la suppression de la fausse clé de contournement, `app.config.js` générait `android.config.googleMaps = {}` en l'absence de variable d'environnement, et `eas.json` ne fournissait aucune variable `GOOGLE_MAPS_API_KEY`.
+  - En conséquence, l'APK généré par EAS Build ne contenait aucune balise de clé dans le manifeste, provoquant une exception fatale :
+    ```
+    FATAL EXCEPTION: main
+    java.lang.RuntimeException: API key not found. Check that <meta-data android:name="com.google.android.geo.API_KEY" android:value="your API key"/> is in the <application> element of AndroidManifest.xml
+    ```
+
+### 2. Mesures & Sécurisations Mises en Place
+1. **Échec automatique du build si la clé est absente (`app.config.js`)** :
+   - Remplacement de la configuration permissive par une assertion stricte : si un build natif Android (profil `preview` ou `production`) est lancé sans `GOOGLE_MAPS_API_KEY`, le build s'interrompt immédiatement avec une erreur explicite, interdisant la production d'un APK voué au crash.
+   - Utilisation de la syntaxe CommonJS universelle dans `app.config.js` pour éliminer tout conflit d'attribut JSON sous Node 22+.
+2. **Écran de Diagnostic Isolé (`MapDiagnosticScreen.tsx`)** :
+   - Création d'un écran de test unitaire épuré (dépourvu de Supabase, OSRM, Nominatim ou logique métier) permettant de tester directement le montage natif de `MapView`, puis d'activer les tuiles CARTO Voyager via un bouton bascule.
+   - Enregistrement de la route `MapDiagnostic` dans `AppNavigator.tsx` et ajout d'un accès dédié « Diagnostic Carte Natif » sur l'écran d'accueil.
+3. **Géofencing et Comportement GPS hors Togo** :
+   - Si la position GPS du téléphone est située hors du Togo, la carte est recentrée visuellement vers Lomé pour offrir un repère à l'utilisateur, mais `origin` et `originSource` restent nuls (aucune position fictive n'est substituée).
+   - Un message clair informe l'utilisateur : *« LOTISEC Zem est actuellement disponible au Togo. Vous pouvez sélectionner manuellement un point de départ sur la carte au Togo. »*
+4. **Mise à niveau et validation de l'environnement Expo** :
+   - `expo` (~54.0.37), `expo-constants` (~18.0.14) et `expo-file-system` (~19.0.24) alignés.
+   - `npx expo-doctor` : 18/18 vérifications réussies (0 anomalie).
+   - `npx expo config --type prebuild` : vérification que `android.config.googleMaps.apiKey` est correctement injecté dans le manifeste dès que la variable est renseignée.
+
+*(Note de traçabilité : Le module Zem reste en cours de validation physique sur le terminal cible et ne sera acté comme « validé sur APK » qu'après confirmation par les tests physiques de l'APK reconstruit avec sa clé).*
+
+

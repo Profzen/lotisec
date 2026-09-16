@@ -12,7 +12,7 @@ import { fontSizes, fonts } from '../theme/typography';
 import ProfilePanel from './ProfilePanel';
 import QRCode from 'react-native-qrcode-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { api } from '../api/config';
 import { hydrateSession } from '../services/session';
 
@@ -545,6 +545,15 @@ export default function HomeScreen({ navigation }: Props) {
               <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity style={[styles.alertRow, { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('MapDiagnostic' as any)}>
+            <View style={[styles.alertIcon, { backgroundColor: '#455A64' }]}><Ionicons name="map-outline" size={19} color={colors.white}/></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.alertTitle, { color: th.text }]}>Diagnostic Carte Natif</Text>
+              <Text style={[styles.alertSub, { color: th.text3 }]}>Test isolé MapView & CARTO</Text>
+            </View>
+            <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
