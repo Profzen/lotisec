@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Search, MapPin, Navigation, Car, AlertCircle, X, ChevronLeft } from 'lucide-react';
+import { Search, MapPin, Navigation, Car, AlertCircle, X, ChevronLeft, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
 import { getRoute, RouteData } from '../utils/osrm';
@@ -17,9 +18,23 @@ const TILE_SOURCES = [
 function ReliableTiles() {
   const [source, setSource] = useState(0);
   const failures = useRef(0);
-  return <TileLayer key={source} url={TILE_SOURCES[source]} subdomains={source === 0 ? 'abcd' : 'abc'} maxZoom={19}
-    attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-    eventHandlers={{tileerror: () => { failures.current += 1; if (failures.current >= 3 && source < TILE_SOURCES.length - 1) setSource(source + 1); }}} />;
+  return (
+    <TileLayer
+      key={source}
+      url={TILE_SOURCES[source]}
+      subdomains={source === 0 ? 'abcd' : 'abc'}
+      maxZoom={19}
+      attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+      eventHandlers={{
+        tileerror: () => {
+          failures.current += 1;
+          if (failures.current >= 3 && source < TILE_SOURCES.length - 1) {
+            setSource(source + 1);
+          }
+        },
+      }}
+    />
+  );
 }
 
 // Fix Leaflet icons
@@ -30,21 +45,28 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// Composant pour recentrer la carte ou écouter les clics
-function MapController({ 
-  destination, 
-  onMapClick 
-}: { 
-  destination: { lat: number, lng: number } | null, 
-  onMapClick: (lat: number, lng: number) => void 
+function MapController({
+  destination,
+  origin,
+  onMapClick,
+}: {
+  destination: { lat: number; lng: number } | null;
+  origin: { lat: number; lng: number } | null;
+  onMapClick: (lat: number, lng: number) => void;
 }) {
   const map = useMap();
-  
+
   useEffect(() => {
-    if (destination) {
+    if (destination && origin) {
+      const bounds = L.latLngBounds([
+        [origin.lat, origin.lng],
+        [destination.lat, destination.lng],
+      ]);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    } else if (destination) {
       map.flyTo([destination.lat, destination.lng], 15);
     }
-  }, [destination, map]);
+  }, [destination, origin, map]);
 
   useMapEvents({
     click(e) {
@@ -55,23 +77,27 @@ function MapController({
   return null;
 }
 
+const DEFAULT_LOME = { lat: 6.1319, lng: 1.2228 };
+
 export function MapZem() {
+  const navigate = useNavigate();
   const user = useMemo(() => {
     const raw = localStorage.getItem('lotisec_user');
     return raw ? JSON.parse(raw) : null;
   }, []);
 
-  // Fallback Lomé
-  const DEFAULT_LOCATION = { lat: 6.1319, lng: 1.2228 };
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [originName, setOriginName] = useState<string>('');
+  const [originSource, setOriginSource] = useState<'gps' | 'manual' | null>(null);
 
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [origin, setOrigin] = useState<{lat: number, lng: number} | null>(null);
-  const [originName, setOriginName] = useState<string>('Ma position (GPS)');
-  const [destination, setDestination] = useState<{lat: number, lng: number} | null>(null);
+  const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationName, setDestinationName] = useState<string>('');
   const [routeData, setRouteData] = useState<RouteData | null>(null);
-  
+  const [routeError, setRouteError] = useState<string | null>(null);
+
   const [activeRide, setActiveRide] = useState<any>(null);
+  const [zemLocation, setZemLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [gpsError, setGpsError] = useState(false);
 
@@ -83,46 +109,44 @@ export function MapZem() {
   const [searching, setSearching] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Geolocation acquisition
   useEffect(() => {
     let watchId: number | undefined;
 
     if (!navigator.geolocation) {
-      // Navigateur ne supporte pas la géolocalisation
-      setLocation(DEFAULT_LOCATION);
+      setLocation(DEFAULT_LOME);
       setGpsError(true);
       setLoading(false);
       return;
     }
 
-    // Obtenir la première position
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setLocation(loc);
-        if (!origin) {
-          setOrigin(loc);
-          setOriginName('Ma position (GPS)');
-        }
+        setOrigin(loc);
+        setOriginName('Ma position (GPS)');
+        setOriginSource('gps');
         setGpsError(false);
         setLoading(false);
 
-        // Lancer le suivi continu seulement après un premier succès
         watchId = navigator.geolocation.watchPosition(
           (p) => {
-            setLocation({ lat: p.coords.latitude, lng: p.coords.longitude });
+            const cur = { lat: p.coords.latitude, lng: p.coords.longitude };
+            setLocation(cur);
+            // Only update origin automatically if originSource is gps and no active ride
+            setOrigin((prev) => (originSource === 'gps' && !activeRide ? cur : prev));
           },
-          () => { /* silencieux — on a déjà une position */ },
+          () => {},
           { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
         );
       },
       (_err) => {
-        // GPS refusé — utiliser Lomé par défaut
-        console.warn("GPS refusé, fallback sur Lomé");
-        setLocation(DEFAULT_LOCATION);
-        if (!origin) {
-          setOrigin(DEFAULT_LOCATION);
-          setOriginName('Lomé (Défaut)');
-        }
+        console.warn('GPS indisponible ou refuse. Vue centree sur Lome sans forcer l’origine.');
+        setLocation(DEFAULT_LOME);
+        setOrigin(null);
+        setOriginName('');
+        setOriginSource(null);
         setGpsError(true);
         setLoading(false);
       },
@@ -134,28 +158,93 @@ export function MapZem() {
     };
   }, []);
 
+  // Supabase Realtime subscription for activeRide
   useEffect(() => {
+    if (!activeRide?.id || !supabase) return;
 
-    if (supabase && user) {
-      const channel = supabase
-        .channel('public:rides')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, payload => {
-          if (activeRide && payload.new.id === activeRide.id) {
+    const channel = supabase
+      .channel(`web-ride-${activeRide.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRide.id}` },
+        (payload: any) => {
+          if (payload.new) {
             setActiveRide(payload.new);
-            if (payload.new.status === 'accepted') toast.success("Votre Zem est en route !");
+            if (payload.new.status === 'accepted') toast.success('Un conducteur a accepte votre course !');
+            else if (payload.new.status === 'driver_arrived') toast('Le Zem est arrive au point de depart !');
             else if (payload.new.status === 'completed') {
-              toast.success("Course terminée.");
+              toast.success('Course terminee avec succes.');
               setActiveRide(null);
               setDestination(null);
               setRouteData(null);
             }
           }
-        })
-        .subscribe();
-        
-      return () => { supabase?.removeChannel(channel); };
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, [activeRide?.id]);
+
+  // Supabase Realtime subscription for Zem location
+  useEffect(() => {
+    if (!activeRide?.zem_id || !supabase) return;
+
+    const channel = supabase
+      .channel(`web-zem-loc-${activeRide.zem_id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'zem_locations', filter: `zem_id=eq.${activeRide.zem_id}` },
+        (payload: any) => {
+          if (payload.new?.latitude && payload.new?.longitude) {
+            setZemLocation({ lat: payload.new.latitude, lng: payload.new.longitude });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, [activeRide?.zem_id]);
+
+  // REST polling fallback every 4 seconds during active ride
+  useEffect(() => {
+    if (!activeRide?.id) return;
+    const terminal = ['completed', 'canceled', 'expired', 'no_show', 'disputed'];
+    if (terminal.includes(activeRide.status)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/zem/rides/${activeRide.id}`);
+        if (data?.ride) {
+          setActiveRide((prev: any) => (!prev || prev.status !== data.ride.status ? data.ride : prev));
+        }
+      } catch {
+        // Polling retry
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [activeRide?.id, activeRide?.status]);
+
+  const recalculateRoute = async (from: { lat: number; lng: number }, to: { lat: number; lng: number }) => {
+    try {
+      const res = await getRoute({ latitude: from.lat, longitude: from.lng }, { latitude: to.lat, longitude: to.lng });
+      if (res && res.coordinates?.length > 0) {
+        setRouteData(res);
+        setRouteError(null);
+      } else {
+        setRouteData(null);
+        setRouteError('Itineraire routier temporairement indisponible.');
+      }
+    } catch {
+      setRouteData(null);
+      setRouteError('Erreur de calcul de l’itineraire.');
     }
-  }, [activeRide, user]);
+  };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value;
@@ -163,7 +252,6 @@ export function MapZem() {
     setShowResults(true);
 
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-
     if (text.length < 3) {
       setSearchResults([]);
       return;
@@ -174,63 +262,58 @@ export function MapZem() {
       const res = await searchAddress(text);
       setSearchResults(res);
       setSearching(false);
-    }, 500);
+    }, 400);
   };
 
   const handleSelectResult = async (res: NominatimResult) => {
     const lat = parseFloat(res.lat);
     const lng = parseFloat(res.lon);
     const name = getShortName(res);
+
     if (searchTarget === 'origin') {
       setOrigin({ lat, lng });
       setOriginName(name);
+      setOriginSource('manual');
+      if (destination) recalculateRoute({ lat, lng }, destination);
+      setSearchTarget('destination');
     } else {
       setDestination({ lat, lng });
       setDestinationName(name);
+      if (origin) recalculateRoute(origin, { lat, lng });
     }
+
     setSearchQuery('');
     setShowResults(false);
-    const routeOrigin = searchTarget === 'origin' ? { lat, lng } : origin;
-    const routeDestination = searchTarget === 'destination' ? { lat, lng } : destination;
-    if (routeOrigin && routeDestination) {
-      const route = await getRoute({ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: routeDestination.lat, longitude: routeDestination.lng });
-      setRouteData(route);
-      if (!route) toast.error("Itinéraire indisponible. Réessayez ou choisissez un autre point.");
-    }
-    setSearchTarget('destination');
   };
 
   const handleMapClick = async (lat: number, lng: number) => {
     if (activeRide) return;
-    setDestination({ lat, lng });
     setShowResults(false);
-    
-    const reverse = await reverseGeocode(lat, lng);
-    if (reverse) {
-      const name = getShortName(reverse);
-      setDestinationName(name);
-      setSearchQuery(name);
-    } else {
-      setDestinationName(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    }
 
-    if (origin) {
-      const route = await getRoute({ latitude: origin.lat, longitude: origin.lng }, { latitude: lat, longitude: lng });
-      setRouteData(route);
+    const reverse = await reverseGeocode(lat, lng);
+    const name = reverse ? getShortName(reverse) : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+    if (searchTarget === 'origin' || !origin) {
+      setOrigin({ lat, lng });
+      setOriginName(name);
+      setOriginSource('manual');
+      setSearchTarget('destination');
+      if (destination) recalculateRoute({ lat, lng }, destination);
+    } else {
+      setDestination({ lat, lng });
+      setDestinationName(name);
+      recalculateRoute(origin, { lat, lng });
     }
   };
 
   const requestRide = async () => {
-    if (!destination || !origin || !user || !routeData) return;
-
-    if (gpsError && originName.includes('Défaut')) {
-      toast.error("Veuillez définir votre lieu de prise en charge avant de commander.");
-      setSearchTarget('origin');
-      setShowResults(true);
+    if (!destination || !origin || !user || !routeData) {
+      if (!origin) toast.error('Veuillez definir votre point de depart.');
+      else if (!destination) toast.error('Veuillez definir une destination.');
       return;
     }
 
-    const price = Math.round(routeData.distanceKm * 75);
+    const price = Math.max(300, Math.round(routeData.distanceKm * 75));
 
     try {
       setLoading(true);
@@ -241,25 +324,53 @@ export function MapZem() {
         destLat: destination.lat,
         destLng: destination.lng,
         distanceKm: routeData.distanceKm,
-        priceFcfa: price
+        priceFcfa: price,
       });
       if (res.data.ride) {
         setActiveRide(res.data.ride);
+        toast.success('Recherche d’un conducteur en cours...');
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Erreur lors de la commande.");
+      const detail = err.response?.data?.error || err.response?.data?.detail || 'Erreur lors de la commande.';
+      toast.error(detail);
     } finally {
       setLoading(false);
     }
   };
-  const cancelRide=async()=>{if(!activeRide)return;try{await api.post(`/zem/rides/${activeRide.id}/action`,{action:'cancel'});setActiveRide(null);setDestination(null);setRouteData(null);}catch{toast.error("Impossible d'annuler cette course.");}};
+
+  const executeRideAction = async (action: string) => {
+    if (!activeRide) return;
+    try {
+      const res = await api.post(`/zem/rides/${activeRide.id}/action`, { action });
+      if (res.data.ride) {
+        setActiveRide(res.data.ride);
+        if (action === 'cancel') {
+          toast('Course annulee.');
+          setActiveRide(null);
+          setDestination(null);
+          setRouteData(null);
+        } else if (action === 'passenger_ready') {
+          toast.success('Le conducteur a ete notifie que vous etes pret.');
+        } else if (action === 'confirm_complete') {
+          toast.success('Course confirmee et terminee.');
+          setActiveRide(null);
+          setDestination(null);
+          setRouteData(null);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Action non autorisee.');
+    }
+  };
 
   if (!location) {
     return (
       <div className="app-content" style={{ position: 'relative', height: '100vh' }}>
         <div className="loader-overlay">
           <div className="spinner"></div>
-          <p className="mt-4" style={{color: 'var(--color-primary)', fontWeight: 'bold'}}>Acquisition GPS...</p>
+          <p className="mt-4" style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
+            Acquisition de la position...
+          </p>
         </div>
       </div>
     );
@@ -268,64 +379,143 @@ export function MapZem() {
   return (
     <div className="map-container">
       {/* Bouton retour */}
-      <button className="map-back-button"
-        onClick={() => window.history.back()} 
-      >
+      <button className="map-back-button" onClick={() => window.history.back()} aria-label="Retour">
         <ChevronLeft size={24} color="var(--color-primary)" />
       </button>
 
-      {/* Overlay de chargement transparent si on lance une commande */}
+      {/* Overlay chargement */}
       {loading && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, backgroundColor: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2000,
+            backgroundColor: 'rgba(255,255,255,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <div className="spinner" style={{ width: '40px', height: '40px', borderTopColor: 'var(--color-primary)' }}></div>
         </div>
       )}
+
       {/* GPS Warning */}
       {gpsError && (
-        <div style={{ 
-          position: 'absolute', top: 60, left: 10, right: 10, zIndex: 1100,
-          backgroundColor: '#FFF3E0', border: '1px solid #FF9800', borderRadius: 10, padding: '10px 14px',
-          display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: '#E65100'
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 60,
+            left: 10,
+            right: 10,
+            zIndex: 1100,
+            backgroundColor: '#FFF3E0',
+            border: '1px solid #FF9800',
+            borderRadius: 10,
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: '0.8rem',
+            color: '#E65100',
+          }}
+        >
           <AlertCircle size={18} />
-          <span>GPS non autorisé. Position par défaut (Lomé). Vous pouvez quand même choisir une destination sur la carte.</span>
+          <span>GPS desactive ou non autorise. Veuillez designer votre point de depart sur la carte ou via la recherche.</span>
         </div>
       )}
 
       {/* Search Overlay */}
       {!activeRide && (
-        <div className="map-search-overlay" style={{ top: '60px' }}>
-          <button type="button" className={`route-point ${searchTarget === 'origin' ? 'active' : ''}`} onClick={() => { setSearchTarget('origin'); setSearchQuery(''); setSearchResults([]); setShowResults(false); }}>
-            <MapPin size={20} color="var(--color-success)" />
-            <span><small>Départ</small>{originName}</span>
-          </button>
+        <div className="map-search-overlay" style={{ top: gpsError ? '120px' : '60px' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button
+              type="button"
+              className={`route-point ${searchTarget === 'origin' ? 'active' : ''}`}
+              style={{ flex: 1 }}
+              onClick={() => {
+                setSearchTarget('origin');
+                setSearchQuery('');
+                setShowResults(false);
+              }}
+            >
+              <MapPin size={18} color="var(--color-success)" />
+              <span>
+                <small>Depart: </small>
+                {originName || 'Cliquez ou cherchez'}
+              </span>
+            </button>
 
-          {searchTarget === 'origin' && location && <button type="button" className="use-gps-button" onClick={async () => {
-            setOrigin(location); setOriginName('Ma position (GPS)'); setSearchTarget('destination'); setSearchQuery(''); setShowResults(false);
-            if (destination) { const route = await getRoute({latitude:location.lat,longitude:location.lng},{latitude:destination.lat,longitude:destination.lng}); setRouteData(route); }
-          }}><Navigation size={15}/> Utiliser ma position GPS</button>}
+            <button
+              type="button"
+              className={`route-point ${searchTarget === 'destination' ? 'active' : ''}`}
+              style={{ flex: 1 }}
+              onClick={() => {
+                setSearchTarget('destination');
+                setSearchQuery('');
+                setShowResults(false);
+              }}
+            >
+              <MapPin size={18} color="var(--color-danger)" />
+              <span>
+                <small>Destination: </small>
+                {destinationName || 'Cliquez ou cherchez'}
+              </span>
+            </button>
+          </div>
+
+          {searchTarget === 'origin' && location && !gpsError && (
+            <button
+              type="button"
+              className="use-gps-button"
+              style={{ marginBottom: 8 }}
+              onClick={() => {
+                setOrigin(location);
+                setOriginName('Ma position (GPS)');
+                setOriginSource('gps');
+                setSearchTarget('destination');
+                setShowResults(false);
+                if (destination) recalculateRoute(location, destination);
+              }}
+            >
+              <Navigation size={15} /> Utiliser ma position GPS actuelle
+            </button>
+          )}
 
           <div className="search-input-wrapper">
-            <Search size={20} color="var(--color-danger)" />
-            <input 
-              type="text" 
-              placeholder={searchTarget === 'origin' ? "Rechercher le point de départ..." : "Rechercher une destination..."}
+            <Search size={20} color={searchTarget === 'origin' ? 'var(--color-success)' : 'var(--color-danger)'} />
+            <input
+              type="text"
+              placeholder={searchTarget === 'origin' ? 'Rechercher le lieu de prise en charge...' : 'Rechercher votre destination...'}
               value={searchQuery}
               onChange={handleSearch}
               onFocus={() => setShowResults(true)}
               className="w-full"
             />
             {searchQuery && (
-              <X size={20} className="text-secondary" style={{cursor: 'pointer'}} onClick={() => {
-                setSearchQuery('');
-                setShowResults(false);
-                if (searchTarget === 'destination') { setDestination(null); setDestinationName(''); setRouteData(null); }
-              }}/>
+              <X
+                size={20}
+                className="text-secondary"
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setShowResults(false);
+                  if (searchTarget === 'destination') {
+                    setDestination(null);
+                    setDestinationName('');
+                    setRouteData(null);
+                  }
+                }}
+              />
             )}
           </div>
+
           {showResults && searchResults.length > 0 && (
             <div className="search-results">
-              {searchResults.map(res => (
+              {searchResults.map((res) => (
                 <div key={res.place_id} className="search-result-item" onClick={() => handleSelectResult(res)}>
                   <MapPin size={18} className="text-primary" />
                   <div>
@@ -336,50 +526,67 @@ export function MapZem() {
               ))}
             </div>
           )}
-          {showResults && searchQuery.trim().length >= 3 && !searching && searchResults.length === 0 && <div className="search-empty">Aucun lieu trouvé au Togo. Précisez le quartier ou la ville.</div>}
-          {searching && <div className="search-empty">Recherche de l'adresse…</div>}
+          {showResults && searchQuery.trim().length >= 3 && !searching && searchResults.length === 0 && (
+            <div className="search-empty">Aucun lieu trouve. Essayez un quartier ou repere a Lome.</div>
+          )}
+          {searching && <div className="search-empty">Recherche en cours...</div>}
         </div>
       )}
 
-      {/* Leaflet Map */}
-      <MapContainer 
-        center={origin ? [origin.lat, origin.lng] : [location.lat, location.lng]} 
-        zoom={13} 
+      {/* Map */}
+      <MapContainer
+        center={origin ? [origin.lat, origin.lng] : [location.lat, location.lng]}
+        zoom={13}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
         zoomControl={false}
       >
         <ReliableTiles />
-        <MapController destination={destination} onMapClick={handleMapClick} />
-        
-        {/* Origin Location */}
+        <MapController destination={destination} origin={origin} onMapClick={handleMapClick} />
+
+        {/* Origin Marker */}
         {origin && (
-          <Marker position={[origin.lat, origin.lng]} icon={L.divIcon({ className: 'custom-zem-icon', html: '<div style="background:var(--color-success);width:20px;height:20px;border-radius:10px;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.3)"></div>' })} />
-        )}
-        
-        {/* Destination Marker */}
-        {destination && (
-          <Marker position={[destination.lat, destination.lng]} />
+          <Marker
+            position={[origin.lat, origin.lng]}
+            icon={L.divIcon({
+              className: 'custom-zem-icon',
+              html: '<div style="background:var(--color-success);width:22px;height:22px;border-radius:11px;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.4)"></div>',
+            })}
+          />
         )}
 
-        {/* Route Line */}
+        {/* Destination Marker */}
+        {destination && <Marker position={[destination.lat, destination.lng]} />}
+
+        {/* Live Zem Marker */}
+        {zemLocation && (
+          <Marker
+            position={[zemLocation.lat, zemLocation.lng]}
+            icon={L.divIcon({
+              className: 'custom-zem-icon',
+              html: '<div style="background:#1565D8;width:24px;height:24px;border-radius:12px;border:3px solid white;box-shadow:0 0 12px rgba(21,101,216,0.6)"></div>',
+            })}
+          />
+        )}
+
+        {/* Route Polyline */}
         {routeData && (
-          <Polyline 
-            positions={routeData.coordinates.map(c => [c.latitude, c.longitude])} 
-            color="var(--color-primary)" 
-            weight={5} 
+          <Polyline
+            positions={routeData.coordinates.map((c) => [c.latitude, c.longitude])}
+            color="var(--color-primary)"
+            weight={5}
           />
         )}
       </MapContainer>
 
-      {/* Bottom Sheet UI */}
+      {/* Bottom Sheet */}
       <div className="bottom-sheet">
         {!activeRide ? (
           <>
-            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Navigation size={20} className="text-primary" />
-              {destinationName ? destinationName : 'Choisissez une destination'}
+              {destinationName ? destinationName : 'Selectionnez votre destination'}
             </h3>
-            
+
             {routeData ? (
               <div className="estimate-box">
                 <div className="estimate-item">
@@ -393,38 +600,88 @@ export function MapZem() {
                 </div>
                 <div className="divider-vertical" />
                 <div className="estimate-item">
-                  <span className="estimate-label">Prix Estimé</span>
-                  <span className="estimate-value estimate-price">{Math.round(routeData.distanceKm * 75)} FCFA</span>
+                  <span className="estimate-label">Prix Estime</span>
+                  <span className="estimate-value estimate-price">{Math.max(300, Math.round(routeData.distanceKm * 75))} FCFA</span>
                 </div>
               </div>
+            ) : routeError ? (
+              <p className="text-secondary mb-3" style={{ fontSize: '0.85rem', color: 'var(--color-warning)' }}>
+                {routeError}
+              </p>
             ) : (
-              <p className="text-secondary mb-4" style={{ fontSize: '0.875rem' }}>
-                Recherchez une adresse ou cliquez sur la carte pour voir l'itinéraire et le prix.
+              <p className="text-secondary mb-3" style={{ fontSize: '0.85rem' }}>
+                {!origin
+                  ? 'Veuillez d’abord designer votre lieu de depart sur la carte.'
+                  : 'Cliquez sur la carte ou recherchez une adresse pour calculer l’itineraire.'}
               </p>
             )}
 
-            <button 
-              className="btn primary" 
+            <button
+              className="btn primary"
               style={{ width: '100%', padding: '15px' }}
               onClick={requestRide}
-              disabled={!destination || !routeData || loading}
+              disabled={!origin || !destination || !routeData || loading}
             >
               <Car size={20} />
-              {loading ? 'Commande en cours...' : 'Commander un Lotisec Zem'}
+              {loading
+                ? 'Commande en cours...'
+                : !origin
+                ? 'Definir le depart d’abord'
+                : !destination
+                ? 'Definir la destination'
+                : 'Commander un Lotisec Zem'}
             </button>
           </>
         ) : (
           <div className="text-center">
-            <h3 className="text-primary mb-4">Course en cours</h3>
-            <p className="text-secondary mb-4">
-              {['searching','offered'].includes(activeRide.status) ? "Recherche d'un conducteur à proximité..." : "Le conducteur est affecté."}
+            <h3 className="text-primary mb-2">Course en cours</h3>
+            <p className="text-secondary mb-3" style={{ fontWeight: '600' }}>
+              {activeRide.status === 'searching' && 'Recherche d’un conducteur a proximite...'}
+              {activeRide.status === 'offered' && 'Proposition transmise a un conducteur...'}
+              {activeRide.status === 'accepted' && 'Conducteur affecte ! En route vers vous.'}
+              {activeRide.status === 'driver_en_route' && 'Le conducteur est en route.'}
+              {activeRide.status === 'driver_arrived' && 'Le conducteur est arrive au point de depart.'}
+              {activeRide.status === 'ready_to_start' && 'Pret pour le depart.'}
+              {activeRide.status === 'in_progress' && 'Trajet vers la destination en cours.'}
+              {activeRide.status === 'driver_completed' && 'Le conducteur a indique la fin du trajet.'}
+              {activeRide.status === 'completed' && 'Course terminee.'}
             </p>
-            <div className="estimate-box justify-center mb-4">
+
+            <div className="estimate-box justify-center mb-3">
               <span className="estimate-value estimate-price">{activeRide.price_fcfa} FCFA</span>
+              <span style={{ margin: '0 8px', color: 'var(--color-text-secondary)' }}>•</span>
+              <span className="estimate-value">{activeRide.distance_km} km</span>
             </div>
-            <button className="btn danger" onClick={cancelRide}>
-              Annuler la commande
-            </button>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activeRide.status === 'driver_arrived' && (
+                <button className="btn primary" onClick={() => executeRideAction('passenger_ready')}>
+                  <CheckCircle size={18} /> Je suis pret / Je monte
+                </button>
+              )}
+
+              {activeRide.status === 'driver_completed' && (
+                <button className="btn primary" onClick={() => executeRideAction('confirm_complete')}>
+                  <CheckCircle size={18} /> Confirmer l’arrivee et terminer
+                </button>
+              )}
+
+              <button
+                className="btn ghost"
+                style={{ border: '1px solid var(--color-primary)', color: 'var(--color-primary)' }}
+                onClick={() => navigate(`/trajets/${activeRide.id}`)}
+              >
+                Ouvrir la fiche detaillee & discussion
+              </button>
+
+              {['searching', 'offered', 'accepted', 'driver_en_route', 'driver_arrived', 'ready_to_start', 'in_progress'].includes(
+                activeRide.status
+              ) && (
+                <button className="btn danger" onClick={() => executeRideAction('cancel')}>
+                  Annuler la course
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

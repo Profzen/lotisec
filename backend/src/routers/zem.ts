@@ -53,6 +53,8 @@ async function advanceExpiredOffer(rideId:string){
 router.post('/request',requireAuth,async(req:AuthRequest,res)=>{
   const {originLat,originLng,destLat,destLng,distanceKm,priceFcfa}=req.body;
   if(![originLat,originLng,destLat,destLng,distanceKm,priceFcfa].every(Number.isFinite))return res.status(400).json({detail:'Coordonnées, distance et prix valides requis'});
+  if(distanceKm<=0||distanceKm>250)return res.status(400).json({detail:'Distance de course invalide'});
+  const validatedPrice=Math.max(300,Math.round(distanceKm*75));
   if(!pool)return res.status(503).json({detail:'Base indisponible'});
   const client=await pool.connect();
   try{
@@ -60,12 +62,12 @@ router.post('/request',requireAuth,async(req:AuthRequest,res)=>{
     const existing=await client.query<any>('SELECT * FROM rides WHERE passenger_id=$1 AND status=ANY($2::text[]) FOR UPDATE',[req.userId,ACTIVE]);
     if(existing.rows[0]){await client.query('ROLLBACK');return res.status(409).json({detail:'Une course est déjà active',ride:existing.rows[0]});}
     const ride=(await client.query<any>(`INSERT INTO rides(passenger_id,origin_lat,origin_lng,dest_lat,dest_lng,distance_km,price_fcfa,status,pickup_code)
-      VALUES($1,$2,$3,$4,$5,$6,$7,'searching',$8) RETURNING *`,[req.userId,originLat,originLng,destLat,destLng,distanceKm,priceFcfa,String(randomInt(1000,10000))])).rows[0];
+      VALUES($1,$2,$3,$4,$5,$6,$7,'searching',$8) RETURNING *`,[req.userId,originLat,originLng,destLat,destLng,distanceKm,validatedPrice,String(randomInt(1000,10000))])).rows[0];
     await client.query(`INSERT INTO ride_events(ride_id,actor_id,event_type,to_status) VALUES($1,$2,'ride_requested','searching')`,[ride.id,req.userId]);
     const offer=await nextOffer(client,ride);
     await client.query('COMMIT');
     if(!offer)return res.status(404).json({detail:'Aucun Zem disponible dans un rayon de 5 km',ride:{...ride,status:'expired'}});
-    void notifyUsers([offer.zem_id],'Nouvelle course LOTISEC',`${Number(distanceKm).toFixed(1)} km · ${priceFcfa} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:offer.id});
+    void notifyUsers([offer.zem_id],'Nouvelle course LOTISEC',`${Number(distanceKm).toFixed(1)} km · ${validatedPrice} FCFA`,{type:'ride_offer',ride_id:ride.id,offer_id:offer.id});
     return res.status(201).json({ride:{...ride,zem_id:offer.zem_id,status:'offered'},offer_expires_at:offer.expires_at,zem_distance:offer.distance_km});
   }catch(error:any){await client.query('ROLLBACK');console.error(error);return res.status(500).json({detail:'Création de course impossible'});}finally{client.release();}
 });
@@ -76,7 +78,7 @@ router.post('/location',requireAuth,requirePermission('zem:drive'),async(req:Aut
   const result=await query<any>(`INSERT INTO zem_locations(zem_id,latitude,longitude,is_online,location,updated_at) VALUES($1,$2,$3,$4,ST_SetSRID(ST_MakePoint($3,$2),4326),now())
     ON CONFLICT(zem_id) DO UPDATE SET latitude=EXCLUDED.latitude,longitude=EXCLUDED.longitude,is_online=EXCLUDED.is_online,location=EXCLUDED.location,updated_at=now() RETURNING *`,[req.userId,lat,lng,Boolean(isOnline)]);
   const active=await query<any>('SELECT id FROM rides WHERE zem_id=$1 AND status=ANY($2::text[]) ORDER BY created_at DESC LIMIT 1',[req.userId,ACTIVE]);
-  if(active.rows[0])await query(`INSERT INTO ride_positions(ride_id,user_id,latitude,longitude,accuracy,heading,speed) SELECT $1,$2,$3,$4,$5,$6,$7 WHERE NOT EXISTS(SELECT 1 FROM ride_positions WHERE ride_id=$1 AND user_id=$2 AND created_at>now()-interval '5 seconds')`,[active.rows[0].id,req.userId,lat,lng,req.body.accuracy??null,req.body.heading??null,req.body.speed??null]);
+  if(active.rows[0])await query(`INSERT INTO ride_positions(ride_id,user_id,latitude,longitude,accuracy,heading,speed) SELECT $1::uuid,$2::varchar,$3,$4,$5,$6,$7 WHERE NOT EXISTS(SELECT 1 FROM ride_positions WHERE ride_id=$1::uuid AND user_id=$2::varchar AND created_at>now()-interval '5 seconds')`,[active.rows[0].id,req.userId,lat,lng,req.body.accuracy??null,req.body.heading??null,req.body.speed??null]);
   return res.json(result.rows[0]);
 });
 

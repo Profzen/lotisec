@@ -2218,3 +2218,72 @@ La console inclut désormais notifications persistantes avec accusé de lecture,
   - Tests unitaires et d'intégration : 33/33 tests réussis.
   - Script de test de fumée opérationnel (`smoke-operational-api.js`) validé (healthcheck, login admin, 13 routes d'administration, jeton Realtime, vérification RBAC citoyen 403).
   - Script de validation de workflow complet (`verify-operational-workflow.js`) validé en transaction PostgreSQL (isolation organisationnelle, cycle d'intervention, notification opérationnelle, audit).
+
+---
+
+## Stabilisation Complète de Bout en Bout du Module LOTISEC Zem (2026-09-15)
+
+### 1. Objectifs Atteints & Périmètre Validé
+Le module **LOTISEC Zem** a été stabilisé et validé de bout en bout sur l'ensemble de la chaîne :
+1. **Application Mobile React Native / Expo (`Qr-mobile`)**
+2. **Version Web Citoyenne PWA (`frontend`)**
+3. **Backend Express / PostgreSQL / PostGIS (`backend`)**
+
+### 2. Architecture & Composants Clés Stabilisés
+- **Carte Native Android (`PlatformMap.native.tsx`)** :
+  - Intégration de la carte native `react-native-maps` (`MapView`, `Marker`, `Polyline`, `UrlTile`).
+  - Suppression du risque de crash Android `RuntimeException: API key not found` via injection dynamique de la clé dans `app.json` et `app.config.js`.
+  - Rendu des tuiles cartographiques raster haute performance **CARTO Voyager** (`UrlTile`), garantissant un affichage fluide et hors quota Google Maps.
+- **Intégrité de la Géolocalisation (Zéro Fausse Position)** :
+  - Les coordonnées par défaut de Lomé (`DEFAULT_COORDS`) servent exclusivement à centrer la caméra en l'absence de signal GPS.
+  - Elles ne sont **jamais injectées** comme lieu de prise en charge du passager ni comme position du conducteur.
+  - Déclaration explicite de l'origine : `originSource: 'gps' | 'manual' | null`. Le bouton de commande est strictement désactivé tant qu'aucun point de départ réel n'est défini.
+  - En mode conducteur, le passage en ligne (`isOnline = true`) est bloqué si la position GPS réelle n'est pas acquise.
+- **Calcul d'Itinéraire & Tarification Autoritaires** :
+  - Calcul d'itinéraire routier via OSRM avec gestion des messages de repli explicites en cas d'indisponibilité réseau.
+  - Côté serveur (`POST /zem/request`), validation stricte de la distance (`distanceKm > 0 && distanceKm <= 250`) et recalcul souverain du tarif : `Math.max(300, Math.round(distanceKm * 75))` FCFA.
+- **Automate d'État Canonique & Actions Rôles** :
+  - `searching` → `offered` → `accepted` → `driver_en_route` → `driver_arrived` → `ready_to_start` → `in_progress` → `driver_completed` → `completed`.
+  - Gestion des branches alternatives : `canceled`, `expired`, `no_show`, `disputed`.
+  - Télémétrie continue du conducteur (`POST /zem/location`) enregistrée dans `ride_positions` pendant le trajet actif.
+  - Correction du typage PostgreSQL dans l'insertion des positions (`$1::uuid, $2::varchar`).
+  - Chat en direct intégré avec idempotence stricte (`client_message_id`) et accusés de lecture.
+- **Résilience Réseau & Synchronisation Temps Réel** :
+  - Isolement des abonnements Supabase Realtime dans des hooks réactifs dédiés (`ride-live-${activeRide.id}` et `zem-pos-${activeRide.zem_id}`).
+  - Mécanisme de repli HTTP automatique (polling `GET /zem/rides/:id` toutes les 4s pour le passager et le conducteur).
+- **Conformité des Portes de Qualité Mobile** :
+  - Vérification automatisée d'absence d'emojis dans les libellés et chaînes JSX de `Qr-mobile`.
+  - Typage TypeScript strict validé (`tsc --noEmit` avec code 0 sur `Qr-mobile` et `frontend`).
+
+### 3. Validation Bout en Bout (34/34 Tests Réussis)
+- Création et exécution du test d'intégration transactionnel multi-comptes (`backend/test/zem-e2e-multi-account.test.js`) simulant le cycle complet en 28 étapes :
+  1. Mise en ligne du conducteur avec coordonnées réelles Lomé (`POST /zem/location`).
+  2. Enregistrement en base `zem_locations`.
+  3. Rejet d'une commande avec distance nulle (400).
+  4. Rejet d'une commande avec distance excessive > 250 km (400).
+  5. Création de course valide (201).
+  6. Recalcul souverain du prix par le serveur.
+  7. Statut initial `offered` / `searching`.
+  8. Création de l'offre dans `ride_offers`.
+  9. Récupération de l'offre par le conducteur (`GET /zem/offers/current`).
+  10. Rejet d'une réponse par un tiers non autorisé.
+  11. Acceptation de l'offre par le conducteur (`POST /zem/offers/:id/respond`).
+  12. Attribution du `zem_id` et passage au statut `accepted`.
+  13. Consultation de l'état mis à jour par le passager.
+  14. Début de l'approche conducteur (`driver_en_route`).
+  15. Arrivée au point de départ (`driver_arrived`).
+  16. Blocage du démarrage prématuré (409).
+  17. Signalement de prise en charge par le passager (`passenger_ready`).
+  18. Démarrage effectif du trajet (`start` → `in_progress`).
+  19. Envoi de la télémétrie en cours de route.
+  20. Réception de la dernière position par le passager (`GET /zem/rides/:id/positions/latest`).
+  21. Envoi de message chat en direct.
+  22. Vérification de l'idempotence du message (pas de doublon).
+  23. Réception des messages par le conducteur.
+  24. Accusé de lecture (`PATCH /zem/rides/:id/messages/read`).
+  25. Arrivée à destination par le conducteur (`driver_completed`).
+  26. Confirmation finale par le passager (`confirm_complete` → `completed`).
+  27. Immuabilité de la course terminée (rejet d'annulation).
+  28. Persistance du statut `completed` en base PostgreSQL et nettoyage.
+- **Résultat global** : 34/34 tests exécutés avec succès dans la suite de tests backend (`node --test`).
+
