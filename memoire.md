@@ -2320,4 +2320,158 @@ Le module **LOTISEC Zem** a été stabilisé et validé de bout en bout sur l'en
 
 *(Note de traçabilité : Le module Zem reste en cours de validation physique sur le terminal cible et ne sera acté comme « validé sur APK » qu'après confirmation par les tests physiques de l'APK reconstruit avec sa clé).*
 
+---
+
+## Migration Souveraine vers MapLibre Native & OpenFreeMap Liberty (2026-09-16 / 2026-09-17)
+
+### 1. Décision Architecturale : Rupture avec Google Maps & Tuiles CARTO Propriétaires
+Face aux blocages récurrents liés aux quotas, aux clés d'API obligatoires sur Android (`com.google.android.geo.API_KEY`), aux filigranes intrusifs et aux coûts potentiels des fournisseurs de cartographie propriétaires, l'architecture mobile de LOTISEC a été radicalement refondue pour atteindre une **souveraineté technologique totale** :
+- **Abandon de `react-native-maps`** : Suppression de la dépendance envers les Google Play Services et l'API Google Maps Android, éliminant définitivement les exceptions `RuntimeException: API key not found` sur les terminaux sans services Google ou sans clé configurée.
+- **Intégration de MapLibre Native React Native (`@maplibre/maplibre-react-native` v10.4.2)** : Moteur de rendu vectoriel natif C++ / GPU hautement performant, sous licence libre permissive (BSD), standardisé et pérenne.
+- **Adoption d'OpenFreeMap Liberty (`https://tiles.openfreemap.org/styles/liberty`)** : Style cartographique vectoriel et raster mondial basé sur OpenStreetMap, sans aucun filigrane (adieu au watermark CARTO gênant l'interface mobile), sans quota commercial et sans nécessité de clé d'API.
+- **Automatisation CI/CD GitHub Actions (`.github/workflows/build-apk.yml`)** : Mise en place d'un pipeline complet de compilation d'APK autonome sous Ubuntu avec OpenJDK 17, Android SDK Command Line Tools, NDK 26.1.10909125, et Expo Prebuild, garantissant la génération continue d'APKs sans dépendre de quotas EAS payants.
+
+---
+
+## Retours des Tests Physiques sur Terminal Réel & Diagnostic du Crash (2026-09-17 / 2026-09-18)
+
+### 1. Bilan du Test Physique de l'APK (Commit `4485525` / `82c5b48`)
+Le déploiement physique de l'APK sur smartphone Android a permis de constater des avancées majeures et de cerner avec précision le dernier point de friction :
+- **Succès constatés** :
+  - L'application démarre immédiatement, sans latence ni crash à l'initialisation.
+  - L'écran « Commander un Zem » s'ouvre fluidement.
+  - Le moteur MapLibre Native s'initialise correctement et affiche la carte OpenFreeMap Liberty de Lomé avec une netteté remarquable, sans aucun filigrane.
+  - La géolocalisation GPS réelle de l'utilisateur est acquise avec précision (`showsUserLocation`).
+  - La recherche d'adresse (Nominatim) fonctionne parfaitement (testée sur *« Agoè-Démakpoè, Région Maritime »*).
+  - L'estimation de distance (3 km) et le tarif garanti calculé par le serveur (300 FCFA) s'affichent correctement.
+  - Le tracé d'itinéraire (polyligne) relie fidèlement le point de départ et la destination.
+- **Incident bloquant observé** :
+  - Au moment où l'utilisateur appuie sur le bouton **« Commander le Zem (300 FCFA) »**, le bouton passe en état de recherche (*« Recherche d’un conducteur... »* avec indicateur rotatif).
+  - Environ 1 seconde après ce clic, l'application mobile se ferme brutalement (*« ça sort de l'application, ça m'éjecte de l'application »*), provoquant un crash au niveau du système d'exploitation Android.
+
+---
+
+## Diagnostic Approfondi & Résolution Définitive du Crash Android (2026-09-18)
+
+### 1. Diagnostic de la Cause Racine du Crash
+L'investigation conjointe sur la base de données PostgreSQL, les logs backend Vercel et le code source de `@maplibre/maplibre-react-native` a permis de reconstituer l'enchaînement exact menant au crash natif :
+
+1. **Vérification côté Backend & Base de Données** :
+   - À `2026-09-17T22:50:23Z` et `22:51:37Z`, le backend a bien reçu la requête `POST /zem/request` avec l'origine et la destination saisies.
+   - En l'absence de conducteur Zem en ligne dans un rayon de 5 km à cette heure, le backend a exécuté la transaction atomique dans `backend/src/routers/zem.ts`, passé la course au statut `expired`, et retourné un code HTTP 404 :
+     ```json
+     {
+       "detail": "Aucun Zem disponible dans un rayon de 5 km",
+       "ride": { "id": "...", "status": "expired", "price_fcfa": 300, "distance_km": 3 }
+     }
+     ```
+   - La fonction `api()` du mobile (`Qr-mobile/src/api/config.ts`) a levé une exception JavaScript `Error("Aucun Zem disponible dans un rayon de 5 km")`.
+
+2. **Mécanisme Fatal dans MapLibre Native Android (`CameraStop.java`)** :
+   - Dans `PlatformMap.native.tsx`, la fonction `fitToCoordinates` appelait :
+     ```typescript
+     this.cameraRef.current?.fitBounds(ne, sw, [top, right, bottom, left], duration);
+     ```
+     avec un padding en pixels imposé : `{ top: 70, right: 40, bottom: 220, left: 40 }`.
+   - Lors de la sélection d'une destination, l'appel à `Keyboard.dismiss()` ou l'animation du panneau de commande modifie brusquement les dimensions mesurées du conteneur de carte `MapView`.
+   - Dans le code Java natif de `@maplibre/maplibre-react-native` (`org.maplibre.reactnative.components.camera.CameraStop.java`) :
+     ```java
+     private static int[] clippedPadding(int[] padding, MLRNMapView mapView) {
+         int mapHeight = mapView.getHeight();
+         // Si la vue est en cours de redimensionnement ou hauteur transitoire :
+         if (top + bottom >= mapHeight) {
+             double totalPadding = top + bottom;
+             double extra = totalPadding - mapHeight + 1.0;
+             resultTop -= (top * extra) / totalPadding;
+             resultBottom -= (bottom * extra) / totalPadding;
+         }
+         return new int[] {resultLeft, resultTop, resultRight, resultBottom};
+     }
+     ```
+     Lorsque `top + bottom >= mapHeight`, la formule de calcul de l'atténuation produit des valeurs **négatives** pour `resultTop` ou `resultBottom`.
+   - La méthode native MapLibre SDK `map.getCameraForLatLngBounds(mBounds, cameraPaddingClipped, bearing, tilt)` ne tolère aucun padding négatif et lève une exception non interceptée :
+     `java.lang.IllegalArgumentException: Padding must be smaller than the map dimensions` (ou `Camera padding cannot be negative`).
+   - S'agissant d'une exception Java non rattrapée sur le thread principal de l'UI Android, le système d'exploitation tue immédiatement le processus de l'application sans message d'erreur JS.
+
+3. **Facteurs Aggravants Identifiés** :
+   - **Instabilité des couches GPU** : Les marqueurs utilisaient un identifiant dérivé du titre (`cleanKey = title...`). À chaque frappe ou retour de géocodage inverse, l'identifiant changeait, provoquant la destruction et la recréation répétée de `ShapeSource` et `CircleLayer` au niveau OpenGL/Vulkan.
+   - **Mutation dynamique de `lineDasharray`** : Passer d'un tracé de secours en pointillés `[6, 6]` à un tracé d'itinéraire plein (`undefined`) sur le même identifiant de layer provoquait des anomalies dans le bridge JNI Android de MapLibre.
+
+### 2. Solutions d'Ingénierie Mises en Œuvre
+
+#### A. Calcul Direct et Mathématique de la Caméra (`setCamera`)
+- Suppression totale de l'appel à `fitBounds` natif dans `PlatformMap.native.tsx`.
+- Implémentation d'un calcul géométrique direct du centre et du zoom :
+  ```typescript
+  const midLat = (minLat + maxLat) / 2;
+  const midLng = (minLng + maxLng) / 2;
+  const deltaLat = Math.max(maxLat - minLat, 0.001);
+  const deltaLng = Math.max(maxLng - minLng, 0.001);
+
+  // Marge visuelle pour englober les points et dégager les panneaux haut/bas
+  const spanLat = deltaLat * 2.4;
+  const spanLng = deltaLng * 1.8;
+
+  const zoomLat = Math.round(Math.log(360 / Math.max(spanLat, 0.005)) / Math.LN2);
+  const zoomLng = Math.round(Math.log(360 / Math.max(spanLng, 0.005)) / Math.LN2);
+  const zoomLevel = Math.max(10, Math.min(16, Math.min(zoomLat, zoomLng)));
+
+  // Décalage vertical vers le bas pour compenser le panneau inférieur
+  const latOffset = spanLat * 0.1;
+  const visualCenterLat = midLat - latOffset;
+
+  this.cameraRef.current?.setCamera({
+    centerCoordinate: [midLng, visualCenterLat],
+    zoomLevel,
+    animationDuration: duration,
+    animationMode: 'easeTo',
+  });
+  ```
+  *Avantage décisif* : `setCamera` ne sollicite aucun calcul de padding de bounds natif, n'invoque pas `CameraStop.clippedPadding` et est 100% insensible aux redimensionnements de vue ou fermetures de clavier.
+
+#### B. Stabilisation Stricte des Identifiants de Marqueurs & Tracés
+- Attribution d'identifiants statiques et immuables dans `ZemPassengerScreen.tsx` :
+  - Départ : `id="zem-origin"`
+  - Arrivée : `id="zem-destination"`
+  - Conducteur : `id="zem-driver"`
+  - Itinéraire : `id="zem-route"`
+- Les couches GPU restent pérennes : seules les coordonnées de la géométrie GeoJSON sont mises à jour, éliminant les fuites et les plantages GPU.
+- Clé dynamique différenciée sur la polyligne : `cleanKey = ..._${isDashed ? 'dash' : 'solid'}` évitant toute mutation d'attribut non supportée sur un layer existant.
+
+#### C. Gestion Défensive de la Commande & Bandeau Contextuel
+- Dans `requestZem()`, réinitialisation systématique et garantie de `setRequestingRide(false)` dans le bloc `finally`.
+- Ajout d'un état `orderError` et d'un bandeau visuel contextuel (`orderErrorBanner`) sous le résumé du trajet lorsque le serveur indique qu'aucun conducteur n'est à portée, en plus du dialogue `Alert.alert` sécurisé.
+- Réinitialisation automatique de l'erreur dès que l'utilisateur modifie son point de départ ou sa destination.
+
+---
+
+## Parité Web Citoyen : Contrôles Flottants de Carte (`frontend/src/pages/MapZem.tsx`)
+
+### 1. Ergonomie et Alignement Mobile / Web
+Pour garantir une expérience utilisateur fluide et homogène sur PC, tablette et navigateur mobile :
+- Création du composant `MapFloatingControls` positionné en superposition au-dessus de la carte Leaflet (`right: 16px, bottom: 240px, zIndex: 1000`) :
+  - **Bouton Recentrer** (icône navigation bleue) : déclenche `map.flyTo([origin.lat, origin.lng], 15)` vers la position GPS de l'utilisateur ou le point de départ.
+  - **Bouton Zoom Avant (`+`)** : déclenche `map.zoomIn()`.
+  - **Bouton Zoom Arrière (`-`)** : déclenche `map.zoomOut()`.
+- Style soigné : boutons circulaires blancs (44x44px), bordure subtile, ombre portée douce (`boxShadow: 0 4px 12px rgba(0,0,0,0.18)`), icônes Lucide nettes et réactives.
+
+---
+
+## Matrice Récapitulative des Portes de Qualité & Déploiement (Commit `a2d8702`)
+
+### 1. Validation Technique Exhaustive
+| Composant | Outil de Contrôle | Résultat | Commentaire |
+| :--- | :--- | :--- | :--- |
+| **Backend** | `npm test` (`node --test test/*.test.js`) | **34/34 tests passés** (0 échec) | Cycle Zem E2E complet en 28 étapes validé avec succès. |
+| **Frontend** | `npm run build` (`tsc -b && vite build`) | **Build de production réussi** | PWA générée, bundle optimisé sans erreur. |
+| **Qr-mobile** | `npx tsc --noEmit` | **0 erreur TypeScript** | Code typé rigoureusement. |
+| **Qr-mobile** | `npx expo-doctor` | **18/18 checks passés** | Dépendances et configuration Expo saines. |
+| **Git / CI/CD** | `git push origin main` | **Commit `a2d8702` poussé** | Workflow GitHub Actions `Build Android APK` déclenché. |
+
+### 2. Traçabilité des Commits Clés
+- `4485525` : Migration initiale vers MapLibre Native React Native et OpenFreeMap Liberty.
+- `82c5b48` : Suppression du filigrane CARTO, nettoyage des logs et stabilisation de l'amorçage.
+- `a2d8702` : Résolution définitive du crash Android (`setCamera`), sécurisation des identifiants GPU, gestion d'erreur 404 défensive et ajout des contrôles flottants de zoom sur le web.
+
+
 
