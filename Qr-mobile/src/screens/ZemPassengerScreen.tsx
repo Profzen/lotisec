@@ -49,6 +49,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
   // Itinéraire & distance
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [routeError, setRouteError] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // Course active & suivi moto
   const [activeRide, setActiveRide] = useState<any>(null);
@@ -269,6 +270,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
     }
 
     setDestination({ lat, lng });
+    setOrderError(null);
     const name = getShortName(result) || result.display_name;
     setDestinationName(name);
     setSearchQuery(name);
@@ -320,6 +322,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
       setOrigin(clicked);
       setOriginSource('manual');
       setOriginName('Point de départ sélectionné');
+      setOrderError(null);
 
       reverseGeocode(clicked.lat, clicked.lng)
         .then((rev) => {
@@ -331,6 +334,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
     // Sinon le clic définit la destination
     setDestination(clicked);
+    setOrderError(null);
     setShowResults(false);
     setDestinationName('Destination sélectionnée');
 
@@ -485,6 +489,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
     try {
       setRequestingRide(true);
+      setOrderError(null);
       const res = await api('/zem/request', 'POST', {
         originLat: origin.lat,
         originLng: origin.lng,
@@ -500,10 +505,13 @@ export default function ZemPassengerScreen({ navigation }: any) {
       }
     } catch (err: any) {
       console.warn('[ZEM PASSENGER] Erreur commande:', err);
-      Alert.alert(
-        'Demande Zem',
-        err.message || 'Aucun conducteur Zem disponible dans un rayon de 5 km pour le moment.'
-      );
+      const rawMsg = err?.message;
+      const msg =
+        typeof rawMsg === 'string' && rawMsg.trim().length > 0
+          ? rawMsg.trim()
+          : 'Aucun conducteur Zem disponible dans un rayon de 5 km pour le moment.';
+      setOrderError(msg);
+      Alert.alert('Demande Zem', msg);
     } finally {
       setRequestingRide(false);
     }
@@ -651,6 +659,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
         {origin && (
           <Marker
+            id="zem-origin"
             coordinate={{ latitude: origin.lat, longitude: origin.lng }}
             title={originName || 'Départ'}
             description={originSource === 'gps' ? 'Ma position GPS' : 'Point de départ sélectionné'}
@@ -660,6 +669,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
         {destination && (
           <Marker
+            id="zem-destination"
             coordinate={{ latitude: destination.lat, longitude: destination.lng }}
             title={destinationName || 'Destination'}
             pinColor="#D32F2F"
@@ -669,6 +679,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         {/* Tracé routier OSRM ou ligne indicative si hors ligne */}
         {origin && destination && (
           <Polyline
+            id="zem-route"
             coordinates={routeData ? routeData.coordinates : [
               { latitude: origin.lat, longitude: origin.lng },
               { latitude: destination.lat, longitude: destination.lng }
@@ -682,6 +693,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
         {/* Marqueur moto Zem */}
         {zemLocation && (
           <Marker
+            id="zem-driver"
             coordinate={{ latitude: zemLocation.lat, longitude: zemLocation.lng }}
             title="Votre conducteur Zem"
             pinColor="#2E7D32"
@@ -740,6 +752,13 @@ export default function ZemPassengerScreen({ navigation }: any) {
               <Text style={styles.routeWarning}>
                 Itinéraire routier temporairement indisponible. Distance approximative affichée.
               </Text>
+            )}
+
+            {orderError && (
+              <View style={styles.orderErrorBanner}>
+                <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+                <Text style={styles.orderErrorText}>{orderError}</Text>
+              </View>
             )}
 
             {origin && destination && (
@@ -1044,5 +1063,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+  },
+  orderErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDECEA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    gap: 8,
+  },
+  orderErrorText: {
+    flex: 1,
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.regular,
+    color: colors.danger,
   },
 });

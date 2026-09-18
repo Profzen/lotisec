@@ -143,11 +143,9 @@ export function Polyline({
 
   if (validPoints.length < 2) return null;
 
+  const isDashed = Boolean(lineDashPattern && lineDashPattern.length >= 2);
   const rawKey = id || 'route';
-  const cleanKey = rawKey
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '_')
-    .slice(0, 32);
+  const cleanKey = `${rawKey.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 24)}_${isDashed ? 'dash' : 'solid'}`;
 
   const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
     type: 'Feature',
@@ -158,20 +156,21 @@ export function Polyline({
     },
   };
 
+  const lineStyle: any = {
+    lineColor: strokeColor,
+    lineWidth: strokeWidth,
+    lineCap: 'round',
+    lineJoin: 'round',
+  };
+  if (isDashed && lineDashPattern) {
+    lineStyle.lineDasharray = [lineDashPattern[0], lineDashPattern[1]];
+  }
+
   return (
     <MapLibreRN.ShapeSource id={`src-poly-${cleanKey}`} shape={geojson}>
       <MapLibreRN.LineLayer
         id={`layer-poly-${cleanKey}`}
-        style={{
-          lineColor: strokeColor,
-          lineWidth: strokeWidth,
-          lineCap: 'round',
-          lineJoin: 'round',
-          lineDasharray:
-            lineDashPattern && lineDashPattern.length >= 2
-              ? [lineDashPattern[0], lineDashPattern[1]]
-              : undefined,
-        }}
+        style={lineStyle}
       />
     </MapLibreRN.ShapeSource>
   );
@@ -486,29 +485,32 @@ export default class PlatformMap extends React.Component<any, PlatformMapState> 
         if (lng > maxLng) maxLng = lng;
       }
 
-      const deltaLat = maxLat - minLat;
-      const deltaLng = maxLng - minLng;
-      const MARGIN = 0.005;
+      const midLat = (minLat + maxLat) / 2;
+      const midLng = (minLng + maxLng) / 2;
 
-      const neLat = deltaLat < 0.0001 ? maxLat + MARGIN : maxLat;
-      const swLat = deltaLat < 0.0001 ? minLat - MARGIN : minLat;
-      const neLng = deltaLng < 0.0001 ? maxLng + MARGIN : maxLng;
-      const swLng = deltaLng < 0.0001 ? minLng - MARGIN : minLng;
+      // Calcul direct et robuste du zoom sans dépendre de fitBounds natif
+      // (sur Android, fitBounds avec padding excessif déclenche IllegalArgumentException dans MapLibre)
+      const deltaLat = Math.max(maxLat - minLat, 0.001);
+      const deltaLng = Math.max(maxLng - minLng, 0.001);
 
-      const ne: [number, number] = [neLng, neLat];
-      const sw: [number, number] = [swLng, swLat];
+      // Facteur d'échelle adapté pour laisser de la place aux panneaux haut et bas
+      const spanLat = deltaLat * 2.4;
+      const spanLng = deltaLng * 1.8;
 
-      const top = Math.max(0, Number(options?.edgePadding?.top) || 50);
-      const right = Math.max(0, Number(options?.edgePadding?.right) || 50);
-      const bottom = Math.max(0, Number(options?.edgePadding?.bottom) || 50);
-      const left = Math.max(0, Number(options?.edgePadding?.left) || 50);
+      const zoomLat = Math.round(Math.log(360 / Math.max(spanLat, 0.005)) / Math.LN2);
+      const zoomLng = Math.round(Math.log(360 / Math.max(spanLng, 0.005)) / Math.LN2);
+      const zoomLevel = Math.max(10, Math.min(16, Math.min(zoomLat, zoomLng)));
 
-      this.cameraRef.current?.fitBounds(
-        ne,
-        sw,
-        [top, right, bottom, left],
-        duration
-      );
+      // Décaler légèrement le centre vers le bas pour que l'itinéraire soit visible au-dessus du panneau bas
+      const latOffset = spanLat * 0.1;
+      const visualCenterLat = midLat - latOffset;
+
+      this.cameraRef.current?.setCamera({
+        centerCoordinate: [midLng, visualCenterLat],
+        zoomLevel,
+        animationDuration: duration,
+        animationMode: 'easeTo',
+      });
     } catch (err) {
       console.warn('[MAP] Erreur fitToCoordinates:', err);
     }

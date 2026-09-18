@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Search, MapPin, Navigation, Car, AlertCircle, X, ChevronLeft, CheckCircle } from 'lucide-react';
+import { Search, MapPin, Navigation, Car, AlertCircle, X, ChevronLeft, CheckCircle, Plus, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { searchAddress, reverseGeocode, getShortName, NominatimResult } from '../utils/nominatim';
@@ -67,6 +67,115 @@ function MapController({
 }
 
 const DEFAULT_LOME = { lat: 6.1319, lng: 1.2228 };
+
+function MapFloatingControls({
+  origin,
+  location,
+}: {
+  origin: { lat: number; lng: number } | null;
+  location: { lat: number; lng: number } | null;
+}) {
+  const map = useMap();
+
+  const handleRecenter = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const target = origin || location || DEFAULT_LOME;
+    map.flyTo([target.lat, target.lng], 15);
+  };
+
+  const handleZoomIn = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    map.zoomIn();
+  };
+
+  const handleZoomOut = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    map.zoomOut();
+  };
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: 16,
+        bottom: 240,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <button
+        type="button"
+        onClick={handleRecenter}
+        title="Recentrer sur ma position"
+        aria-label="Recentrer"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: '#FFFFFF',
+          border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: '#1565D8',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        }}
+      >
+        <Navigation size={20} />
+      </button>
+
+      <button
+        type="button"
+        onClick={handleZoomIn}
+        title="Zoom avant"
+        aria-label="Zoom avant"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: '#FFFFFF',
+          border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: '#1E293B',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        }}
+      >
+        <Plus size={22} />
+      </button>
+
+      <button
+        type="button"
+        onClick={handleZoomOut}
+        title="Zoom arrière"
+        aria-label="Zoom arrière"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: '#FFFFFF',
+          border: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: '#1E293B',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        }}
+      >
+        <Minus size={22} />
+      </button>
+    </div>
+  );
+}
 
 export function MapZem() {
   const navigate = useNavigate();
@@ -531,6 +640,7 @@ export function MapZem() {
       >
         <ReliableTiles />
         <MapController destination={destination} origin={origin} onMapClick={handleMapClick} />
+        <MapFloatingControls origin={origin} location={location} />
 
         {/* Origin Marker */}
         {origin && (
