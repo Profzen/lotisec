@@ -10,6 +10,8 @@ type UserData = {
   phone: string;
   qr_token?: string;
   is_zem?: boolean;
+  roles?: string[];
+  role?: string;
 };
 
 const CONTACTS = [
@@ -32,18 +34,18 @@ export function Home() {
   const [scans, setScans] = useState<any[]>([]);
   const [scansLoaded, setScansLoaded] = useState(false);
 
+  const isZemDriver = Boolean(user?.is_zem || user?.roles?.includes('zem_driver') || user?.role === 'zem_driver');
+
   useEffect(() => {
     const refreshUser = async () => {
-      if (!user?.qr_token) {
-        try {
-          const { data } = await api.get('/auth/me', { headers: authHeaders() });
-          if (data?.user) {
-            setUser(data.user);
-            localStorage.setItem('lotisec_user', JSON.stringify(data.user));
-          }
-        } catch (e) {
-          console.warn('Erreur refresh user:', e);
+      try {
+        const { data } = await api.get('/auth/me', { headers: authHeaders() });
+        if (data?.user) {
+          setUser(data.user);
+          localStorage.setItem('lotisec_user', JSON.stringify(data.user));
         }
+      } catch (e) {
+        console.warn('Erreur refresh user:', e);
       }
     };
     refreshUser();
@@ -385,7 +387,7 @@ export function Home() {
               <ChevronRight size={20} color="#9ca3af" />
             </div>
             
-            {user?.is_zem && (
+            {isZemDriver && (
               <div className="action-item" onClick={() => navigate('/driver')} style={{ border: 'none', padding: '0.5rem', backgroundColor: 'rgba(0,200,83,0.05)' }}>
                 <div className="action-icon" style={{ backgroundColor: 'var(--color-success)' }}><CheckCircle2 size={24} /></div>
                 <div className="action-content">

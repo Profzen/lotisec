@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar,
@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { colors } from '../theme/colors';
 import { fontSizes, fonts } from '../theme/typography';
@@ -178,47 +179,55 @@ export default function HomeScreen({ navigation }: Props) {
     return () => clearInterval(interval);
   }, [sosActif, sosIncidentId]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const session = await hydrateSession(true);
-        if (!session) { setQrState('error'); return; }
-        
-        let token = session.user?.qr_token;
-        let currentUser = session.user;
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const loadData = async () => {
+        try {
+          const session = await hydrateSession(true);
+          if (!isMounted) return;
+          if (!session) { setQrState('error'); return; }
+          
+          let token = session.user?.qr_token;
+          let currentUser = session.user;
 
-        if (!token && session.token) {
-          try {
-            const me = await api('/auth/me', 'GET', undefined, session.token);
-            if (me?.user?.qr_token) {
-              token = me.user.qr_token;
-              currentUser = me.user;
+          if (session.token) {
+            try {
+              const me = await api('/auth/me', 'GET', undefined, session.token);
+              if (me?.user) {
+                currentUser = { ...currentUser, ...me.user };
+                if (me.user.qr_token) token = me.user.qr_token;
+              }
+            } catch (e) {
+              console.warn('Erreur auto-récupération /auth/me:', e);
             }
-          } catch (e) {
-            console.warn('Erreur auto-récupération /auth/me:', e);
           }
+
+          if (!isMounted) return;
+          setProfile(currentUser);
+          setQrToken(token || null);
+          setQrState(token ? 'ready' : 'missing');
+          void flushPendingIncidents(session.token);
+
+          const history = await api('/scans/me?page_size=10', 'GET', undefined, session.token).catch(() => ({ items: [] }));
+          if (isMounted) {
+            setScans((history.items || []).map((item: any) => ({
+              id: item.id,
+              date: new Date(item.created_at).toLocaleString(),
+              niveau: item.access_level || 'professionnel',
+              authority: item.authority,
+              lieu: item.latitude != null ? `${Number(item.latitude).toFixed(3)}, ${Number(item.longitude).toFixed(3)}` : undefined
+            })));
+          }
+        } catch (e) {
+          console.log('Erreur chargement données:', e);
+          if (isMounted) setQrState('error');
         }
-
-        setProfile(currentUser);
-        setQrToken(token || null);
-        setQrState(token ? 'ready' : 'missing');
-        void flushPendingIncidents(session.token);
-
-        const history = await api('/scans/me?page_size=10', 'GET', undefined, session.token).catch(() => ({ items: [] }));
-        setScans((history.items || []).map((item: any) => ({
-          id: item.id,
-          date: new Date(item.created_at).toLocaleString(),
-          niveau: item.access_level || 'professionnel',
-          authority: item.authority,
-          lieu: item.latitude != null ? `${Number(item.latitude).toFixed(3)}, ${Number(item.longitude).toFixed(3)}` : undefined
-        })));
-      } catch (e) {
-        console.log('Erreur chargement données:', e);
-        setQrState('error');
-      }
-    };
-    loadData();
-  }, []);
+      };
+      loadData();
+      return () => { isMounted = false; };
+    }, [])
+  );
 
   useEffect(() => {
     Animated.loop(
@@ -524,28 +533,33 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
-          <Text style={[styles.cardTitle, { color: th.text2 }]}>DÉPLACEMENT & ZEM</Text>
-          <TouchableOpacity style={[styles.alertRow, !profile?.is_zem && { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemPassenger' as any)}>
-            <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="motorcycle" size={19} color={colors.white}/></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.alertTitle, { color: th.text }]}>Commander un Zem</Text>
-              <Text style={[styles.alertSub, { color: th.text3 }]}>Trouvez un conducteur à proximité</Text>
-            </View>
-            <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
-          </TouchableOpacity>
+        {(() => {
+          const isZemDriver = Boolean(profile?.is_zem || profile?.roles?.includes('zem_driver') || profile?.role === 'zem_driver');
+          return (
+            <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
+              <Text style={[styles.cardTitle, { color: th.text2 }]}>DÉPLACEMENT & ZEM</Text>
+              <TouchableOpacity style={[styles.alertRow, !isZemDriver && { borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemPassenger' as any)}>
+                <View style={[styles.alertIcon, { backgroundColor: colors.primary }]}><FontAwesome name="motorcycle" size={19} color={colors.white}/></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.alertTitle, { color: th.text }]}>Commander un Zem</Text>
+                  <Text style={[styles.alertSub, { color: th.text3 }]}>Trouvez un conducteur à proximité</Text>
+                </View>
+                <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+              </TouchableOpacity>
 
-          {profile?.is_zem && (
-            <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)', borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
-              <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><FontAwesome name="road" size={19} color={colors.white}/></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: colors.success }]}>Mode Conducteur</Text>
-                <Text style={[styles.alertSub, { color: colors.success, opacity: 0.7 }]}>Recevoir des courses</Text>
-              </View>
-              <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+              {isZemDriver && (
+                <TouchableOpacity style={[styles.alertRow, { backgroundColor: 'rgba(0,200,83,0.05)', borderBottomWidth: 0 }]} onPress={() => navigation.navigate('ZemDriver' as any)}>
+                  <View style={[styles.alertIcon, { backgroundColor: colors.success }]}><FontAwesome name="road" size={19} color={colors.white}/></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.alertTitle, { color: colors.success }]}>Mode Conducteur</Text>
+                    <Text style={[styles.alertSub, { color: colors.success, opacity: 0.7 }]}>Recevoir des courses</Text>
+                  </View>
+                  <Text style={[styles.chevron, { color: th.text3 }]}>›</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })()}
 
         <View style={[styles.card, { backgroundColor: th.cardBg, borderColor: th.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: th.text2 }]}>CONTACTS D'URGENCE</Text>
@@ -608,7 +622,20 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* MODALS */}
       <Modal visible={panelVisible} animationType="slide">
-        <ProfilePanel isDark={isDark} onClose={() => setPanelVisible(false)} onToggleTheme={(val) => setIsDark(val)} onOpenProfile={()=>{setPanelVisible(false);navigation.navigate('CitizenProfile' as any);}} />
+        <ProfilePanel
+          isDark={isDark}
+          onClose={() => setPanelVisible(false)}
+          onToggleTheme={(val) => setIsDark(val)}
+          onOpenProfile={() => {
+            setPanelVisible(false);
+            navigation.navigate('CitizenProfile' as any);
+          }}
+          onLogout={() => {
+            setPanelVisible(false);
+            setProfile(null);
+            navigation.reset({ index: 0, routes: [{ name: 'Login' as any }] });
+          }}
+        />
       </Modal>
 
       <Modal visible={qrModalVisible} transparent animationType="fade">

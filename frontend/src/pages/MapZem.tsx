@@ -528,8 +528,8 @@ export function MapZem() {
 
       {/* Search Overlay */}
       {!activeRide && (
-        <div className="map-search-overlay" style={{ top: gpsError ? '120px' : '60px' }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div className="map-search-overlay" style={gpsError ? { top: '80px' } : undefined}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
             <button
               type="button"
               className={`route-point ${searchTarget === 'origin' ? 'active' : ''}`}
@@ -681,9 +681,11 @@ export function MapZem() {
       <div className="bottom-sheet">
         {!activeRide ? (
           <>
-            <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Navigation size={20} className="text-primary" />
-              {destinationName ? destinationName : 'Selectionnez votre destination'}
+            <h3 style={{ marginBottom: '0.45rem', fontSize: '0.98rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <Navigation size={18} className="text-primary" />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {destinationName ? destinationName : 'Selectionnez votre destination'}
+              </span>
             </h3>
 
             {routeData ? (
@@ -704,31 +706,31 @@ export function MapZem() {
                 </div>
               </div>
             ) : routeError ? (
-              <p className="text-secondary mb-3" style={{ fontSize: '0.85rem', color: 'var(--color-warning)' }}>
+              <p className="text-secondary" style={{ fontSize: '0.8rem', margin: '0.2rem 0 0.5rem', color: 'var(--color-warning)' }}>
                 {routeError}
               </p>
             ) : (
-              <p className="text-secondary mb-3" style={{ fontSize: '0.85rem' }}>
+              <p className="text-secondary" style={{ fontSize: '0.8rem', margin: '0.2rem 0 0.5rem' }}>
                 {!origin
-                  ? 'Veuillez d’abord designer votre lieu de depart sur la carte.'
-                  : 'Cliquez sur la carte ou recherchez une adresse pour calculer l’itineraire.'}
+                  ? 'Veuillez designer votre lieu de depart sur la carte.'
+                  : 'Cliquez sur la carte ou cherchez pour calculer l’itineraire.'}
               </p>
             )}
 
             <button
               className="btn primary"
-              style={{ width: '100%', padding: '15px' }}
+              style={{ width: '100%', padding: '11px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.95rem' }}
               onClick={requestRide}
               disabled={!origin || !destination || !routeData || loading}
             >
-              <Car size={20} />
+              <Car size={18} />
               {loading
                 ? 'Commande en cours...'
                 : !origin
                 ? 'Definir le depart d’abord'
                 : !destination
                 ? 'Definir la destination'
-                : 'Commander un Lotisec Zem'}
+                : `Commander un Lotisec Zem (${routeData ? Math.max(300, Math.round(routeData.distanceKm * 75)) : 300} FCFA)`}
             </button>
           </>
         ) : (

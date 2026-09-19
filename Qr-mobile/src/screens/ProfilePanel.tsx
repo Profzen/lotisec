@@ -16,6 +16,7 @@ interface ProfilePanelProps {
   onClose:         () => void;
   onToggleTheme:   (val: boolean) => void;
   onOpenProfile:   () => void;
+  onLogout?:       () => void;
 }
 
 type ActiveSection = null | 'password' | 'notifications';
@@ -25,6 +26,7 @@ export default function ProfilePanel({
   onClose,
   onToggleTheme,
   onOpenProfile,
+  onLogout,
 }: ProfilePanelProps) {
 
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
@@ -82,7 +84,11 @@ export default function ProfilePanel({
       'Vous devrez vous reconnecter pour accéder à votre profil.',
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Déconnecter', style: 'destructive', onPress: async () => {await clearSession();onClose();}},
+        { text: 'Déconnecter', style: 'destructive', onPress: async () => {
+          await clearSession();
+          onClose();
+          if (onLogout) onLogout();
+        }},
       ]
     );
   };

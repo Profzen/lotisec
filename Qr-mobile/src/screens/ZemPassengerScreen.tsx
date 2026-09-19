@@ -41,6 +41,8 @@ export default function ZemPassengerScreen({ navigation }: any) {
   const [originName, setOriginName] = useState<string>('');
   const [originSource, setOriginSource] = useState<OriginSource>(null);
   const [hasRealGps, setHasRealGps] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [searchTarget, setSearchTarget] = useState<'origin' | 'destination'>('destination');
 
   // Destination
   const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
@@ -107,7 +109,9 @@ export default function ZemPassengerScreen({ navigation }: any) {
       console.log('[ZEM PASSENGER] GPS acquired', loc.coords.latitude, loc.coords.longitude);
       if (isInsideTogo(loc.coords.latitude, loc.coords.longitude)) {
         setHasRealGps(true);
-        setOrigin({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        setGpsCoords(coords);
+        setOrigin(coords);
         setOriginSource('gps');
         setOriginName('Ma position actuelle');
 
@@ -225,10 +229,14 @@ export default function ZemPassengerScreen({ navigation }: any) {
         return;
       }
       setRouteError(true);
-      setRouteData(null);
+      setRouteData({
+        coordinates: [startCoords, endCoords],
+        distanceKm: fb.distanceKm,
+        durationMin: fb.durationMin,
+      });
 
       mapRef.current?.fitToCoordinates([startCoords, endCoords], {
-        edgePadding: { top: 70, right: 40, bottom: 220, left: 40 },
+        edgePadding: { top: 70, right: 30, bottom: 170, left: 30 },
         animated: true,
       });
     }
@@ -269,26 +277,48 @@ export default function ZemPassengerScreen({ navigation }: any) {
       return;
     }
 
-    setDestination({ lat, lng });
-    setOrderError(null);
+    const clicked = { lat, lng };
     const name = getShortName(result) || result.display_name;
-    setDestinationName(name);
-    setSearchQuery(name);
+    setOrderError(null);
     setShowResults(false);
     setSearchResults([]);
+    setSearchQuery('');
     Keyboard.dismiss();
 
-    if (origin) {
-      await calculateItinerary(origin, { lat, lng });
+    if (searchTarget === 'origin') {
+      setOrigin(clicked);
+      setOriginSource('manual');
+      setOriginName(name);
+      setSearchTarget('destination');
+
+      if (destination) {
+        await calculateItinerary(clicked, destination);
+      } else {
+        const nextRegion = {
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+        setCurrentRegion(nextRegion);
+        mapRef.current?.animateToRegion(nextRegion, 800);
+      }
     } else {
-      const nextRegion = {
-        latitude: lat,
-        longitude: lng,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      };
-      setCurrentRegion(nextRegion);
-      mapRef.current?.animateToRegion(nextRegion, 800);
+      setDestination(clicked);
+      setDestinationName(name);
+
+      if (origin) {
+        await calculateItinerary(origin, clicked);
+      } else {
+        const nextRegion = {
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        };
+        setCurrentRegion(nextRegion);
+        mapRef.current?.animateToRegion(nextRegion, 800);
+      }
     }
   };
 
@@ -317,25 +347,30 @@ export default function ZemPassengerScreen({ navigation }: any) {
       return;
     }
 
-    // Si aucun point de départ réel n'est défini, le premier clic définit le départ
-    if (!origin || !originSource) {
+    setOrderError(null);
+    setShowResults(false);
+    Keyboard.dismiss();
+
+    if (searchTarget === 'origin' || (!origin && !originSource)) {
       setOrigin(clicked);
       setOriginSource('manual');
       setOriginName('Point de départ sélectionné');
-      setOrderError(null);
+      setSearchTarget('destination');
 
       reverseGeocode(clicked.lat, clicked.lng)
         .then((rev) => {
           if (rev) setOriginName(getShortName(rev));
         })
         .catch(() => {});
+
+      if (destination) {
+        await calculateItinerary(clicked, destination);
+      }
       return;
     }
 
     // Sinon le clic définit la destination
     setDestination(clicked);
-    setOrderError(null);
-    setShowResults(false);
     setDestinationName('Destination sélectionnée');
 
     reverseGeocode(clicked.lat, clicked.lng)
@@ -343,18 +378,36 @@ export default function ZemPassengerScreen({ navigation }: any) {
         if (rev) {
           const name = getShortName(rev);
           setDestinationName(name);
-          setSearchQuery(name);
         } else {
           const name = `${clicked.lat.toFixed(4)}, ${clicked.lng.toFixed(4)}`;
           setDestinationName(name);
-          setSearchQuery(name);
         }
       })
       .catch(() => {
         setDestinationName(`${clicked.lat.toFixed(4)}, ${clicked.lng.toFixed(4)}`);
       });
 
-    await calculateItinerary(origin, clicked);
+    if (origin) {
+      await calculateItinerary(origin, clicked);
+    }
+  };
+
+  const handleUseGpsAsOrigin = () => {
+    if (gpsCoords) {
+      setOrigin(gpsCoords);
+      setOriginSource('gps');
+      setOriginName('Ma position (GPS)');
+      setSearchTarget('destination');
+      setShowResults(false);
+      setSearchQuery('');
+      if (destination) {
+        calculateItinerary(gpsCoords, destination);
+      } else {
+        handleRecenter();
+      }
+    } else {
+      acquireGps();
+    }
   };
 
   // ─── Abonnement Supabase temps réel spécifique à la course ─
@@ -451,6 +504,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
     : { distanceKm: 0, durationMin: 0 };
 
   const effectiveDistance = routeData?.distanceKm ?? fallbackGeodesic.distanceKm;
+  const effectiveDuration = routeData?.durationMin ?? fallbackGeodesic.durationMin;
   const effectivePrice = Math.max(300, Math.round(effectiveDistance * 75));
 
   // ─── Commander un Zem ─────────────────────────────────────
@@ -557,22 +611,97 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header compact & Sélecteur Départ / Arrivée (style dark navy) */}
       <SafeAreaView style={styles.headerSafe} edges={['top']}>
-        <View style={styles.header}>
-          <BackButton color={colors.text} />
-          <Text style={styles.headerTitle}>Commander un Zem</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Retour"
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Commander un Zem</Text>
         </View>
 
-        {/* Barre de recherche (si aucune course active) */}
         {!activeRide && (
-          <View style={styles.searchContainer}>
+          <View style={styles.topControlCard}>
+            {/* Onglets Départ / Destination */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity
+                style={[
+                  styles.tabItem,
+                  searchTarget === 'origin' && styles.tabItemActiveOrigin,
+                ]}
+                onPress={() => {
+                  setSearchTarget('origin');
+                  setSearchQuery('');
+                  setShowResults(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="location" size={15} color="#10B981" />
+                <View style={styles.tabTextCol}>
+                  <Text style={styles.tabLabel}>DÉPART</Text>
+                  <Text style={styles.tabValue} numberOfLines={1}>
+                    {origin ? originName || 'Point défini' : 'Choisir départ'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.tabDivider} />
+
+              <TouchableOpacity
+                style={[
+                  styles.tabItem,
+                  searchTarget === 'destination' && styles.tabItemActiveDest,
+                ]}
+                onPress={() => {
+                  setSearchTarget('destination');
+                  setSearchQuery('');
+                  setShowResults(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="location" size={15} color="#EF4444" />
+                <View style={styles.tabTextCol}>
+                  <Text style={styles.tabLabel}>DESTINATION</Text>
+                  <Text style={styles.tabValue} numberOfLines={1}>
+                    {destination ? destinationName || 'Destination définie' : 'Choisir arrivée'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Bouton rapide GPS si onglet Départ actif */}
+            {searchTarget === 'origin' && hasRealGps && (
+              <TouchableOpacity
+                style={styles.gpsQuickBtn}
+                onPress={handleUseGpsAsOrigin}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="navigate" size={13} color="#71D4F5" />
+                <Text style={styles.gpsQuickText}>Utiliser ma position GPS actuelle</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Barre de recherche compacte */}
             <View style={styles.searchBar}>
-              <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+              <Ionicons
+                name="search"
+                size={15}
+                color={searchTarget === 'origin' ? '#10B981' : '#EF4444'}
+                style={{ marginLeft: 6 }}
+              />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Rechercher une destination..."
-                placeholderTextColor={colors.textLight}
+                placeholder={
+                  searchTarget === 'origin'
+                    ? 'Rechercher le lieu de départ...'
+                    : 'Rechercher votre destination...'
+                }
+                placeholderTextColor="rgba(255,255,255,0.4)"
                 value={searchQuery}
                 onChangeText={handleSearchChange}
                 onFocus={() => setShowResults(true)}
@@ -585,14 +714,15 @@ export default function ZemPassengerScreen({ navigation }: any) {
                     setSearchResults([]);
                     setShowResults(false);
                   }}
+                  style={styles.clearBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.searchClear}>x</Text>
+                  <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.5)" />
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* Résultats Nominatim */}
+            {/* Résultats auto-complétion Nominatim */}
             {showResults && searchResults.length > 0 && (
               <View style={styles.resultsContainer}>
                 <FlatList
@@ -604,7 +734,12 @@ export default function ZemPassengerScreen({ navigation }: any) {
                       style={styles.resultItem}
                       onPress={() => selectSearchResult(item)}
                     >
-                      <Ionicons name="location-outline" size={20} color={colors.primary} style={styles.resultIcon} />
+                      <Ionicons
+                        name="location-outline"
+                        size={17}
+                        color={searchTarget === 'origin' ? '#10B981' : '#EF4444'}
+                        style={styles.resultIcon}
+                      />
                       <View style={styles.resultText}>
                         <Text style={styles.resultName} numberOfLines={1}>
                           {getShortName(item)}
@@ -621,20 +756,10 @@ export default function ZemPassengerScreen({ navigation }: any) {
 
             {isSearching && (
               <View style={styles.searchingIndicator}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color="#71D4F5" />
                 <Text style={styles.searchingText}>Recherche d’adresses...</Text>
               </View>
             )}
-          </View>
-        )}
-
-        {/* Alerte position GPS manquante */}
-        {!origin && (
-          <View style={styles.noGpsBanner}>
-            <Ionicons name="warning-outline" size={18} color={colors.warning} />
-            <Text style={styles.noGpsText}>
-              Point de départ non défini. Touchez la carte pour le placer.
-            </Text>
           </View>
         )}
       </SafeAreaView>
@@ -663,7 +788,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
             coordinate={{ latitude: origin.lat, longitude: origin.lng }}
             title={originName || 'Départ'}
             description={originSource === 'gps' ? 'Ma position GPS' : 'Point de départ sélectionné'}
-            pinColor="#1565D8"
+            pinColor="#10B981"
           />
         )}
 
@@ -672,19 +797,19 @@ export default function ZemPassengerScreen({ navigation }: any) {
             id="zem-destination"
             coordinate={{ latitude: destination.lat, longitude: destination.lng }}
             title={destinationName || 'Destination'}
-            pinColor="#D32F2F"
+            pinColor="#EF4444"
           />
         )}
 
         {/* Tracé routier OSRM ou ligne indicative si hors ligne */}
         {origin && destination && (
           <Polyline
-            id="zem-route"
+            id={`zem-route_${routeData ? 'solid' : 'dash'}`}
             coordinates={routeData ? routeData.coordinates : [
               { latitude: origin.lat, longitude: origin.lng },
               { latitude: destination.lat, longitude: destination.lng }
             ]}
-            strokeColor={routeData ? colors.primary : colors.textLight}
+            strokeColor={colors.primary}
             strokeWidth={4}
             lineDashPattern={routeData ? undefined : [6, 6]}
           />
@@ -709,7 +834,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
           activeOpacity={0.8}
           accessibilityLabel="Recentrer"
         >
-          <Ionicons name="locate" size={22} color={colors.primary} />
+          <Ionicons name="locate" size={18} color="#71D4F5" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.mapControlButton}
@@ -717,7 +842,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
           activeOpacity={0.8}
           accessibilityLabel="Zoomer"
         >
-          <Ionicons name="add" size={24} color={colors.text} />
+          <Ionicons name="add" size={20} color={colors.white} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.mapControlButton}
@@ -725,55 +850,56 @@ export default function ZemPassengerScreen({ navigation }: any) {
           activeOpacity={0.8}
           accessibilityLabel="Dézoomer"
         >
-          <Ionicons name="remove" size={24} color={colors.text} />
+          <Ionicons name="remove" size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
 
-      {/* Panneau inférieur */}
+      {/* Panneau inférieur compact & profilé (Dark Navy) */}
       <View style={styles.bottomPanel}>
         {!activeRide ? (
           <>
-            <View style={styles.tripSummary}>
-              <View style={styles.pointRow}>
-                <Ionicons name="radio-button-on" size={16} color={colors.primary} />
-                <Text style={styles.pointText} numberOfLines={1}>
-                  {origin ? originName || 'Point de départ défini' : 'Départ non défini (touchez la carte)'}
-                </Text>
-              </View>
-              <View style={styles.pointRow}>
-                <Ionicons name="location" size={16} color={colors.danger} />
-                <Text style={styles.pointText} numberOfLines={1}>
-                  {destination ? destinationName || 'Destination sélectionnée' : 'Destination non choisie'}
-                </Text>
-              </View>
+            <View style={styles.destHeaderRow}>
+              <Ionicons name="navigate" size={15} color="#1565D8" />
+              <Text style={styles.destHeaderTitle} numberOfLines={1}>
+                {destination ? destinationName : 'Sélectionnez votre destination'}
+              </Text>
             </View>
+
+            {origin && destination && (
+              <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Distance</Text>
+                  <Text style={styles.statValue}>
+                    {Math.round(effectiveDistance * 10) / 10} km
+                  </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Temps</Text>
+                  <Text style={styles.statValue}>
+                    {effectiveDuration} min
+                  </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCard}>
+                  <Text style={styles.statLabel}>Prix Estimé</Text>
+                  <Text style={[styles.statValue, styles.priceValue]}>
+                    {effectivePrice} FCFA
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {routeError && origin && destination && (
               <Text style={styles.routeWarning}>
-                Itinéraire routier temporairement indisponible. Distance approximative affichée.
+                Itinéraire routier direct approximatif affiché.
               </Text>
             )}
 
             {orderError && (
               <View style={styles.orderErrorBanner}>
-                <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+                <Ionicons name="alert-circle-outline" size={14} color={colors.danger} />
                 <Text style={styles.orderErrorText}>{orderError}</Text>
-              </View>
-            )}
-
-            {origin && destination && (
-              <View style={styles.estimateBox}>
-                <View style={styles.estimateItem}>
-                  <Text style={styles.estimateLabel}>Distance</Text>
-                  <Text style={styles.estimateValue}>
-                    {Math.round(effectiveDistance * 10) / 10} km
-                  </Text>
-                </View>
-                <View style={styles.estimateDivider} />
-                <View style={styles.estimateItem}>
-                  <Text style={styles.estimateLabel}>Tarif garanti</Text>
-                  <Text style={styles.priceText}>{effectivePrice} FCFA</Text>
-                </View>
               </View>
             )}
 
@@ -783,8 +909,8 @@ export default function ZemPassengerScreen({ navigation }: any) {
                 {
                   backgroundColor:
                     origin && destination && !requestingRide
-                      ? colors.primary
-                      : colors.border,
+                      ? '#1565D8'
+                      : 'rgba(255,255,255,0.15)',
                 },
               ]}
               onPress={requestZem}
@@ -794,16 +920,19 @@ export default function ZemPassengerScreen({ navigation }: any) {
               {requestingRide ? (
                 <View style={styles.btnRow}>
                   <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.btnText, { marginLeft: 10 }]}>Recherche d’un conducteur...</Text>
+                  <Text style={[styles.btnText, { marginLeft: 8 }]}>Recherche d’un conducteur...</Text>
                 </View>
               ) : (
-                <Text style={styles.btnText}>
-                  {!origin
-                    ? 'Définir un départ'
-                    : !destination
-                    ? 'Choisir une destination'
-                    : `Commander le Zem (${effectivePrice} FCFA)`}
-                </Text>
+                <View style={styles.btnRow}>
+                  <Ionicons name="car" size={17} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.btnText}>
+                    {!origin
+                      ? 'Définir un départ'
+                      : !destination
+                      ? 'Choisir une destination'
+                      : `Commander un Lotisec Zem (${effectivePrice} FCFA)`}
+                  </Text>
+                </View>
               )}
             </TouchableOpacity>
           </>
@@ -844,7 +973,7 @@ export default function ZemPassengerScreen({ navigation }: any) {
                 style={styles.detailLink}
                 onPress={() => navigation.navigate('RideDetail', { rideId: activeRide.id })}
               >
-                <Ionicons name="chatbubbles-outline" size={20} color={colors.primary} />
+                <Ionicons name="chatbubbles-outline" size={18} color="#71D4F5" />
                 <Text style={styles.detailLinkText}>Suivi & Chat</Text>
               </TouchableOpacity>
             </View>
@@ -923,163 +1052,299 @@ export default function ZemPassengerScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: '#061322' },
   headerSafe: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: 'transparent',
   },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10 },
-  headerTitle: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.text, marginLeft: 15 },
-  map: { width: '100%', height: '100%', flex: 1 },
-
-  searchContainer: { paddingHorizontal: 15, paddingBottom: 10 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: Platform.OS === 'android' ? 8 : 4,
+    paddingBottom: 4,
+  },
+  backBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#07182C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontFamily: fonts.bold,
+    color: colors.white,
+    marginLeft: 10,
+  },
+  topControlCard: {
+    marginHorizontal: 10,
+    marginTop: 2,
+    backgroundColor: '#0A192F',
+    borderRadius: 14,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F263E',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    gap: 6,
+    borderRadius: 10,
+  },
+  tabItemActiveOrigin: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  tabItemActiveDest: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  tabTextCol: {
+    flex: 1,
+  },
+  tabLabel: {
+    fontSize: 8,
+    fontFamily: fonts.bold,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tabValue: {
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+    color: colors.white,
+  },
+  tabDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  gpsQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(21, 101, 216, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 101, 216, 0.4)',
+    borderRadius: 7,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    marginTop: 5,
+  },
+  gpsQuickText: {
+    fontSize: 10,
+    fontFamily: fonts.semiBold,
+    color: '#71D4F5',
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
+    backgroundColor: '#071322',
+    borderRadius: 9,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 4,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginTop: 5,
+    paddingHorizontal: 6,
+    height: 34,
   },
-  searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
-    fontSize: fontSizes.sm,
+    fontSize: 11.5,
     fontFamily: fonts.regular,
-    color: colors.text,
+    color: colors.white,
     paddingVertical: 0,
+    paddingHorizontal: 4,
   },
-  searchClear: { fontSize: 20, color: colors.textLight, paddingHorizontal: 6, fontWeight: 'bold' },
-
+  clearBtn: {
+    padding: 3,
+  },
   resultsContainer: {
-    maxHeight: 180,
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    marginTop: 6,
+    maxHeight: 160,
+    backgroundColor: '#0A192F',
+    borderRadius: 10,
+    marginTop: 5,
     borderWidth: 1,
-    borderColor: colors.border,
-    elevation: 4,
+    borderColor: 'rgba(255,255,255,0.12)',
+    elevation: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.25,
     shadowRadius: 6,
   },
-  resultItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  resultIcon: { marginRight: 10 },
-  resultText: { flex: 1 },
-  resultName: { fontSize: fontSizes.sm, fontFamily: fonts.bold, color: colors.text },
-  resultAddress: { fontSize: fontSizes.xs, fontFamily: fonts.regular, color: colors.textSecondary, marginTop: 2 },
-  searchingIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
-  searchingText: { fontSize: fontSizes.xs, color: colors.textSecondary, marginLeft: 8 },
-
-  noGpsBanner: {
+  resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 15,
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#FDE68A',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  noGpsText: { fontSize: fontSizes.xs, color: '#92400E', marginLeft: 8, flex: 1 },
+  resultIcon: { marginRight: 8 },
+  resultText: { flex: 1 },
+  resultName: { fontSize: 11.5, fontFamily: fonts.bold, color: colors.white },
+  resultAddress: { fontSize: 9.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
+  searchingIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
+  searchingText: { fontSize: 10, color: 'rgba(255,255,255,0.6)', marginLeft: 6 },
+
+  map: { width: '100%', height: '100%', flex: 1 },
+  mapControls: {
+    position: 'absolute',
+    right: 12,
+    bottom: 155,
+    gap: 8,
+    zIndex: 9,
+  },
+  mapControlButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#0A192F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
 
   bottomPanel: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 18,
-    elevation: 8,
+    backgroundColor: '#0A192F',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 10,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.4,
     shadowRadius: 10,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  tripSummary: { marginBottom: 12 },
-  pointRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  pointText: { fontSize: fontSizes.sm, color: colors.text, fontWeight: '600', flex: 1 },
-  routeWarning: { fontSize: fontSizes.xs, color: colors.warning, marginBottom: 8, fontStyle: 'italic' },
-
-  estimateBox: {
+  destHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
+    gap: 6,
+    marginBottom: 5,
   },
-  estimateItem: { alignItems: 'center' },
-  estimateLabel: { fontSize: fontSizes.xs, color: colors.textSecondary, marginBottom: 2 },
-  estimateValue: { fontSize: fontSizes.md, fontFamily: fonts.bold, color: colors.text },
-  estimateDivider: { width: 1, height: 28, backgroundColor: colors.border },
-  priceText: { fontSize: fontSizes.lg, fontFamily: fonts.bold, color: colors.primary },
-
-  btn: {
-    height: 52,
-    borderRadius: 14,
+  destHeaderTitle: {
+    flex: 1,
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+    color: colors.white,
+  },
+  statsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    backgroundColor: '#0F263E',
+    borderRadius: 9,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    marginBottom: 6,
   },
-  btnRow: { flexDirection: 'row', alignItems: 'center' },
-  btnText: { color: colors.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
-
-  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  centerText: { marginTop: 12, fontSize: fontSizes.sm, color: colors.textSecondary },
-
-  activeRideBox: { gap: 8 },
-  rideHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  rideTitle: { fontSize: fontSizes.md, fontFamily: fonts.bold, color: colors.text },
-  ridePrice: { fontSize: fontSizes.sm, color: colors.primary, fontWeight: '700', marginTop: 2 },
-  detailLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: colors.surface, borderRadius: 8 },
-  detailLinkText: { fontSize: fontSizes.xs, color: colors.primary, fontWeight: '700' },
-  statusInfo: { fontSize: fontSizes.sm, color: colors.textSecondary, marginBottom: 10, lineHeight: 20 },
-  mapControls: {
-    position: 'absolute',
-    right: 16,
-    bottom: 240,
-    gap: 10,
-    zIndex: 9,
-  },
-  mapControlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.white,
+  statCard: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
   },
+  statLabel: {
+    fontSize: 8.5,
+    fontFamily: fonts.regular,
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+    color: colors.white,
+    marginTop: 1,
+  },
+  priceValue: {
+    color: '#10B981',
+  },
+  statDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  routeWarning: { fontSize: 10, color: colors.warning, marginBottom: 4, fontStyle: 'italic' },
   orderErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FDECEA',
-    borderRadius: 8,
+    backgroundColor: '#2A1115',
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: colors.danger,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 10,
-    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 6,
+    gap: 6,
   },
   orderErrorText: {
     flex: 1,
-    fontSize: fontSizes.xs,
+    fontSize: 10.5,
     fontFamily: fonts.regular,
-    color: colors.danger,
+    color: '#FF8A80',
   },
+  btn: {
+    height: 42,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnText: {
+    color: colors.white,
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+  },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  centerText: { marginTop: 12, fontSize: fontSizes.sm, color: colors.textSecondary },
+
+  activeRideBox: { gap: 6 },
+  rideHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 },
+  rideTitle: { fontSize: 13, fontFamily: fonts.bold, color: colors.white },
+  ridePrice: { fontSize: 12, color: '#10B981', fontWeight: '700', marginTop: 1 },
+  detailLink: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 3, paddingHorizontal: 6, backgroundColor: '#0F263E', borderRadius: 6 },
+  detailLinkText: { fontSize: 10.5, color: '#71D4F5', fontWeight: '700' },
+  statusInfo: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 6, lineHeight: 16 },
 });

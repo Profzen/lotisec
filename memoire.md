@@ -2473,5 +2473,83 @@ Pour garantir une expérience utilisateur fluide et homogène sur PC, tablette e
 - `82c5b48` : Suppression du filigrane CARTO, nettoyage des logs et stabilisation de l'amorçage.
 - `a2d8702` : Résolution définitive du crash Android (`setCamera`), sécurisation des identifiants GPU, gestion d'erreur 404 défensive et ajout des contrôles flottants de zoom sur le web.
 
+---
+
+## Parité Complète Mobile / Web Zem, Ergonomie Cartographique & Accès Conducteur (2026-09-18)
+
+### 1. Contexte et Objectifs Opérationnels
+À la suite du retour utilisateur et de l'analyse des captures d'écran de l'interface de commande de course Zémidjan :
+1. **Parité Mobile / Web** : L'application mobile ne permettait de choisir que la destination, le point de départ restant verrouillé sur le GPS de l'appareil. Le web offrait un double sélecteur Départ / Destination avec recherche textuelle.
+2. **Calcul Dynamique du Tarif** : Le tarif semblait bloqué à 300 FCFA sur mobile car les trajets courts de test (< 4 km) tombaient toujours sous le tarif forfaitaire minimum (`Math.max(300, Math.round(distanceKm * 75))`). La possibilité de choisir librement le point de départ et la destination réactive immédiatement le calcul dynamique (ex: 5.9 km -> 444 FCFA).
+3. **Ergonomie Cartographique & Dégagement Visuel** : Les panneaux supérieur et inférieur occupaient trop de hauteur d'écran, réduisant la surface visible de la carte. Il était demandé de compacter les éléments pour offrir plus de 75% d'espace à la carte tout en conservant **100% des informations et fonctionnalités** (noms des lieux, 3 cartes statistiques Distance / Durée / Prix en vert `#10B981`, bouton de commande, contrôles flottants).
+4. **Visibilité du Bouton Conducteur ("Mode Conducteur")** : Lors de la connexion avec un compte Zémidjan, le bouton d'accès au cockpit conducteur n'apparaissait pas de manière fiable à cause d'un décalage de synchronisation du profil et de variations dans les champs de rôle (`is_zem`, `roles`, `role`).
+
+---
+
+### 2. Évolutions Apportées
+
+#### A. Application Mobile Citoyenne (`Qr-mobile/src/screens/ZemPassengerScreen.tsx`)
+- **Double Onglet Départ & Destination** :
+  - Onglet **"DÉPART"** surligné en vert émeraude (`#10B981`) avec badge "A".
+  - Onglet **"DESTINATION"** surligné en rouge rubis (`#EF4444`) avec badge "B".
+  - Bouton d'action rapide sous l'onglet Départ : *"Utiliser ma position GPS actuelle"*.
+  - Recherche autocomplétée Nominatim ciblant dynamiquement l'onglet actif.
+  - Clic / Tap direct sur la carte assignant le point à l'onglet actif, avec transition automatique vers l'onglet Destination dès que le Départ est sélectionné.
+- **Marqueurs Cartographiques Différenciés** :
+  - Marqueur Départ : Icône cerclée verte `#10B981` (ID `zem-origin`).
+  - Marqueur Destination : Icône cerclée rouge `#EF4444` (ID `zem-destination`).
+- **Panneaux Compacts & Surface Carte Maximisée (>75%)** :
+  - Barre de recherche réduite à une hauteur de 34px avec bordures adoucies.
+  - Bottom sheet compact (padding vertical 12px) avec présentation horizontale des 3 cartes d'estimation (Distance, Temps, Prix Estimé en vert).
+  - Bouton de commande Lotisec Zem compact et stylisé (hauteur 42px).
+  - Contrôles flottants de carte (+, -, recentrer) repositionnés à `bottom: 155px` pour éviter tout chevauchement.
+
+#### B. Portail Web Citoyen (`frontend/src/pages/MapZem.tsx` & `frontend/src/styles.css`)
+- **Allègement de l'Overlay Supérieur** :
+  - `.map-search-overlay` repositionné à `top: 0.75rem`, `left: 3.8rem`, `right: 0.75rem` pour ne pas masquer la carte ni empiéter sur le bouton retour.
+  - Champ de saisie réduit à `padding: 0.5rem 0.75rem`, police `0.85rem`.
+- **Allègement du Panneau Inférieur (`.bottom-sheet`)** :
+  - Réduction des paddings et marges (`0.85rem` au lieu de `1.5rem`).
+  - Boîte d'estimation compacte avec 3 statistiques alignées horizontalement.
+  - Bouton d'action principale aminci avec un toucher moderne et réactif.
+
+#### C. Persistance du Rôle et Accès Conducteur (`HomeScreen.tsx` & `Home.tsx`)
+- **Synchronisation au Focus (`useFocusEffect`)** :
+  - Sur mobile, `HomeScreen.tsx` interroge désormais `/auth/me` à chaque fois que l'écran reprend le focus, garantissant que le profil est immédiatement à jour après une connexion.
+  - Sur le Web (`Home.tsx`), vérification multi-champs :
+    ```typescript
+    const isZemDriver = Boolean(
+      user?.is_zem ||
+      (Array.isArray(user?.roles) && user.roles.includes('zem_driver')) ||
+      user?.role === 'zem_driver'
+    );
+    ```
+  - Bouton vert émeraude "Mode Conducteur" (icône moto) garanti visible pour tout compte Zémidjan connecté.
+  - Gestion propre de la déconnexion (`onLogout`) dans `ProfilePanel.tsx` réinitialisant instantanément l'état local.
+
+---
+
+### 3. Comptes de Recette Persistants (PostgreSQL)
+
+Les comptes suivants sont enregistrés en base de données de production et immédiatement utilisables pour les tests de recette :
+
+| Type de Compte | Nom / Prénom | Téléphone | Mot de Passe | Rôles / Flags |
+| :--- | :--- | :--- | :--- | :--- |
+| **Conducteur Zem 1** | Kossi Zem | `+22800001002` | `Ls!Pass2026!` | `is_zem: true`, `roles: ["zem_driver"]` |
+| **Conducteur Zem 2** | Kodjo Zem | `+22800002002` | `Ls!Pass2026!` | `is_zem: true`, `roles: ["zem_driver"]` |
+| **Passager Citoyen 1**| Afi Citoyenne | `+22800001001` | `Ls!Pass2026!` | `citizen` |
+| **Passager Citoyen 2**| Komi Citoyen | `+22800002001` | `Ls!Pass2026!` | `citizen` |
+
+---
+
+### 4. Matrice de Validation Technique
+
+| Composant | Commande Exécutée | Résultat | Statut |
+| :--- | :--- | :--- | :--- |
+| **Backend Express** | `npm test` (`test/*.test.js`) | **34/34 tests passés** (dont cycle E2E Zem en 28 étapes) | **SUCCÈS** |
+| **Frontend Web** | `npm run build` (`tsc -b && vite build`) | PWA et bundle production générés | **SUCCÈS** |
+| **Application Mobile**| `npx tsc --noEmit` | **0 erreur de typage** TypeScript | **SUCCÈS** |
+
+
 
 
